@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/query-response.schema.json",
+  "title": "HKS CLI Response (Phase 1)",
+  "description": "CLI `ks query` / `ks ingest` / `ks lint` 對外 stdout 之 JSON 輸出契約。依憲法 §II（Stable Output Contract）規範。Phase 1 禁止 `graph` 出現於 source 與 trace.route。",
+  "type": "object",
+  "required": ["answer", "source", "confidence", "trace"],
+  "additionalProperties": false,
+  "properties": {
+    "answer": {
+      "type": "string",
+      "description": "使用者可讀的答案或錯誤說明；無命中時填友善說明（不得為空字串）。",
+      "minLength": 1
+    },
+    "source": {
+      "type": "array",
+      "description": "實際取用之知識層；[] 代表無命中。Phase 1 僅允許 wiki / vector。",
+      "items": {
+        "type": "string",
+        "enum": ["wiki", "vector"]
+      },
+      "uniqueItems": true
+    },
+    "confidence": {
+      "type": "number",
+      "description": "wiki 命中 = 1.0；vector = top-1 cosine similarity；merge = max。",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "trace": {
+      "type": "object",
+      "description": "路由與執行過程的可追溯紀錄。",
+      "required": ["route", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "route": {
+          "type": "string",
+          "description": "最終採用的主要路徑。Phase 1 限 wiki / vector。",
+          "enum": ["wiki", "vector"]
+        },
+        "steps": {
+          "type": "array",
+          "description": "依序紀錄 routing 判定、fallback 切換、merge、writeback 等事件。",
+          "items": { "$ref": "#/$defs/traceStep" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "traceStep": {
+      "type": "object",
+      "required": ["kind", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "rule_match",
+            "wiki_lookup",
+            "vector_lookup",
+            "fallback",
+            "merge",
+            "writeback",
+            "error",
+            "ingest_summary"
+          ]
+        },
+        "detail": {
+          "type": "object",
+          "description": "kind 特定資料；必為可 JSON 序列化之 object。",
+          "additionalProperties": true
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "answer": "專案 A 目前主要風險為供應商交期延遲。",
+      "source": ["wiki"],
+      "confidence": 1.0,
+      "trace": {
+        "route": "wiki",
+        "steps": [
+          { "kind": "rule_match", "detail": { "rule_id": "summary", "keyword": "風險", "lang": "zh" } },
+          { "kind": "wiki_lookup", "detail": { "slug": "project-a", "hit": true } }
+        ]
+      }
+    },
+    {
+      "answer": "A 專案延遲會影響結帳模組與通知模組。深度關係推理將於 Phase 2 支援。",
+      "source": ["vector"],
+      "confidence": 0.83,
+      "trace": {
+        "route": "vector",
+        "steps": [
+          { "kind": "rule_match", "detail": { "rule_id": "relation", "keyword": "影響", "lang": "zh" } },
+          { "kind": "fallback", "detail": { "from": "rule_target", "to": "vector", "reason": "phase1-deferred-deep-reasoning" } },
+          { "kind": "vector_lookup", "detail": { "top_k": 5, "top_similarity": 0.83 } }
+        ]
+      }
+    },
+    {
+      "answer": "未能於現有知識中找到答案",
+      "source": [],
+      "confidence": 0.0,
+      "trace": {
+        "route": "vector",
+        "steps": [
+          { "kind": "wiki_lookup", "detail": { "hit": false } },
+          { "kind": "fallback", "detail": { "from": "wiki", "to": "vector" } },
+          { "kind": "vector_lookup", "detail": { "top_k": 5, "top_similarity": 0.12, "threshold": 0.5 } }
+        ]
+      }
+    },
+    {
+      "answer": "lint 尚未實作，預計於 Phase 3 提供",
+      "source": [],
+      "confidence": 0.0,
+      "trace": {
+        "route": "wiki",
+        "steps": []
+      }
+    }
+  ]
+}

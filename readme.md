@@ -4,6 +4,14 @@
 
 一個 CLI-first、domain-agnostic 的知識系統，整合 **LLM Wiki（整理）+ Knowledge Graph（推理）+ Vector（搜尋）**，可被多種 agent（OpenClaw / Codex / Claude Code / Qwen Code）透過 CLI 使用。
 
+## 專案狀態
+
+目前 repo 仍以 **spec / plan / tasks** 為主，`ks` CLI 尚未提交可執行實作。要看 Phase 1 的實作目標與驗收標準，從 `specs/001-phase1-cli-mvp/` 進：
+
+* `spec.md`
+* `plan.md`
+* `quickstart.md`
+
 ---
 
 ## 為什麼要做
@@ -39,7 +47,7 @@ Core
 
 ---
 
-## 安裝（本地）
+## 安裝（實作落地後）
 
 ```bash
 git clone <repo>
@@ -51,6 +59,8 @@ uv run ks --help
 ---
 
 ## CLI 使用
+
+以下是 **目標介面**，不是目前 repo 已可直接執行的狀態。
 
 ### Ingest
 
@@ -77,7 +87,7 @@ ks lint   # Phase 1 為 stub，尚未實作
 ```json
 {
   "answer": "...",
-  "source": ["wiki","graph"],
+  "source": ["wiki","vector"],
   "confidence": 0.87,
   "trace": {
     "route": "wiki",
@@ -112,7 +122,7 @@ ks lint   # Phase 1 為 stub，尚未實作
     index.md
     log.md
   /graph
-    graph.json
+    graph.json   # Phase 2 才建立；Phase 1 禁止寫入
   /vector
     db/
 ```

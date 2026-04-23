@@ -42,5 +42,10 @@ Thumbs.db
 .env.local
 *.key
 
-# Claude Code local-only settings
-.claude/settings.local.json
+# Agent / spec tooling
+.specify/
+.claude/
+CLAUDE.md
+AGENTS.md
+.agents/
+.codex/
