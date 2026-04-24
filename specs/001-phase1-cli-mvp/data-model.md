@@ -231,7 +231,8 @@ class VectorChunk:
 **chromadb collection 設定**:
 - Collection 名: `hks_phase1`
 - Distance: `cosine`（用於 `confidence`）
-- Embedding function: `SentenceTransformerEmbeddingFunction(model_name=<HKS_EMBEDDING_MODEL>)`
+- Embedding backend: `TextModelBackend(model_name=<HKS_EMBEDDING_MODEL>)`
+- `VectorStore.add_chunks()` 先產生 embeddings，再以 `chromadb.PersistentClient(...).get_or_create_collection(...).upsert(..., embeddings=...)` 寫入
 
 **Chunking 規則**:
 - `chunk_size = 512 tokens`、`overlap = 64 tokens`；以 MiniLM `AutoTokenizer` 計算。

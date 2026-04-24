@@ -2,7 +2,7 @@
 
 **Feature Branch**: `001-phase1-cli-mvp`
 **Created**: 2026-04-23
-**Status**: Draft
+**Status**: Complete
 **Input**: 實作 `ks` CLI 的三個指令（ingest / query / lint-stub），以及支撐它們的 ingestion pipeline、兩層儲存（wiki / vector）、rule-based routing 與半自動 write-back，完整覆蓋 [readme.md](../../readme.md)、[docs/main.md](../../docs/main.md) §3–§8 與 [docs/PRD.md](../../docs/PRD.md) §4 / §9 / §10 的 Phase 1 清單。對應憲法 [§I–§V](../../.specify/memory/constitution.md)。
 
 ## User Scenarios & Testing *(mandatory)*

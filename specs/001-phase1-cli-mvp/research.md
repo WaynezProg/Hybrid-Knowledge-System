@@ -73,7 +73,7 @@
 
 ## 5. Embedding 模型
 
-**Decision**: `sentence-transformers` + `paraphrase-multilingual-MiniLM-L12-v2`。
+**Decision**: `sentence-transformers` + `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`。
 
 **Rationale**:
 - 支援 zh-TW + 英語（與 routing_rules.yaml 雙語策略一致）。
@@ -94,7 +94,7 @@
 
 **Rationale**:
 - 純 Python 檔案儲存，落地於 `/ks/vector/db/`，符合 [docs/main.md §8](../../docs/main.md) 資料結構。
-- 原生支援 `sentence-transformers` 整合（`embedding_function=SentenceTransformerEmbeddingFunction(...)`）；不需自寫 embedding 橋接。
+- 實作上以 `chromadb.PersistentClient` 搭配自管 embedding：`VectorStore` 先經 `TextModelBackend(HKS_EMBEDDING_MODEL)` 產生向量，再以 `collection.upsert(..., embeddings=...)` 寫入。這讓 runtime 可在真實 `sentence-transformers` 與 `HKS_EMBEDDING_MODEL=simple` deterministic fallback 間切換，不把模型載入策略綁死在 Chroma adapter。
 - Collection 層級可做 metadata filter（為將來 `source_path` filter 預留）。
 - **Vector-only**：不提供 graph / relation 能力，符合憲法 §I 的 Phase 1 禁止 graph。
 

@@ -72,7 +72,7 @@
 ### §IV Ingest-Time Organization — ✅ PASS
 
 - `ingest/pipeline.py` 單一 orchestrator，內部序列 `parse → normalize → extract → update(wiki, vector)` 四階段。
-- `query` path 僅讀取 wiki / vector；不得重新 parse / chunk / extract 來源文件。若走 vector route，僅允許對 query 本身做一次 embedding（驗證於 pytest `tests/integration/test_query_no_reparse.py`）。
+- `query` path 僅讀取 wiki / vector；不得重新 parse / chunk / extract 來源文件。若走 vector route，僅允許對 query 本身做一次 embedding（驗證於 pytest `tests/integration/test_query_flows.py::test_query_does_not_reparse_sources`）。
 - 三層一致性由 `manifest.json` 承擔；中斷回復於 `ingest/pipeline.py` 的 `resume_or_rebuild()`。
 
 ### §V Write-back Safety — ✅ PASS
@@ -121,11 +121,14 @@ specs/001-phase1-cli-mvp/
 │       │   └── lint.py
 │       ├── core/
 │       │   ├── __init__.py
+│       │   ├── lock.py       # flock-based ingest lock
 │       │   ├── schema.py     # QueryResponse / TraceStep dataclass + JSON codec
 │       │   ├── manifest.py   # manifest.json I/O + SHA256 idempotency
-│       │   └── paths.py      # /ks/ 路徑常數與初始化（含 graph 路徑黑名單 assert）
+│       │   ├── paths.py      # /ks/ 路徑常數與初始化（含 graph 路徑白名單防線）
+│       │   └── text_models.py # tokenizer / embedding backend + local fallback
 │       ├── ingest/
 │       │   ├── __init__.py
+│       │   ├── models.py
 │       │   ├── parsers/
 │       │   │   ├── __init__.py
 │       │   │   ├── txt.py
@@ -155,16 +158,24 @@ specs/001-phase1-cli-mvp/
 │   │   ├── core/
 │   │   ├── ingest/
 │   │   ├── routing/
+│   │   ├── storage/
 │   │   └── writeback/
 │   ├── integration/
 │   │   ├── test_ingest_basic.py
 │   │   ├── test_ingest_edge_cases.py
-│   │   ├── test_query_summary.py
-│   │   ├── test_query_no_reparse.py
-│   │   ├── test_writeback_non_tty.py
+│   │   ├── test_ingest_idempotent.py
+│   │   ├── test_ingest_update.py
+│   │   ├── test_offline.py
+│   │   ├── test_query_flows.py
+│   │   ├── test_query_performance.py
+│   │   ├── test_wiki_reconcile.py
+│   │   ├── test_writeback.py
 │   │   └── ...
 │   └── contract/
 │       ├── test_json_schema.py    # 以 contracts/query-response.schema.json 驗 stdout
+│       ├── test_lint_stub.py
+│       ├── test_no_graph_in_runtime.py
+│       ├── test_no_graph_in_src.py
 │       └── test_exit_codes.py
 ├── readme.md
 ├── CLAUDE.md
