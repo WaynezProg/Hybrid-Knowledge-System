@@ -51,8 +51,12 @@ uv run mypy src/hks
 ## 3. 第一次 ingest 與 query（冒煙測試）
 
 ```bash
-# 用專案附帶的合法樣本語料（10 份 txt/md/pdf 混合）
-uv run ks ingest tests/fixtures/valid/
+# 複製一份工作語料，避免後續 idempotency 節直接修改 repo fixture
+DOCS_DIR=$(mktemp -d /tmp/hks-phase1-docs.XXXXXX)
+cp -R tests/fixtures/valid/. "$DOCS_DIR"
+
+# 若當前環境無外網，先看 §7 設定 HKS_EMBEDDING_MODEL，再回來執行
+uv run ks ingest "$DOCS_DIR"
 
 # 結果會建立在 cwd 下的 /ks/（可用 KS_ROOT 環境變數覆寫）
 ls ks/
@@ -63,7 +67,7 @@ cat ks/wiki/index.md
 
 # query
 uv run ks query "這批文件的重點是什麼"             # 預期走 wiki
-uv run ks query "條款 3.2 的原文是"                # 預期走 vector
+uv run ks query "clause 3.2 text"                 # 預期走 vector
 uv run ks query "A 專案延遲會影響哪些系統"         # 預期走 vector，附 Phase 2 附註
 uv run ks query "明天吃什麼"                       # 預期無命中，仍 exit 0
 ```
@@ -91,14 +95,14 @@ print('schema ok')
 
 ```bash
 # TTY 互動（會問 y/n）
-uv run ks query "..."                               # 回 y 會寫入 wiki/pages/ 與 log.md
+uv run ks query "summary Atlas"                     # 回 y 會寫入 wiki/pages/ 與 log.md
 
 # 非 TTY 自動跳過
-uv run ks query "..." | cat                          # trace.steps 有 writeback=skip-non-tty
+uv run ks query "summary Atlas" | cat               # trace.steps 有 writeback=skip-non-tty
 
 # Flag 覆寫
-uv run ks query --writeback=yes "..." | cat          # 不問直接寫
-uv run ks query --writeback=no  "..."                # TTY 下也不寫
+uv run ks query --writeback=yes "summary Atlas" | cat  # 不問直接寫
+uv run ks query --writeback=no  "summary Atlas"        # TTY 下也不寫
 ```
 
 寫入後:
@@ -113,16 +117,16 @@ ls ks/wiki/pages/               # 看新增頁面
 ## 5. Idempotency 驗證
 
 ```bash
-time uv run ks ingest tests/fixtures/valid/    # 首次：建立 manifest + artifacts
-time uv run ks ingest tests/fixtures/valid/    # 再跑：應顯示 "skipped (hash unchanged)"，總時間 < 首次 50%
+time uv run ks ingest "$DOCS_DIR"    # 首次：建立 manifest + artifacts
+time uv run ks ingest "$DOCS_DIR"    # 再跑：應顯示 "skipped (hash unchanged)"，總時間 < 首次 50%
 ```
 
 修改一份 md → 再 ingest → 驗證只有該檔更新:
 
 ```bash
-MD_FIXTURE=$(find tests/fixtures/valid -name '*.md' | head -n 1)
+MD_FIXTURE=$(find "$DOCS_DIR" -name '*.md' | head -n 1)
 echo "\n\n追加內容" >> "$MD_FIXTURE"
-uv run ks ingest tests/fixtures/valid/
+uv run ks ingest "$DOCS_DIR"
 # 預期: 9 skipped, 1 updated
 grep "\"$(basename "$MD_FIXTURE")\"" ks/manifest.json
 ```
@@ -144,17 +148,23 @@ uv run ks query "..." --unknown-flag; echo $?            # 2
 
 ## 7. 離線 / 自訂 embedding 模型
 
-預設首次啟動會自動下載 `paraphrase-multilingual-MiniLM-L12-v2`（~118 MB）至 `~/.cache/huggingface/`。之後可 offline 執行。
+預設首次啟動會自動下載 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`（~118 MB）至 `~/.cache/huggingface/`。若當前 shell 沒外網，先把 `HKS_EMBEDDING_MODEL` 指到本機模型目錄，再回去跑 §3–§6。
 
 若需要預下載或指向本機路徑:
 
 ```bash
 # 預先下載
-uv run python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')"
+uv run python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')"
 
-# 指向本機路徑
+# 指向本機快取或 bundle 好的模型目錄
 export HKS_EMBEDDING_MODEL=/path/to/local/model
 uv run ks ingest ...
+```
+
+只做 deterministic smoke test / CI 時，也可改設：
+
+```bash
+export HKS_EMBEDDING_MODEL=simple
 ```
 
 ---
@@ -164,7 +174,7 @@ uv run ks ingest ...
 | 變數 | 預設 | 用途 |
 |---|---|---|
 | `KS_ROOT` | `./ks` | `/ks/` 資料根目錄 |
-| `HKS_EMBEDDING_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | 覆寫 embedding 模型 |
+| `HKS_EMBEDDING_MODEL` | `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2` | 覆寫 embedding 模型 |
 | `HKS_MAX_FILE_MB` | `200` | 單檔 ingest 上限 |
 | `HKS_ROUTING_RULES` | 未設 | 覆寫 routing_rules.yaml 路徑 |
 | `NO_COLOR` | 未設 | 停用 stderr 彩色 |
@@ -177,12 +187,12 @@ uv run ks ingest ...
 
 ```bash
 # agent 取得結構化答案
-ANSWER_JSON=$(ks query "..." --writeback=no)
+ANSWER_JSON=$(uv run ks query "summary Atlas" --writeback=no)
 echo "$ANSWER_JSON" | jq -r '.answer'
 ROUTE=$(echo "$ANSWER_JSON" | jq -r '.trace.route')
 
 # 檢查 exit code
-if ! ks ingest "$INPUT_DIR"; then
+if ! uv run ks ingest "$INPUT_DIR"; then
   case $? in
     65) echo "ingest data error" ;;
     66) echo "input not found" ;;
@@ -197,5 +207,5 @@ fi
 
 - **`uv sync` 在無網路時失敗**：先同步一次產生 lock；或以 `uv pip install --offline` 搭預下載 wheels。
 - **`ks query` 首次很慢**：首次執行會載入 embedding 模型（約 5–10 秒，依機器）。後續查詢 p95 < 3s。
-- **中文 query 走 vector 時命中率低**：先檢查 chunking 與 vector lookup（`uv run pytest tests/unit/ingest/test_normalizer.py tests/integration/test_query_detail.py`）。若語料為掃描 PDF，Phase 1 不支援（Phase 3 OCR 再處理）。
+- **中文 query 走 vector 時命中率低**：先檢查 chunking 與 vector lookup（`uv run pytest tests/unit/ingest/test_normalizer.py tests/integration/test_query_flows.py`）。若語料為掃描 PDF，Phase 1 不支援（Phase 3 OCR 再處理）。
 - **wiki/index.md 與 pages/ 不一致**：執行 `uv run ks ingest --prune`（Phase 1 預設不啟用 prune）或刪 `/ks/` 重新 ingest。
