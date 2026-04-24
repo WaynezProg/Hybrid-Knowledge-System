@@ -1,0 +1,55 @@
+version: 1
+default_route: vector
+rules:
+  - id: summary
+    priority: 10
+    target_route: wiki
+    phase2_note: false
+    keywords:
+      zh:
+        - 總結
+        - 摘要
+        - 概述
+        - 重點
+        - 報告
+      en:
+        - summary
+        - summarize
+        - overview
+        - tl;dr
+  - id: relation
+    priority: 20
+    target_route: vector
+    phase2_note: true
+    keywords:
+      zh:
+        - 影響
+        - 關係
+        - 依賴
+        - 為什麼
+        - 原因
+        - 受影響
+      en:
+        - impact
+        - relation
+        - depends
+        - dependency
+        - why
+        - because
+  - id: detail
+    priority: 30
+    target_route: vector
+    phase2_note: false
+    keywords:
+      zh:
+        - 原文
+        - 細節
+        - 條款
+        - 片段
+        - 引用
+      en:
+        - excerpt
+        - detail
+        - clause
+        - passage
+        - verbatim

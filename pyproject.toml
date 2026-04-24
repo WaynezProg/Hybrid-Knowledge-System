@@ -1,0 +1,84 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hks"
+version = "0.1.0"
+description = "Hybrid Knowledge System CLI"
+readme = "readme.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "chromadb",
+  "jsonschema",
+  "markdown-it-py",
+  "pypdf",
+  "python-slugify",
+  "ruamel.yaml",
+  "sentence-transformers",
+  "typer",
+]
+
+[project.scripts]
+ks = "hks.cli:app"
+
+[dependency-groups]
+dev = [
+  "mypy",
+  "pytest",
+  "pytest-cov",
+  "ruff",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["hks*"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+markers = [
+  "us1: User story 1 tests",
+  "us2: User story 2 tests",
+  "us3: User story 3 tests",
+  "us4: User story 4 tests",
+  "unit: Unit tests",
+  "integration: Integration tests",
+  "contract: Contract tests",
+]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+packages = ["hks"]
+
+[[tool.mypy.overrides]]
+module = [
+  "chromadb",
+  "jsonschema",
+  "markdown_it",
+  "ruamel",
+  "ruamel.yaml",
+  "sentence_transformers",
+  "slugify",
+  "transformers",
+]
+ignore_missing_imports = true
+
+[tool.coverage.run]
+source = ["src/hks"]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
