@@ -47,7 +47,9 @@ def assert_runtime_path_allowed(path: Path, *, ks_root: Path | str | None = None
     allowed_files = (paths.manifest, paths.lock)
     if candidate in allowed_files:
         return candidate
-    if any(candidate == allowed_dir or allowed_dir in candidate.parents for allowed_dir in allowed_dirs):
+    if any(
+        candidate == allowed_dir or allowed_dir in candidate.parents for allowed_dir in allowed_dirs
+    ):
         return candidate
     raise AssertionError("Phase 1 runtime path is outside the allowed /ks layout")
 

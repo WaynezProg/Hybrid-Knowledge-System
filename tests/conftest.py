@@ -9,11 +9,11 @@ from typer.testing import CliRunner
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"
+DEFAULT_EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+SIMPLE_EMBEDDING_MODEL = "simple"
 
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
-
-from hks.core.text_models import DEFAULT_EMBEDDING_MODEL, SIMPLE_EMBEDDING_MODEL
 
 
 def _cached_model_snapshot(model_name: str) -> Path | None:
