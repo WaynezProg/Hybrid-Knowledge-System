@@ -1,0 +1,4 @@
+Operations status report:
+checkout service latency is stable.
+notification service had one incident but is now healthy.
+The current focus is documenting recovery drills.
