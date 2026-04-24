@@ -2,161 +2,68 @@
 
 ## Hybrid Knowledge System (HKS)
 
-一個 CLI-first、domain-agnostic 的知識系統，整合 **LLM Wiki（整理）+ Knowledge Graph（推理）+ Vector（搜尋）**，可被多種 agent（OpenClaw / Codex / Claude Code / Qwen Code）透過 CLI 使用。
+這個 repo 用 specification-first 方式交付 HKS Phase 1 CLI MVP。README 只做導覽；實際安裝、驗收、端到端操作以 `specs/001-phase1-cli-mvp/` 下的文件為準。
 
-## 專案狀態
+## 目前範圍
 
-目前 repo 仍以 **spec / plan / tasks** 為主，`ks` CLI 尚未提交可執行實作。要看 Phase 1 的實作目標與驗收標準，從 `specs/001-phase1-cli-mvp/` 進：
+Phase 1 已落地的 runtime 只有：
 
-* `spec.md`
-* `plan.md`
-* `quickstart.md`
+* `ks ingest`
+* `ks query`
+* `ks lint`（stub）
+* wiki + vector + rule-based routing + 半自動 write-back
 
----
+graph 明確延後到 Phase 2；Phase 1 的 JSON、路由與 runtime path 都不允許出現 graph code path。
 
-## 為什麼要做
+## Source Of Truth
 
-傳統 RAG 每次查詢都重新拼湊；HKS 在 **ingest 時就完成整理與關聯**，查詢時直接利用已累積的知識，穩定且可持續成長。
+* 規格：`specs/001-phase1-cli-mvp/spec.md`
+* 設計：`specs/001-phase1-cli-mvp/plan.md`
+* 安裝 / 測試 / E2E：`specs/001-phase1-cli-mvp/quickstart.md`
 
----
+## 安裝
 
-## 核心能力
-
-* **Persistent Wiki**：自動摘要、cross-link、持續更新
-* **Graph Reasoning**：entity / relation，支援依賴與影響分析
-* **Vector Retrieval**：細節與原文補充
-* **Write-back**：有價值的答案回寫成知識
-
----
-
-## 架構概覽
-
-```
-Agent (OpenClaw / Codex / Claude)
-        ↓ shell
-       ks (CLI)
-        ↓
---------------------------------
-Core
-- wiki (markdown)
-- graph (entity-relation)
-- vector (embedding)
-- ingestion pipeline
---------------------------------
-```
-
----
-
-## 安裝（實作落地後）
+不要照 README 猜步驟。直接依 `specs/001-phase1-cli-mvp/quickstart.md` §1–§2 執行：
 
 ```bash
-git clone <repo>
-cd ks
 uv sync
 uv run ks --help
 ```
 
----
-
 ## CLI 使用
 
-以下是 **目標介面**，不是目前 repo 已可直接執行的狀態。
-
-### Ingest
+實際指令、fixture、write-back 情境與 agent 對接範例都在 `specs/001-phase1-cli-mvp/quickstart.md` §3–§9。這裡只保留最小摘要：
 
 ```bash
-ks ingest ./docs
+uv run ks ingest <path>
+uv run ks query "<question>" [--writeback ask|yes|no]
+uv run ks lint
 ```
 
-### Query
+`--writeback` 行為：
+
+* `ask`：TTY 詢問，非 TTY 自動 skip
+* `yes`：直接回寫
+* `no`：永不回寫
+
+exit code 摘要：
+
+* `0`：成功（包含 query 無命中）
+* `1`：一般錯誤
+* `2`：CLI usage error
+* `65`：ingest data error
+* `66`：輸入不存在或 `/ks/` 尚未初始化
+
+完整契約見 `specs/001-phase1-cli-mvp/contracts/cli-exit-codes.md`。
+
+## 開發
+
+提交前至少跑：
 
 ```bash
-ks query "專案A目前風險是什麼"
+uv run pytest --tb=short -q
+uv run mypy src/hks
 ```
-
-### Lint（Phase 3 規劃中）
-
-```bash
-ks lint   # Phase 1 為 stub，尚未實作
-```
-
----
-
-## 輸出格式（JSON）
-
-```json
-{
-  "answer": "...",
-  "source": ["wiki","vector"],
-  "confidence": 0.87,
-  "trace": {
-    "route": "wiki",
-    "steps": []
-  }
-}
-```
-
----
-
-## 查詢路由
-
-### Phase 1（rule-based，僅 wiki / vector 兩路）
-
-* 總結/說明 → wiki
-* 關係/影響 → vector（fallback，答案附註「深度關係推理將於 Phase 2 支援」）
-* 細節/原文 → vector
-
-### Phase 2（加入 graph，升級為 LLM-based）
-
-* 關係/影響 → graph
-* routing 決策改由 LLM 判定
-
----
-
-## 專案結構
-
-```
-/ks
-  /raw_sources
-  /wiki
-    index.md
-    log.md
-  /graph
-    graph.json   # Phase 2 才建立；Phase 1 禁止寫入
-  /vector
-    db/
-```
-
----
-
-## 開發路線
-
-* Phase 1：CLI + wiki + vector + rule routing + ingest(txt/md/pdf) + 半自動 write-back
-* Phase 2：graph + LLM routing + 全自動 write-back + ingest(docx/xlsx/pptx)
-* Phase 3：lint + multi-agent + API/MCP adapter + ingest(png/jpg)
-
----
-
-## 非目標（MVP 及 Phase 2 一律不做）
-
-* 不做 UI（CLI-only）
-* 不做 多使用者 / RBAC
-* 不做 雲端部署
-* 不做 Microservice
-* 不做 MCP adapter（Phase 3 再評估）
-* 不做 非文字素材（影片、音訊）
-
----
-
-## 貢獻
-
-歡迎 PR，請先跑：
-
-```bash
-uv run pytest
-```
-
----
 
 ## License
 
