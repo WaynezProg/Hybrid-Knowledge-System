@@ -49,3 +49,12 @@ CLAUDE.md
 AGENTS.md
 .agents/
 .codex/
+.qwen/
+.gemini/
+.cursor/
+.continue/
+.aider*
+.cline/
+.windsurf/
+.roo/
+.github-copilot/
