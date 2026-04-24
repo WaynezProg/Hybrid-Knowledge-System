@@ -1,0 +1,30 @@
+# Spec Archive
+
+這份索引用來標示已完成的 speckit feature artifacts。
+
+封存策略：
+- 已完成 feature 採 **archived in place**，不搬移 `specs/<feature-branch>/` 目錄。
+- 原路徑保留是為了維持 README、docs、cross-spec links 與 speckit artifact 參照穩定。
+- 封存後原則上不再修改內容；若需修正，只接受勘誤、連結修補、或 post-merge retrospective 註記。
+
+## Active
+
+目前沒有 active feature spec。
+
+## Archived
+
+- `001-phase1-cli-mvp`
+  - Status: Complete
+  - Archived on: 2026-04-25
+  - Merged into: `main`
+  - Canonical artifacts: [spec.md](./001-phase1-cli-mvp/spec.md), [plan.md](./001-phase1-cli-mvp/plan.md), [tasks.md](./001-phase1-cli-mvp/tasks.md)
+- `002-phase2-ingest-office`
+  - Status: Complete
+  - Archived on: 2026-04-25
+  - Merged into: `main`
+  - Canonical artifacts: [spec.md](./002-phase2-ingest-office/spec.md), [plan.md](./002-phase2-ingest-office/plan.md), [tasks.md](./002-phase2-ingest-office/tasks.md)
+- `003-phase2-graph-routing`
+  - Status: Complete
+  - Archived on: 2026-04-25
+  - Merged into: `main`
+  - Canonical artifacts: [spec.md](./003-phase2-graph-routing/spec.md), [plan.md](./003-phase2-graph-routing/plan.md), [tasks.md](./003-phase2-graph-routing/tasks.md)

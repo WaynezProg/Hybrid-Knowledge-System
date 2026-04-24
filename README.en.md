@@ -110,6 +110,7 @@ It still returns the fixed JSON stub. Real linting remains a Phase 3 task.
 - Office ingest expansion: [specs/002-phase2-ingest-office/spec.md](./specs/002-phase2-ingest-office/spec.md)
 - Phase 2 graph / routing / write-back: [specs/003-phase2-graph-routing/spec.md](./specs/003-phase2-graph-routing/spec.md)
 - Phase 2 contract: [specs/003-phase2-graph-routing/contracts/query-response.schema.json](./specs/003-phase2-graph-routing/contracts/query-response.schema.json)
+- Spec archive index: [specs/ARCHIVE.md](./specs/ARCHIVE.md)
 - Phase 3 image ingest is not spec'd yet; only its existence as later work is fixed today
 
 ## Development Checks

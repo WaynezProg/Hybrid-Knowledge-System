@@ -110,6 +110,7 @@ uv run ks lint
 - Office ingest 擴充：[specs/002-phase2-ingest-office/spec.md](./specs/002-phase2-ingest-office/spec.md)
 - Phase 2 graph / routing / write-back：[specs/003-phase2-graph-routing/spec.md](./specs/003-phase2-graph-routing/spec.md)
 - Phase 2 contract：[specs/003-phase2-graph-routing/contracts/query-response.schema.json](./specs/003-phase2-graph-routing/contracts/query-response.schema.json)
+- Spec archive index：[specs/ARCHIVE.md](./specs/ARCHIVE.md)
 - Phase 3 圖片 ingest 尚未成 spec；目前只確認它會是後續獨立工作，不沿用 `003` scope
 
 ## 開發檢查
