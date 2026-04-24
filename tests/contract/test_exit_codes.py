@@ -44,7 +44,17 @@ def _run_cli(
 
 
 def _copy_valid_docs(target: Path) -> Path:
-    shutil.copytree(FIXTURES_ROOT / "valid", target)
+    target.mkdir(parents=True, exist_ok=True)
+    for child in sorted((FIXTURES_ROOT / "valid").iterdir()):
+        if child.is_file():
+            shutil.copy2(child, target / child.name)
+    return target
+
+
+def _copy_office_docs(target: Path) -> Path:
+    target.mkdir(parents=True, exist_ok=True)
+    for name in ("docx", "xlsx", "pptx"):
+        shutil.copytree(FIXTURES_ROOT / "valid" / name, target / name)
     return target
 
 
@@ -84,7 +94,8 @@ def test_ingest_partial_failure_returns_dataerr(tmp_path: Path) -> None:
     assert result.stderr.splitlines()[0].startswith("[ks:ingest] error:")
     payload = _load_stdout_json(result)
     failures = payload["trace"]["steps"][0]["detail"]["failures"]  # type: ignore[index]
-    assert {"path": "broken.pdf", "reason": "pdf_read_error"} in failures
+    # Phase 2: pdf sniffing catches missing %PDF- magic before parser runs.
+    assert {"path": "broken.pdf", "reason": "corrupt"} in failures
 
 
 @pytest.mark.contract
@@ -137,11 +148,86 @@ def test_ingest_manifest_write_failure_returns_general(tmp_path: Path) -> None:
 
 
 @pytest.mark.contract
+def test_ingest_encrypted_office_returns_dataerr_with_valid_json(tmp_path: Path) -> None:
+    docs = _copy_office_docs(tmp_path / "docs")
+    shutil.copy2(FIXTURES_ROOT / "broken" / "office" / "encrypted.pptx", docs / "encrypted.pptx")
+
+    result = _run_cli("ingest", str(docs), ks_root=tmp_path / "ks")
+
+    assert result.returncode == 65
+    assert result.stderr.splitlines()[0].startswith("[ks:ingest] error:")
+    payload = _load_stdout_json(result)
+    failures = payload["trace"]["steps"][0]["detail"]["failures"]  # type: ignore[index]
+    assert {"path": "encrypted.pptx", "reason": "encrypted"} in failures
+
+
+@pytest.mark.contract
+def test_ingest_corrupt_office_returns_dataerr_with_valid_json(tmp_path: Path) -> None:
+    docs = _copy_office_docs(tmp_path / "docs")
+    shutil.copy2(FIXTURES_ROOT / "broken" / "office" / "corrupt.xlsx", docs / "corrupt.xlsx")
+
+    result = _run_cli("ingest", str(docs), ks_root=tmp_path / "ks")
+
+    assert result.returncode == 65
+    assert result.stderr.splitlines()[0].startswith("[ks:ingest] error:")
+    payload = _load_stdout_json(result)
+    failures = payload["trace"]["steps"][0]["detail"]["failures"]  # type: ignore[index]
+    assert {"path": "corrupt.xlsx", "reason": "corrupt"} in failures
+
+
+@pytest.mark.contract
+def test_ingest_timeout_office_returns_dataerr_with_valid_json(tmp_path: Path) -> None:
+    docs = _copy_office_docs(tmp_path / "docs")
+    shutil.copy2(
+        FIXTURES_ROOT / "broken" / "office" / "timeout_bomb.docx",
+        docs / "timeout_bomb.docx",
+    )
+
+    result = _run_cli(
+        "ingest",
+        str(docs),
+        ks_root=tmp_path / "ks",
+        extra_env={"HKS_OFFICE_TIMEOUT_SEC": "5"},
+    )
+
+    assert result.returncode == 65
+    assert result.stderr.splitlines()[0].startswith("[ks:ingest] error:")
+    payload = _load_stdout_json(result)
+    failures = payload["trace"]["steps"][0]["detail"]["failures"]  # type: ignore[index]
+    assert {"path": "timeout_bomb.docx", "reason": "timeout"} in failures
+
+
+@pytest.mark.contract
+def test_ingest_oversized_office_returns_dataerr_with_valid_json(tmp_path: Path) -> None:
+    docs = _copy_office_docs(tmp_path / "docs")
+    shutil.copy2(FIXTURES_ROOT / "broken" / "office" / "oversized.xlsx", docs / "oversized.xlsx")
+
+    result = _run_cli(
+        "ingest",
+        str(docs),
+        ks_root=tmp_path / "ks",
+        extra_env={"HKS_OFFICE_MAX_FILE_MB": "1"},
+    )
+
+    assert result.returncode == 65
+    assert result.stderr.splitlines()[0].startswith("[ks:ingest] error:")
+    payload = _load_stdout_json(result)
+    failures = payload["trace"]["steps"][0]["detail"]["failures"]  # type: ignore[index]
+    assert {"path": "oversized.xlsx", "reason": "oversized"} in failures
+
+
+@pytest.mark.contract
 def test_query_hit_returns_zero(tmp_path: Path) -> None:
     ks_root = tmp_path / "ks"
     _seed_runtime(ks_root, tmp_path / "docs")
 
-    result = _run_cli("query", "summary Atlas", ks_root=ks_root, extra_env={"NO_COLOR": "1"})
+    result = _run_cli(
+        "query",
+        "summary Atlas",
+        "--writeback=no",
+        ks_root=ks_root,
+        extra_env={"NO_COLOR": "1"},
+    )
 
     assert result.returncode == 0
     payload = _load_stdout_json(result)
@@ -153,7 +239,7 @@ def test_query_no_hit_returns_zero(tmp_path: Path) -> None:
     ks_root = tmp_path / "ks"
     _seed_runtime(ks_root, tmp_path / "docs")
 
-    result = _run_cli("query", "明天吃什麼", ks_root=ks_root)
+    result = _run_cli("query", "明天吃什麼", "--writeback=no", ks_root=ks_root)
 
     assert result.returncode == 0
     payload = _load_stdout_json(result)
@@ -175,11 +261,12 @@ def test_query_invalid_rules_returns_general(tmp_path: Path) -> None:
     ks_root = tmp_path / "ks"
     _seed_runtime(ks_root, tmp_path / "docs")
     rules_path = tmp_path / "bad-routing.yaml"
-    rules_path.write_text("version: 1\ndefault_route: graph\nrules: []\n", encoding="utf-8")
+    rules_path.write_text("version: 1\ndefault_route: matrix\nrules: []\n", encoding="utf-8")
 
     result = _run_cli(
         "query",
         "summary Atlas",
+        "--writeback=no",
         ks_root=ks_root,
         extra_env={"HKS_ROUTING_RULES": str(rules_path)},
     )
@@ -206,6 +293,7 @@ def test_query_embedding_load_failure_returns_general(tmp_path: Path) -> None:
     result = _run_cli(
         "query",
         "clause 3.2 text",
+        "--writeback=no",
         ks_root=ks_root,
         extra_env={
             "HKS_EMBEDDING_MODEL": "missing-local-model",

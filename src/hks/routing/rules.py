@@ -1,26 +1,24 @@
-"""Load and validate rule-based routing configuration."""
+"""Load and validate Phase 2 routing configuration."""
 
 from __future__ import annotations
 
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal, cast
+from typing import Any, cast
 
 from ruamel.yaml import YAML
 
 from hks.core.paths import resolve_ks_root
+from hks.core.schema import Route
 from hks.errors import ExitCode, KSError
-
-type TargetRoute = Literal["wiki", "vector"]
 
 
 @dataclass(frozen=True, slots=True)
 class RoutingRule:
     id: str
     priority: int
-    target_route: TargetRoute
-    phase2_note: bool
+    target_route: Route
     keywords_zh: tuple[str, ...]
     keywords_en: tuple[str, ...]
 
@@ -28,7 +26,7 @@ class RoutingRule:
 @dataclass(frozen=True, slots=True)
 class RoutingRuleSet:
     version: int
-    default_route: TargetRoute
+    default_route: Route
     rules: tuple[RoutingRule, ...]
 
 
@@ -74,8 +72,8 @@ def load_rules(ks_root: Path | str | None = None) -> RoutingRuleSet:
             details=[str(exc)],
         ) from exc
 
-    default_route = cast(TargetRoute, payload["default_route"])
-    if default_route not in {"wiki", "vector"}:
+    default_route = cast(Route, payload["default_route"])
+    if default_route not in {"wiki", "graph", "vector"}:
         raise KSError(
             "routing rules 預設路由非法",
             exit_code=ExitCode.GENERAL,
@@ -86,10 +84,10 @@ def load_rules(ks_root: Path | str | None = None) -> RoutingRuleSet:
     seen_priorities: set[int] = set()
     rules: list[RoutingRule] = []
     for raw_rule in cast(list[dict[str, Any]], payload.get("rules", [])):
-        target_route = cast(TargetRoute, raw_rule["target_route"])
-        if target_route not in {"wiki", "vector"}:
+        target_route = cast(Route, raw_rule["target_route"])
+        if target_route not in {"wiki", "graph", "vector"}:
             raise KSError(
-                "Phase 1 僅允許 wiki/vector route",
+                "routing rules route 非法",
                 exit_code=ExitCode.GENERAL,
                 code="ROUTING_RULES_INVALID",
                 details=[f"rule={raw_rule.get('id')} target_route={target_route}"],
@@ -120,7 +118,6 @@ def load_rules(ks_root: Path | str | None = None) -> RoutingRuleSet:
                 id=str(raw_rule["id"]),
                 priority=priority,
                 target_route=target_route,
-                phase2_note=bool(raw_rule.get("phase2_note", False)),
                 keywords_zh=zh,
                 keywords_en=en,
             )

@@ -12,3 +12,6 @@ typecheck:
 
 coverage:
 	uv run pytest --cov=src/hks --cov-report=term-missing
+
+fixtures:
+	uv run python tests/fixtures/build_office.py

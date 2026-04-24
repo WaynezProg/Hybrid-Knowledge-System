@@ -3,7 +3,6 @@ from __future__ import annotations
 import copy
 
 import jsonschema
-import pytest
 
 from hks.core import paths
 from hks.core.schema import load_contract_schema
@@ -20,21 +19,28 @@ def test_contract_examples_are_valid() -> None:
         jsonschema.validate(instance=example, schema=schema)
 
 
-def test_contract_rejects_graph_route_fields() -> None:
+def test_contract_accepts_graph_route_fields() -> None:
     schema = load_contract_schema()
     example = copy.deepcopy(schema["examples"][0])
     example["source"] = ["graph"]
-
-    with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate(instance=example, schema=schema)
-
-    example = copy.deepcopy(schema["examples"][0])
     example["trace"]["route"] = "graph"
 
-    with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate(instance=example, schema=schema)
+    jsonschema.validate(instance=example, schema=schema)
 
 
-def test_runtime_paths_reject_graph_access() -> None:
-    with pytest.raises(AssertionError):
-        paths.assert_runtime_path_allowed(paths.resolve_ks_root() / "graph" / "nodes.json")
+def test_contract_allows_office_location_metadata_in_trace_detail() -> None:
+    schema = load_contract_schema()
+    example = copy.deepcopy(schema["examples"][1])
+    example["trace"]["steps"][-1]["detail"].update(
+        {
+            "source_relpath": "pptx/with_notes.pptx",
+            "slide_index": 1,
+            "section_type": "notes",
+        }
+    )
+    jsonschema.validate(instance=example, schema=schema)
+
+
+def test_runtime_paths_allow_graph_access() -> None:
+    allowed = paths.assert_runtime_path_allowed(paths.resolve_ks_root() / "graph" / "graph.json")
+    assert allowed.name == "graph.json"

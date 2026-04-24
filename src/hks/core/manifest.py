@@ -1,9 +1,10 @@
-"""Manifest persistence and SHA256 idempotency helpers."""
+"""Manifest persistence and idempotency helpers."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import zipfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -11,17 +12,36 @@ from typing import Any, Literal, cast
 
 from hks.core.paths import RuntimePaths, runtime_paths
 
-type SourceFormat = Literal["txt", "md", "pdf"]
+type SourceFormat = Literal["txt", "md", "pdf", "docx", "xlsx", "pptx"]
+
+OFFICE_FORMATS: frozenset[SourceFormat] = frozenset({"docx", "xlsx", "pptx"})
+SUPPORTED_SUFFIXES: frozenset[str] = frozenset({"txt", "md", "pdf", "docx", "xlsx", "pptx"})
+
+_PDF_MAGIC = b"%PDF-"
+_ZIP_MAGIC = b"PK\x03\x04"
+_OLE_MAGIC = bytes.fromhex("D0CF11E0A1B11AE1")
+_OOXML_MAIN_PART: dict[SourceFormat, str] = {
+    "docx": "word/document.xml",
+    "xlsx": "xl/workbook.xml",
+    "pptx": "ppt/presentation.xml",
+    "txt": "",
+    "md": "",
+    "pdf": "",
+}
 
 
 @dataclass(slots=True)
 class DerivedArtifacts:
     wiki_pages: list[str] = field(default_factory=list)
+    graph_nodes: list[str] = field(default_factory=list)
+    graph_edges: list[str] = field(default_factory=list)
     vector_ids: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, list[str]]:
         return {
             "wiki_pages": self.wiki_pages,
+            "graph_nodes": self.graph_nodes,
+            "graph_edges": self.graph_edges,
             "vector_ids": self.vector_ids,
         }
 
@@ -29,6 +49,8 @@ class DerivedArtifacts:
     def from_dict(cls, payload: dict[str, Any]) -> DerivedArtifacts:
         return cls(
             wiki_pages=list(payload.get("wiki_pages", [])),
+            graph_nodes=list(payload.get("graph_nodes", [])),
+            graph_edges=list(payload.get("graph_edges", [])),
             vector_ids=list(payload.get("vector_ids", [])),
         )
 
@@ -41,6 +63,7 @@ class ManifestEntry:
     size_bytes: int
     ingested_at: str
     derived: DerivedArtifacts = field(default_factory=DerivedArtifacts)
+    parser_fingerprint: str = "*"
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -50,6 +73,7 @@ class ManifestEntry:
             "size_bytes": self.size_bytes,
             "ingested_at": self.ingested_at,
             "derived": self.derived.to_dict(),
+            "parser_fingerprint": self.parser_fingerprint,
         }
 
     @classmethod
@@ -61,6 +85,7 @@ class ManifestEntry:
             size_bytes=int(payload["size_bytes"]),
             ingested_at=str(payload["ingested_at"]),
             derived=DerivedArtifacts.from_dict(cast(dict[str, Any], payload.get("derived", {}))),
+            parser_fingerprint=str(payload.get("parser_fingerprint", "*")),
         )
 
 
@@ -96,9 +121,75 @@ def utc_now_iso() -> str:
 
 def source_format_from_path(path: Path) -> SourceFormat | None:
     suffix = path.suffix.lower().lstrip(".")
-    if suffix in {"txt", "md", "pdf"}:
+    if suffix in SUPPORTED_SUFFIXES:
         return cast(SourceFormat, suffix)
     return None
+
+
+def _read_head(path: Path, n: int) -> bytes:
+    try:
+        with path.open("rb") as handle:
+            return handle.read(n)
+    except OSError:
+        return b""
+
+
+def detect_source_format(path: Path) -> SourceFormat | None:
+    """Return the dispatch format, using suffix + lightweight content sniffing.
+
+    - Suffix is the primary signal (FR-002).
+    - PDF / OOXML suffixes additionally verify magic bytes so that a truncated
+      or mislabeled file lands in `corrupt` during ingest instead of crashing
+      inside the wrong parser.
+    - txt / md skip sniffing to preserve Phase 1 cost profile.
+    """
+
+    suffix_format = source_format_from_path(path)
+    if suffix_format is None:
+        return None
+    if suffix_format == "pdf":
+        head = _read_head(path, len(_PDF_MAGIC))
+        if not head.startswith(_PDF_MAGIC):
+            return None
+        return suffix_format
+    if suffix_format in OFFICE_FORMATS:
+        head = _read_head(path, max(len(_ZIP_MAGIC), len(_OLE_MAGIC)))
+        if head.startswith(_OLE_MAGIC):
+            return None
+        if not head.startswith(_ZIP_MAGIC):
+            return None
+        try:
+            with zipfile.ZipFile(path) as archive:
+                names = set(archive.namelist())
+        except (OSError, zipfile.BadZipFile):
+            return None
+        required_parts = {
+            "[Content_Types].xml",
+            _OOXML_MAIN_PART[suffix_format],
+        }
+        if not required_parts.issubset(names):
+            return None
+        return suffix_format
+    return suffix_format
+
+
+def classify_supported_file_issue(path: Path) -> str | None:
+    """Classify a supported-suffix file that failed format detection.
+
+    Returns:
+    - `encrypted` for Office files that look like OLE-encrypted containers.
+    - `corrupt` for supported-suffix files that fail signature / container checks.
+    - `None` for unknown suffixes.
+    """
+
+    suffix_format = source_format_from_path(path)
+    if suffix_format is None:
+        return None
+    if suffix_format in OFFICE_FORMATS:
+        head = _read_head(path, max(len(_ZIP_MAGIC), len(_OLE_MAGIC)))
+        if head.startswith(_OLE_MAGIC):
+            return "encrypted"
+    return "corrupt"
 
 
 def compute_sha256(path: Path) -> str:

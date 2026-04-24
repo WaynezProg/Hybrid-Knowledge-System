@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from hks.errors import KSError
 from hks.routing.rules import load_rules
 
 
@@ -24,7 +23,6 @@ rules:
   - id: summary
     priority: 1
     target_route: wiki
-    phase2_note: false
     keywords:
       zh: [摘要]
       en: [summary]
@@ -40,7 +38,7 @@ rules:
 
 
 @pytest.mark.unit
-def test_load_rules_rejects_graph_route(
+def test_load_rules_allows_graph_route(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -53,7 +51,6 @@ rules:
   - id: relation
     priority: 1
     target_route: graph
-    phase2_note: false
     keywords:
       zh: [關係]
       en: [relation]
@@ -62,5 +59,5 @@ rules:
     )
     monkeypatch.setenv("HKS_ROUTING_RULES", str(rules_path))
 
-    with pytest.raises(KSError):
-        load_rules()
+    rules = load_rules()
+    assert rules.rules[0].target_route == "graph"

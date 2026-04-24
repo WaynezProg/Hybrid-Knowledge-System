@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/ingest-summary-detail.schema.json",
+  "title": "HKS Ingest Summary Trace Detail (Phase 2 stage 1)",
+  "description": "CLI `ks ingest` 的 `trace.steps[kind=ingest_summary].detail` 契約。top-level stdout 仍由 Phase 1 `query-response.schema.json` 管轄；本檔僅固化 ingest_summary detail 的 shape。",
+  "type": "object",
+  "required": ["created", "updated", "skipped", "failures", "pruned", "files"],
+  "additionalProperties": false,
+  "properties": {
+    "created": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "updated": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "skipped": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/issue" }
+    },
+    "failures": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/issue" }
+    },
+    "pruned": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "files": {
+      "type": "array",
+      "description": "每檔處理結果；order 依處理順序。對 txt/md/pdf 同樣可出現，但 Office 專屬欄位預設為空陣列 / null。",
+      "items": { "$ref": "#/$defs/fileReport" }
+    }
+  },
+  "$defs": {
+    "issue": {
+      "type": "object",
+      "required": ["path", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "fileReport": {
+      "type": "object",
+      "required": ["path", "status", "reason", "skipped_segments", "pptx_notes"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "相對於 ingest source root 的路徑；與既有 skipped/failures path 語意一致。"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["created", "updated", "skipped", "failed", "unsupported"]
+        },
+        "reason": {
+          "type": ["string", "null"],
+          "description": "skipped / failed / unsupported 時填；其他狀態為 null。"
+        },
+        "skipped_segments": {
+          "type": "array",
+          "description": "該檔 ingest 時保留為佔位符的段落統計。無任何跳過時為空陣列。",
+          "items": { "$ref": "#/$defs/skippedSegment" }
+        },
+        "pptx_notes": {
+          "type": ["string", "null"],
+          "enum": ["included", "excluded", null],
+          "description": "僅 pptx 格式時填；其他格式為 null。"
+        }
+      }
+    },
+    "skippedSegment": {
+      "type": "object",
+      "required": ["type", "count"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "image",
+            "embedded_object",
+            "smartart",
+            "macros",
+            "video",
+            "audio",
+            "chart",
+            "pivot",
+            "empty_slide"
+          ]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "created": ["project/specs.xlsx", "project/deck.pptx"],
+      "updated": [],
+      "skipped": [],
+      "failures": [
+        { "path": "project/secret.pptx", "reason": "encrypted" }
+      ],
+      "pruned": [],
+      "files": [
+        {
+          "path": "project/specs.xlsx",
+          "status": "created",
+          "reason": null,
+          "skipped_segments": [
+            { "type": "chart", "count": 2 }
+          ],
+          "pptx_notes": null
+        },
+        {
+          "path": "project/deck.pptx",
+          "status": "created",
+          "reason": null,
+          "skipped_segments": [
+            { "type": "image", "count": 4 },
+            { "type": "macros", "count": 1 }
+          ],
+          "pptx_notes": "included"
+        },
+        {
+          "path": "project/secret.pptx",
+          "status": "failed",
+          "reason": "encrypted",
+          "skipped_segments": [],
+          "pptx_notes": null
+        }
+      ]
+    }
+  ]
+}

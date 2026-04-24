@@ -2,151 +2,110 @@
 
 ## 1. 產品目標
 
-提供一個可被 AI agent 使用的知識系統，讓使用者能：
+提供一個可被 AI agent 調用的知識系統，讓使用者可以：
 
-* 快速得到穩定答案（非臨時拼湊）
-* 查詢關係與影響（非純文字檢索）
-* 隨使用逐步累積知識（非一次性回覆）
-
----
-
-## 2. 使用者（Persona）
-
-* 工程師：查專案/文件/規範
-* PM / 管理層：問關係、風險、影響
-* 個人使用者：筆記、研究、閱讀
+* 查 summary，不只拿到片段
+* 查 relation / impact，不只做純文字檢索
+* 讓 query 結果持續沉澱成 wiki
 
 ---
 
-## 3. 使用場景（Top 3）
+## 2. Persona
 
-1. 專案分析：
-   「A 專案延遲會影響哪些系統？」
-2. 文件理解：
-   「這份規範的重點是什麼？」
-3. 細節查詢：
-   「條款 3.2 的原文是？」
+* 工程師：查專案、文件、規範
+* PM / 管理層：問風險、依賴、影響
+* 個人使用者：做筆記、研究、閱讀整理
 
 ---
 
-## 4. 核心功能
+## 3. Top Scenarios
 
-### 4.1 Ingestion
+1. 「A 專案延遲會影響哪些系統？」
+2. 「這份規範的重點是什麼？」
+3. 「條款 3.2 的原文是？」
 
-* 支援格式（分階段）：
-  * Phase 1：**txt / md / pdf**
-  * Phase 2：docx / xlsx / pptx
-  * Phase 3：png / jpg（OCR / VLM）
-* 輸出：
-  * wiki 更新
-  * graph 建立（Phase 2）
-  * vector embedding
+---
+
+## 4. 核心能力
+
+### 4.1 Ingest
+
+* Phase 1：`txt / md / pdf`
+* Phase 2：`docx / xlsx / pptx`
+* Phase 3：圖片 ingest（still raster images；實際接受格式與 normalize / 轉檔策略待後續 spec 決定）
+
+輸出三層：
+
+* wiki
+* graph
+* vector
 
 ### 4.2 Query
 
-* CLI：`ks query "<q>"`
-* routing（Phase 1，rule-based，**僅 wiki / vector 兩路**）：
-  * summary → wiki
-  * relation → vector（fallback，答案附註「深度關係推理將於 Phase 2 支援」）
-  * detail → vector
-* routing（Phase 2，加入 graph，升級為 LLM-based）：
-  * relation → graph
-  * routing 決策改由 LLM 判定
+* `ks query "<q>" [--writeback auto|yes|no|ask]`
+* summary → wiki
+* relation / impact / dependency / why → graph
+* detail / clause → vector
+* graph miss / wiki miss → vector fallback
 
 ### 4.3 Write-back
 
-* Phase 1（半自動，預設開啟）：
-  * query 結束後詢問使用者是否回寫 wiki
-  * 使用者確認後更新 index / log
-* Phase 2（全自動）：
-  * 高 confidence 答案自動回寫
-  * 自動建立 cross-link
-  * 使用者可關閉
+* 高 confidence 答案預設自動 write-back
+* `--writeback=no` 可關閉
+* 新頁面要帶 related cross-links
 
-### 4.4 Lint（Phase 3）
+### 4.4 Lint
 
-* 偵測：
-  * 矛盾
-  * 過時
-  * orphan page
-* 建議補資料
-* Phase 1 僅提供 `ks lint` CLI stub（回「尚未實作」）
+* 仍是 Phase 3 stub
 
 ---
 
 ## 5. 非功能需求
 
-* 本地優先（local-first）
-* CLI-first（可被 agent 調用）
+* local-first
+* CLI-first
 * 輸出穩定（JSON schema）
+* query p95 < 3s（本地 fixture 尺度）
 
 ---
 
-## 6. 成功指標（KPI）
-
-* 查詢正確率（主觀評估 ≥ 80%）
-* 平均查詢時間 < 3s（本地）
-* wiki 成長速度（pages / week）
-* 重複問題回答一致性
-
----
-
-## 7. 範圍界定
-
-### In Scope
+## 6. In Scope
 
 * CLI 工具
 * 本地知識管理
-* 三層知識（wiki / graph / vector）
+* wiki / graph / vector 三層同步
 
-### Out of Scope（MVP 及 Phase 2 一律不做）
+## 7. Out of Scope（直到 Phase 3 前都不做）
 
-* UI（CLI-only）
+* UI
 * 多使用者 / RBAC
 * 雲端部署
-* Microservice
-* MCP adapter（Phase 3 再評估）
+* microservice
+* API / MCP adapter
 * 非文字素材（影片、音訊）
 
 ---
 
-## 8. 風險
+## 8. Roadmap
 
-* ingestion 品質不足 → 知識污染
-* routing 錯誤 → 體驗下降
-* graph schema 設計錯 → 無法推理
+### Phase 1
 
----
-
-## 9. Roadmap
-
-### Phase 1（MVP）
-
-* CLI（query / ingest / lint-stub）
-* wiki + vector
-* rule-based routing（wiki / vector 兩路）
-* ingest：txt / md / pdf
-* 半自動 write-back
+* [x] CLI（query / ingest / lint-stub）
+* [x] wiki + vector
+* [x] rule-based routing
+* [x] ingest：`txt / md / pdf`
+* [x] 半自動 write-back
 
 ### Phase 2
 
-* graph（entity / relation）
-* LLM routing
-* 全自動 write-back
-* ingest 擴充：docx / xlsx / pptx
+* [x] graph（entity / relation）
+* [x] routing backend 升級
+* [x] 全自動 write-back
+* [x] ingest：`docx / xlsx / pptx`
 
 ### Phase 3
 
-* lint 實作
-* 多 agent 整合
-* API / MCP adapter
-* ingest 擴充：png / jpg（OCR / VLM）
-
----
-
-## 10. 驗收標準
-
-* 可 ingest ≥ 10 份文件
-* 可回答 summary / detail 問題
-* CLI 可被 agent 調用
-* wiki 持續成長（≥ 20 pages）
+* [ ] lint system
+* [ ] 多 agent
+* [ ] API / MCP adapter
+* [ ] 圖片 ingest（still raster images；exact format set / normalize pipeline / OCR / VLM 待 spec）

@@ -19,6 +19,7 @@ def extract(
     parsed: ParsedDocument,
     normalized_text: str,
     chunks: list[str],
+    chunk_metadata: list[dict[str, object]] | None = None,
 ) -> ExtractedDocument:
     title = parsed.title.strip() or Path(relpath).stem
     summary = summarize(normalized_text) or title
@@ -31,4 +32,5 @@ def extract(
         summary=summary,
         body=body,
         chunks=chunks,
+        chunk_metadata=list(chunk_metadata or [{} for _ in chunks]),
     )

@@ -11,9 +11,10 @@ from slugify import slugify
 
 from hks.core.manifest import utc_now_iso
 from hks.core.paths import RuntimePaths, runtime_paths
+from hks.ingest.office_common import SkippedSegment
 
 type Origin = Literal["ingest", "writeback"]
-type Route = Literal["wiki", "vector"]
+type Route = Literal["wiki", "graph", "vector"]
 type EventType = Literal["ingest", "writeback"]
 type EventStatus = Literal[
     "created",
@@ -24,6 +25,8 @@ type EventStatus = Literal[
     "committed",
     "declined",
     "skip-non-tty",
+    "auto-committed",
+    "auto-skipped-low-confidence",
 ]
 
 FRONTMATTER_BOUNDARY = "\n---\n"
@@ -106,6 +109,8 @@ class LogEntry:
     source: list[Route] = field(default_factory=list)
     pages_touched: list[str] = field(default_factory=list)
     confidence: float | None = None
+    skipped_segments: list[SkippedSegment] = field(default_factory=list)
+    pptx_notes: Literal["included", "excluded"] | None = None
 
     def to_markdown(self) -> str:
         timestamp = self.timestamp.replace("T", " ")[:16]
@@ -125,6 +130,18 @@ class LogEntry:
             details.append(("pages touched", ", ".join(self.pages_touched)))
         if self.confidence is not None:
             details.append(("confidence", f"{self.confidence:.2f}"))
+        if self.skipped_segments:
+            aggregated: dict[str, int] = {}
+            for segment in self.skipped_segments:
+                aggregated[segment.type] = aggregated.get(segment.type, 0) + segment.count
+            details.append(
+                (
+                    "skipped_segments",
+                    ",".join(f"{k}:{v}" for k, v in sorted(aggregated.items())),
+                )
+            )
+        if self.pptx_notes is not None:
+            details.append(("pptx_notes", self.pptx_notes))
         lines.extend(f"- {key}: {value}" for key, value in details)
         return "\n".join(lines) + "\n\n"
 
@@ -242,6 +259,12 @@ class WikiStore:
         if not pages:
             return None
         return "\n".join(f"- {page.title}: {page.summary}" for page in pages)
+
+    def pages_for_source_relpaths(self, relpaths: list[str]) -> list[WikiPage]:
+        wanted = set(relpaths)
+        if not wanted:
+            return []
+        return [page for page in self.list_pages() if page.source_relpath in wanted]
 
     def search(self, query: str) -> WikiPage | None:
         pages = self.list_pages()

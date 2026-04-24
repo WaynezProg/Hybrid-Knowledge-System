@@ -52,5 +52,5 @@ def test_ingest_and_query_run_without_network(
     ingest_result = cli_runner.invoke(app, ["ingest", str(working_docs)])
     assert ingest_result.exit_code == 0
 
-    query_result = cli_runner.invoke(app, ["query", "summary Atlas"])
+    query_result = cli_runner.invoke(app, ["query", "summary Atlas", "--writeback=no"])
     assert query_result.exit_code == 0

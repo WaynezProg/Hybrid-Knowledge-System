@@ -4,7 +4,6 @@ rules:
   - id: summary
     priority: 10
     target_route: wiki
-    phase2_note: false
     keywords:
       zh:
         - 總結
@@ -19,8 +18,7 @@ rules:
         - tl;dr
   - id: relation
     priority: 20
-    target_route: vector
-    phase2_note: true
+    target_route: graph
     keywords:
       zh:
         - 影響
@@ -39,7 +37,6 @@ rules:
   - id: detail
     priority: 30
     target_route: vector
-    phase2_note: false
     keywords:
       zh:
         - 原文

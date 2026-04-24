@@ -16,7 +16,6 @@ def test_router_matches_summary_rule() -> None:
                 id="summary",
                 priority=10,
                 target_route="wiki",
-                phase2_note=False,
                 keywords_zh=("摘要",),
                 keywords_en=("summary",),
             ),
@@ -27,6 +26,7 @@ def test_router_matches_summary_rule() -> None:
 
     assert decision.route == "wiki"
     assert decision.matched_rule_id == "summary"
+    assert decision.steps[0].kind == "routing_model"
 
 
 @pytest.mark.unit

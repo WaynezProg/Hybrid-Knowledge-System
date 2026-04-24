@@ -1,47 +1,30 @@
-# Hybrid Knowledge System（LLM Wiki + Graph + Vector）
+# Hybrid Knowledge System（Wiki + Graph + Vector）
 
-## 0. 定位
+## 1. 定位
 
-一個 **domain-agnostic knowledge system**
+HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。  
+現在的 runtime 狀態：
 
-* 可用於 personal / team / enterprise
-* 以 CLI 為入口
-* 由 agent（OpenClaw / Codex / Claude Code）調用
-
----
-
-## 1. 系統目標
-
-建立一套：
-
-* 可持續累積（persistent）
-* 可結構推理（graph-based reasoning）
-* 可高效檢索（vector retrieval）
-* 可被多 agent 共用（tool interface）
+* Phase 1：完成
+* Phase 2：完成
+* Phase 3：未開始
 
 ---
 
-## 2. 系統架構
-
-### 2.1 分層
+## 2. 架構
 
 * Data Layer
-  * raw_sources（immutable）
-  * wiki（markdown）
-  * graph（entity-relation）
-  * vector（embedding）
+  * `raw_sources/`：immutable 原始檔
+  * `wiki/`：人可讀摘要與 write-back pages
+  * `graph/graph.json`：entity / relation
+  * `vector/db/`：embedding retrieval
 * Processing Layer
-  * ingestion pipeline
-  * update engine（同步三層）
+  * ingestion pipeline：parse → normalize → extract → update
+  * query pipeline：routing backend → wiki / graph / vector → fallback / write-back
 * Tool Layer
-  * CLI（ks）
-  * （未來）API / MCP adapter
-* Agent Layer
-  * routing
-  * reasoning
-  * tool orchestration
-
-### 2.2 視覺參照
+  * `ks ingest`
+  * `ks query`
+  * `ks lint`
 
 ![LLM Wiki 概念示意](LLM%20wiki.png)
 
@@ -51,17 +34,15 @@
 
 ---
 
-## 3. CLI 設計（Phase 1 必做）
-
-### 3.1 指令
+## 3. CLI Contract
 
 ```bash
 ks ingest <file|dir>
-ks query "<question>"
-ks lint                # Phase 1 為 stub，Phase 3 才實作
+ks query "<question>" [--writeback auto|yes|no|ask]
+ks lint
 ```
 
-### 3.2 輸出（統一 JSON）
+stdout 契約統一：
 
 ```json
 {
@@ -75,221 +56,150 @@ ks lint                # Phase 1 為 stub，Phase 3 才實作
 }
 ```
 
+`ks ingest`、`ks query`、`ks lint` 共用同一 top-level JSON shape。
+
 ---
 
-## 4. Ingestion Pipeline（核心）
-
-### 4.1 流程
+## 4. Ingestion Pipeline
 
 1. parse
-   * Phase 1：**txt / md / pdf**
-   * Phase 2：docx / xlsx / pptx
-   * Phase 3：png / jpg（OCR / VLM）
-2. normalize（clean / chunk）
+   * Phase 1：`txt / md / pdf`
+   * Phase 2：`docx / xlsx / pptx`
+   * Phase 3：圖片 ingest（still raster images；實際接受格式與 normalize / 轉檔策略待後續 spec 凍結）
+2. normalize
 3. extract
-   * entities（Phase 2）
-   * relations（Phase 2）
    * key facts
+   * entities
+   * relations
 4. update
-   * wiki（新增 / 修改 / cross-link）
-   * graph（Phase 2，新增節點與邊）
-   * vector（embedding）
+   * wiki
+   * graph
+   * vector
+
+目前 graph extraction 是 pattern-based，目的不是做最強 NLP，而是穩定支撐離線 relation query 與 regression tests。
+圖片 ingest 目前只確定會晚於 Phase 2；未來不應把產品邊界寫死成只吃 `png / jpg`，而應以「接受 still raster images → normalize → OCR / VLM」另立 spec。
 
 ---
 
-## 5. Query Routing（最重要）
+## 5. Query Routing
 
-### 5.1 Phase 1（rule-based，僅 wiki / vector 兩路）
+### 5.1 Route 偏好
 
-* 「總結 / 說明 / 報告」→ wiki
-* 「影響 / 關係 / 依賴 / 為什麼」→ vector（fallback，答案附註「深度關係推理將於 Phase 2 支援」）
-* 「原文 / 細節 / 條款」→ vector
+* summary / overview → wiki
+* relation / impact / dependency / why → graph
+* detail / clause / excerpt → vector
 
-### 5.2 Phase 2（加入 graph，升級為 LLM-based）
+### 5.2 Routing backend
 
-* 「影響 / 關係 / 依賴 / 為什麼」→ graph
-* routing 決策改由 LLM 判定
+* 現在的 routing 是 model-driven，不再直接走單純 keyword if/else
+* repo 預設 backend 是本機 deterministic semantic router
+* `HKS_ROUTING_MODEL` 保留為未來接本機 prompt model 的入口
 
-### 5.3 fallback
+### 5.3 Fallback
 
-* 查不到 → vector
-* 多來源 → merge
-
-### 5.4 Route / Source 語意（JSON 輸出對應）
-
-`trace.route` 表示**最終採用的主要路徑**；`source` 表示**實際取用到的知識層**（可為複數，反映 merge）。Phase 1 組合表：
-
-| 情境 | `trace.route` | `source` |
-|---|---|---|
-| wiki 命中 | `wiki` | `["wiki"]` |
-| wiki 空 → fallback vector | `vector` | `["vector"]` |
-| wiki + vector 合併（wiki 主） | `wiki` | `["wiki","vector"]` |
-| 純 vector（detail / 關係 fallback） | `vector` | `["vector"]` |
-
-fallback 過程（rule 判定、wiki 未命中、切換 vector 等）一律寫入 `trace.steps`，供 agent 與除錯追蹤。Phase 1 `source` 與 `trace.route` **MUST NOT** 出現 `"graph"`。
+* wiki miss → vector
+* graph miss → vector
+* no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
 
 ---
 
 ## 6. Write-back
 
-### Phase 1（半自動，預設開啟）
+### 現在的 Phase 2 行為
 
-* query 結束後，若產生新知識 → **詢問使用者**是否回寫 wiki
-* 使用者確認後，更新 index.md、記錄 log.md
+* 預設模式：`auto`
+* `confidence >= HKS_WRITEBACK_AUTO_THRESHOLD`（預設 `0.75`）→ 自動回寫 wiki
+* `--writeback=no` → 禁用
+* `--writeback=yes` → 強制回寫
+* `--writeback=ask` → 舊互動模式，相容保留
 
-### Phase 2（全自動）
-
-* 高 confidence 答案自動回寫
-* 自動建立 cross-link
-* 使用者可關閉
-
----
-
-## 7. Graph Schema（Phase 2）
-
-先定義最小集合：
-
-* Entity types：
-  * Person
-  * Project
-  * Document
-  * Event
-  * Concept
-* Relations：
-  * owns
-  * depends_on
-  * impacts
-  * references
-  * belongs_to
+自動 write-back page 會帶 `## Related`，連回本次答案涉及的既有 wiki pages。
 
 ---
 
-## 8. 資料結構
+## 7. Graph Schema
+
+### Entity types
+
+* `Person`
+* `Project`
+* `Document`
+* `Event`
+* `Concept`
+
+### Relations
+
+* `owns`
+* `depends_on`
+* `impacts`
+* `references`
+* `belongs_to`
+
+graph persistence 位於 `/ks/graph/graph.json`。
+
+---
+
+## 8. Runtime Layout
 
 ```text
 /ks
-  /raw_sources                # immutable 原始檔
+  /raw_sources
   /wiki
-    index.md                  # TOC（所有 wiki 頁面索引）
-    log.md                    # append-only ingest / write-back 紀錄
+    index.md
+    log.md
     /pages
-      <slug>.md               # 實際 wiki 頁面（一檔一主題）
+      <slug>.md
   /graph
-    graph.json                # Phase 2 才建立；Phase 1 禁止寫入
+    graph.json
   /vector
-    db/                       # embedding store
-  /manifest.json              # ingest idempotency 索引（path + sha256 → derived artifacts）
+    db/
+  /manifest.json
 ```
 
-### 8.1 `wiki/index.md` 格式（Phase 1 最小版本）
+`manifest.json` 以 `relpath + sha256 + parser_fingerprint` 對應 derived artifacts，現在包含：
 
-純 TOC，每行一個 wiki 頁面：
-
-```markdown
-# Wiki Index
-
-- [Page Title](pages/<slug>.md) — one-line summary
-- [Another Page](pages/another.md) — one-line summary
-```
-
-### 8.2 `wiki/log.md` 格式（Phase 1 最小版本）
-
-Append-only。Phase 1 記兩類事件：`ingest` 與 `writeback`。
-
-Ingest skip / update 範例：
-
-```markdown
-## 2026-04-23 14:30 | ingest | skipped
-- target: raw_sources/project-a.md
-- reason: hash unchanged
-```
-
-Write-back 範例：
-
-```markdown
-## 2026-04-23 14:32 | writeback | committed
-- query: 專案A目前風險是什麼
-- route: wiki
-- source: [wiki, vector]
-- pages touched: pages/project-a.md
-- confidence: 0.87
-```
-
-### 8.3 Ingest idempotency
-
-`manifest.json` 以 `raw_sources` 相對路徑為 key、內容 SHA256 為版本；重複 `ks ingest` 時：
-
-* hash 未變 → 跳過
-* hash 變更 → 覆寫該檔衍生的 wiki chunk 與 vector rows，並於 `log.md` 追加紀錄
-* 檔案消失 → 可選 `--prune` 清除遺留 artifacts（Phase 1 預設不動）
+* `wiki_pages`
+* `graph_nodes`
+* `graph_edges`
+* `vector_ids`
 
 ---
 
-## 9. 開發階段（必照順序）
+## 9. Phase Status
 
-### Phase 1（現在）
+### Phase 1
 
-* [ ] 建 CLI（typer）
-* [ ] 實作 `ks query`（rule-based routing，wiki / vector 兩路）
-* [ ] 實作 `ks ingest`（支援 **txt / md / pdf**）
-* [ ] wiki（markdown 寫入）
-* [ ] vector（basic embedding）
-* [ ] 半自動 write-back（詢問後回寫）
-* [ ] `ks lint` stub（回「尚未實作」）
-
-👉 不做 graph
-
----
+* [x] CLI
+* [x] wiki + vector
+* [x] rule-based baseline
+* [x] ingest：`txt / md / pdf`
+* [x] 半自動 write-back
+* [x] `ks lint` stub
 
 ### Phase 2
 
-* [ ] graph extraction（entity / relation）
-* [ ] graph query
-* [ ] routing 升級（LLM-based）
-* [ ] 全自動 write-back
-* [ ] ingest 擴充：**docx / xlsx / pptx**
-
----
+* [x] ingest：`docx / xlsx / pptx`
+* [x] graph extraction
+* [x] graph query
+* [x] model-driven routing
+* [x] 全自動 write-back
 
 ### Phase 3
 
-* [ ] lint system 實作
+* [ ] lint system
 * [ ] 多 agent 支援
 * [ ] API / MCP adapter
-* [ ] ingest 擴充：**png / jpg**（OCR / VLM）
+* [ ] 圖片 ingest（still raster images；exact format set / normalize pipeline / OCR / VLM 待 spec）
 
 ---
 
-## 10. 不做清單（MVP 及 Phase 2 一律不做）
+## 10. 非目標
 
-* 不做 UI（CLI-only）
-* 不做 多使用者 / RBAC
-* 不做 雲端部署
-* 不做 Microservice
-* 不做 MCP adapter（Phase 3 再評估）
-* 不做 非文字素材（影片、音訊）
+Phase 2 仍不做：
 
----
-
-## 11. 驗收標準（MVP）
-
-完成以下才算成功：
-
-* 能 ingest 10 份文件
-* 能回答：
-  * summary 類問題（wiki）
-  * detail 類問題（vector）
-* CLI 可被 agent 調用
-* wiki 有持續成長（>20 pages）
-
----
-
-## 12. 下一步（立即執行）
-
-1. 建 repo（ks）
-2. 實作 CLI skeleton
-3. 寫第一版 routing（rule-based）
-4. ingest 3 份文件測試
-5. 調整輸出 JSON
-
----
+* UI
+* 多使用者 / RBAC
+* 雲端部署
+* microservice
+* 非文字素材（影片、音訊）
+* API / MCP adapter

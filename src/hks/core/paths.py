@@ -1,4 +1,4 @@
-"""Runtime path helpers for the Phase 1 filesystem contract."""
+"""Runtime path helpers for the filesystem contract."""
 
 from __future__ import annotations
 
@@ -13,6 +13,8 @@ class RuntimePaths:
     raw_sources: Path
     wiki: Path
     wiki_pages: Path
+    graph_dir: Path
+    graph_file: Path
     vector_db: Path
     manifest: Path
     lock: Path
@@ -32,7 +34,7 @@ def resolve_ks_root(root: Path | str | None = None) -> Path:
 
 
 def assert_runtime_path_allowed(path: Path, *, ks_root: Path | str | None = None) -> Path:
-    """Reject any path outside the Phase 1 runtime layout whitelist."""
+    """Reject any path outside the supported /ks layout."""
 
     candidate = path.expanduser().resolve(strict=False)
     paths = runtime_paths(ks_root)
@@ -42,9 +44,10 @@ def assert_runtime_path_allowed(path: Path, *, ks_root: Path | str | None = None
         paths.raw_sources,
         paths.wiki,
         paths.wiki_pages,
+        paths.graph_dir,
         paths.vector_db,
     )
-    allowed_files = (paths.manifest, paths.lock)
+    allowed_files = (paths.manifest, paths.lock, paths.graph_file)
     if candidate in allowed_files:
         return candidate
     if any(
@@ -63,6 +66,8 @@ def runtime_paths(root: Path | str | None = None) -> RuntimePaths:
         raw_sources=ks_root / "raw_sources",
         wiki=ks_root / "wiki",
         wiki_pages=ks_root / "wiki" / "pages",
+        graph_dir=ks_root / "graph",
+        graph_file=ks_root / "graph" / "graph.json",
         vector_db=ks_root / "vector" / "db",
         manifest=ks_root / "manifest.json",
         lock=ks_root / ".lock",
@@ -75,6 +80,8 @@ KS_ROOT = _DEFAULT_PATHS.root
 RAW_SOURCES_DIR = _DEFAULT_PATHS.raw_sources
 WIKI_DIR = _DEFAULT_PATHS.wiki
 WIKI_PAGES_DIR = _DEFAULT_PATHS.wiki_pages
+GRAPH_DIR = _DEFAULT_PATHS.graph_dir
+GRAPH_FILE = _DEFAULT_PATHS.graph_file
 VECTOR_DB_DIR = _DEFAULT_PATHS.vector_db
 MANIFEST_PATH = _DEFAULT_PATHS.manifest
 LOCK_PATH = _DEFAULT_PATHS.lock

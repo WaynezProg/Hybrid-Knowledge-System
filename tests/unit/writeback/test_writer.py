@@ -32,6 +32,7 @@ def test_writer_commit_persists_page_and_log(tmp_path) -> None:
                 "status": "committed",
                 "slug": "project-a-summary",
                 "path": "pages/project-a-summary.md",
+                "related": [],
             },
         )
     ]

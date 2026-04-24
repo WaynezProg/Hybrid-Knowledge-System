@@ -12,7 +12,10 @@ dependencies = [
   "chromadb",
   "jsonschema",
   "markdown-it-py",
+  "openpyxl>=3.1,<4",
   "pypdf",
+  "python-docx>=1.1,<2",
+  "python-pptx>=1.0,<2",
   "python-slugify",
   "ruamel.yaml",
   "sentence-transformers",
@@ -24,6 +27,7 @@ ks = "hks.cli:app"
 
 [dependency-groups]
 dev = [
+  "msoffcrypto-tool>=5.4,<6",
   "mypy",
   "pytest",
   "pytest-cov",
@@ -66,8 +70,14 @@ packages = ["hks"]
 [[tool.mypy.overrides]]
 module = [
   "chromadb",
+  "docx",
+  "docx.*",
   "jsonschema",
   "markdown_it",
+  "openpyxl",
+  "openpyxl.*",
+  "pptx",
+  "pptx.*",
   "ruamel",
   "ruamel.yaml",
   "sentence_transformers",

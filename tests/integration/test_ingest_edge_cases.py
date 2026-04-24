@@ -18,7 +18,9 @@ def test_ingest_handles_broken_pdf_and_continues(cli_runner, working_docs, fixtu
     assert result.exit_code == 65
     payload = json.loads(result.stdout)
     failures = payload["trace"]["steps"][0]["detail"]["failures"]
-    assert failures == [{"path": "broken.pdf", "reason": "pdf_read_error"}]
+    # Phase 2 moves corruption detection earlier: sniffing catches missing %PDF-
+    # magic before the parser is called, so the reason is generic `corrupt`.
+    assert failures == [{"path": "broken.pdf", "reason": "corrupt"}]
     assert len(list((working_docs.parent / "ks" / "wiki" / "pages").glob("*.md"))) == 10
 
 

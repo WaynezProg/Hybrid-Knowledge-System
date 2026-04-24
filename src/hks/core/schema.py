@@ -12,10 +12,11 @@ import jsonschema
 
 from hks.errors import ExitCode
 
-type Route = Literal["wiki", "vector"]
+type Route = Literal["wiki", "graph", "vector"]
 type TraceKind = Literal[
-    "rule_match",
+    "routing_model",
     "wiki_lookup",
+    "graph_lookup",
     "vector_lookup",
     "fallback",
     "merge",
@@ -73,7 +74,7 @@ def contract_schema_path() -> Path:
     return (
         Path(__file__).resolve().parents[3]
         / "specs"
-        / "001-phase1-cli-mvp"
+        / "003-phase2-graph-routing"
         / "contracts"
         / "query-response.schema.json"
     )

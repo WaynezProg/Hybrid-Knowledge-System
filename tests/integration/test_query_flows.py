@@ -8,9 +8,12 @@ import hks.ingest.extractor as extractor
 import hks.ingest.normalizer as normalizer
 from hks.cli import app
 from hks.core.text_models import TextModelBackend
+from hks.ingest.parsers import docx as docx_parser
 from hks.ingest.parsers import md as md_parser
 from hks.ingest.parsers import pdf as pdf_parser
+from hks.ingest.parsers import pptx as pptx_parser
 from hks.ingest.parsers import txt as txt_parser
+from hks.ingest.parsers import xlsx as xlsx_parser
 
 
 @pytest.fixture()
@@ -23,7 +26,7 @@ def ingested_runtime(cli_runner, working_docs):
 @pytest.mark.integration
 @pytest.mark.us2
 def test_query_summary_uses_wiki(cli_runner, ingested_runtime) -> None:
-    result = cli_runner.invoke(app, ["query", "summary Atlas"])
+    result = cli_runner.invoke(app, ["query", "summary Atlas", "--writeback=no"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -35,7 +38,7 @@ def test_query_summary_uses_wiki(cli_runner, ingested_runtime) -> None:
 @pytest.mark.integration
 @pytest.mark.us2
 def test_query_detail_uses_vector(cli_runner, ingested_runtime) -> None:
-    result = cli_runner.invoke(app, ["query", "clause 3.2 text"])
+    result = cli_runner.invoke(app, ["query", "clause 3.2 text", "--writeback=no"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -47,20 +50,20 @@ def test_query_detail_uses_vector(cli_runner, ingested_runtime) -> None:
 
 @pytest.mark.integration
 @pytest.mark.us2
-def test_query_relation_appends_phase2_note(cli_runner, ingested_runtime) -> None:
-    result = cli_runner.invoke(app, ["query", "A 專案延遲影響哪些系統"])
+def test_query_relation_uses_graph(cli_runner, ingested_runtime) -> None:
+    result = cli_runner.invoke(app, ["query", "A 專案延遲影響哪些系統", "--writeback=no"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert payload["trace"]["route"] == "vector"
-    assert payload["source"] == ["vector"]
-    assert "深度關係推理將於 Phase 2 支援" in payload["answer"]
+    assert payload["trace"]["route"] == "graph"
+    assert payload["source"] == ["graph"]
+    assert "checkout service" in payload["answer"]
 
 
 @pytest.mark.integration
 @pytest.mark.us2
 def test_query_no_hit_returns_zero(cli_runner, ingested_runtime) -> None:
-    result = cli_runner.invoke(app, ["query", "明天吃什麼"])
+    result = cli_runner.invoke(app, ["query", "明天吃什麼", "--writeback=no"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
@@ -88,7 +91,7 @@ def test_query_corrupted_runtime_without_manifest_returns_noinput(
     assert manifest_path.exists()
     manifest_path.unlink()
 
-    result = cli_runner.invoke(app, ["query", "summary Atlas"])
+    result = cli_runner.invoke(app, ["query", "summary Atlas", "--writeback=no"])
 
     assert result.exit_code == 66
     payload = json.loads(result.stdout)
@@ -106,6 +109,9 @@ def test_query_does_not_reparse_sources(
     monkeypatch.setattr(txt_parser, "parse", fail_if_called)
     monkeypatch.setattr(md_parser, "parse", fail_if_called)
     monkeypatch.setattr(pdf_parser, "parse", fail_if_called)
+    monkeypatch.setattr(docx_parser, "parse", fail_if_called)
+    monkeypatch.setattr(xlsx_parser, "parse", fail_if_called)
+    monkeypatch.setattr(pptx_parser, "parse", fail_if_called)
     monkeypatch.setattr(normalizer, "chunk", fail_if_called)
     monkeypatch.setattr(extractor, "extract", fail_if_called)
 
@@ -118,7 +124,7 @@ def test_query_does_not_reparse_sources(
 
     monkeypatch.setattr(TextModelBackend, "embed_query", counting_embed_query)
 
-    result = cli_runner.invoke(app, ["query", "clause 3.2 text"])
+    result = cli_runner.invoke(app, ["query", "clause 3.2 text", "--writeback=no"])
 
     assert result.exit_code == 0
     assert calls["embed_query"] == 1

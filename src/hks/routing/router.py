@@ -1,10 +1,13 @@
-"""Rule-based routing for Phase 1 query dispatch."""
+"""Semantic routing for Phase 2 query dispatch."""
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
+from typing import cast
 
 from hks.core.schema import Route, TraceStep
+from hks.core.text_models import TextModelBackend
 from hks.routing.rules import RoutingRuleSet
 
 
@@ -12,62 +15,68 @@ from hks.routing.rules import RoutingRuleSet
 class RouteDecision:
     route: Route
     steps: list[TraceStep]
-    phase2_note: bool = False
     matched_rule_id: str | None = None
 
 
 def route(query: str, rules: RoutingRuleSet) -> RouteDecision:
-    lowered_query = query.lower()
-    for rule in rules.rules:
-        for keyword in rule.keywords_zh:
-            if keyword and keyword in query:
-                return RouteDecision(
-                    route=rule.target_route,
-                    phase2_note=rule.phase2_note,
-                    matched_rule_id=rule.id,
-                    steps=[
-                        TraceStep(
-                            kind="rule_match",
-                            detail={
-                                "rule_id": rule.id,
-                                "keyword": keyword,
-                                "lang": "zh",
-                                "target_route": rule.target_route,
-                            },
-                        )
-                    ],
-                )
-        for keyword in rule.keywords_en:
-            if keyword and keyword in lowered_query:
-                return RouteDecision(
-                    route=rule.target_route,
-                    phase2_note=rule.phase2_note,
-                    matched_rule_id=rule.id,
-                    steps=[
-                        TraceStep(
-                            kind="rule_match",
-                            detail={
-                                "rule_id": rule.id,
-                                "keyword": keyword,
-                                "lang": "en",
-                                "target_route": rule.target_route,
-                            },
-                        )
-                    ],
-                )
+    backend_name = os.environ.get("HKS_ROUTING_MODEL", "simple")
+    backend = TextModelBackend()
+    prototype_texts = [
+        " ".join((*rule.keywords_zh, *rule.keywords_en)).strip() or rule.id for rule in rules.rules
+    ]
+    embeddings = backend.embed_texts([query, *prototype_texts])
+    query_embedding = embeddings[0]
+    best_rule_id = "default"
+    best_route = rules.default_route
+    best_score = -1.0
+    ranked_scores: list[dict[str, object]] = []
 
+    lowered_query = query.lower()
+    for rule, prototype_embedding in zip(rules.rules, embeddings[1:], strict=False):
+        lexical_hits = sum(1 for keyword in rule.keywords_zh if keyword and keyword in query) + sum(
+            1 for keyword in rule.keywords_en if keyword and keyword in lowered_query
+        )
+        semantic_score = _cosine_similarity(query_embedding, prototype_embedding)
+        score = semantic_score + (lexical_hits * 0.35)
+        ranked_scores.append(
+            {
+                "rule_id": rule.id,
+                "target_route": rule.target_route,
+                "score": round(score, 4),
+                "lexical_hits": lexical_hits,
+            }
+        )
+        if score > best_score:
+            best_rule_id = rule.id
+            best_route = rule.target_route
+            best_score = score
+
+    if best_score <= 0:
+        best_rule_id = "default"
+        best_route = rules.default_route
+
+    ranked_scores.sort(key=lambda item: cast(float, item["score"]), reverse=True)
     return RouteDecision(
-        route=rules.default_route,
-        matched_rule_id="default",
+        route=best_route,
+        matched_rule_id=best_rule_id,
         steps=[
             TraceStep(
-                kind="rule_match",
+                kind="routing_model",
                 detail={
-                    "rule_id": "default",
-                    "keyword": None,
-                    "lang": None,
-                    "target_route": rules.default_route,
+                    "backend": backend_name,
+                    "rule_id": best_rule_id,
+                    "target_route": best_route,
+                    "scores": ranked_scores[:3],
                 },
             )
         ],
     )
+
+
+def _cosine_similarity(left: list[float], right: list[float]) -> float:
+    numerator = sum(a * b for a, b in zip(left, right, strict=False))
+    left_norm = sum(value * value for value in left) ** 0.5
+    right_norm = sum(value * value for value in right) ** 0.5
+    if left_norm == 0 or right_norm == 0:
+        return 0.0
+    return float(numerator / (left_norm * right_norm))

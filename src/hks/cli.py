@@ -24,9 +24,15 @@ app = typer.Typer(
 
 
 class WritebackMode(StrEnum):
+    auto = "auto"
     yes = "yes"
     no = "no"
     ask = "ask"
+
+
+class PptxNotesMode(StrEnum):
+    include = "include"
+    exclude = "exclude"
 
 
 def version_callback(value: bool) -> None:
@@ -102,8 +108,42 @@ def ingest(
             help="Delete artifacts for files missing from the source directory.",
         ),
     ] = False,
+    pptx_notes: Annotated[
+        PptxNotesMode,
+        typer.Option(
+            "--pptx-notes",
+            case_sensitive=False,
+            help="Include or exclude pptx speaker notes (default: include).",
+        ),
+    ] = PptxNotesMode.include,
 ) -> None:
-    run_command("ingest", ingest_command.run, path, prune=prune)
+    from hks.ingest.guards import load_office_limits
+
+    try:
+        load_office_limits()
+    except ValueError as error:
+        raise typer.Exit(code=_emit_usage_error("ingest", str(error))) from error
+    run_command(
+        "ingest",
+        ingest_command.run,
+        path,
+        prune=prune,
+        pptx_notes=pptx_notes == PptxNotesMode.include,
+    )
+
+
+def _emit_usage_error(command: str, message: str) -> int:
+    typer.echo(f"[ks:{command}] usage: {message}", err=True)
+    emit_response(
+        build_error_response(
+            message,
+            route="wiki",
+            code="USAGE",
+            exit_code=ExitCode.USAGE,
+            hint=None,
+        )
+    )
+    return int(ExitCode.USAGE)
 
 
 @app.command("query")
@@ -116,7 +156,7 @@ def query(
             case_sensitive=False,
             help="Override write-back behavior.",
         ),
-    ] = WritebackMode.ask,
+    ] = WritebackMode.auto,
 ) -> None:
     run_command("query", query_command.run, question, writeback=writeback.value)
 
