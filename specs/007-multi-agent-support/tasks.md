@@ -11,11 +11,11 @@
 
 **Purpose**: Add coordination schemas, package skeleton, and schema loaders.
 
-- [ ] T001 Add coordination package skeleton in src/hks/coordination/__init__.py
-- [ ] T002 [P] Add schema loading helpers for specs/007-multi-agent-support/contracts/ in src/hks/adapters/contracts.py
-- [ ] T003 [P] Add contract tests for coordination-summary-detail.schema.json and coordination-ledger.schema.json in tests/contract/test_coordination_contract.py
-- [ ] T004 [P] Add contract tests for mcp-coordination-tools.schema.json in tests/contract/test_coordination_mcp_contract.py
-- [ ] T005 Update canonical query-response schema to allow `trace.steps.kind == "coordination_summary"` in specs/005-phase3-lint-impl/contracts/query-response.schema.json
+- [x] T001 Add coordination package skeleton in src/hks/coordination/__init__.py
+- [x] T002 [P] Add schema loading helpers for specs/007-multi-agent-support/contracts/ in src/hks/adapters/contracts.py
+- [x] T003 [P] Add contract tests for coordination-summary-detail.schema.json and coordination-ledger.schema.json in tests/contract/test_coordination_contract.py
+- [x] T004 [P] Add contract tests for mcp-coordination-tools.schema.json in tests/contract/test_coordination_mcp_contract.py
+- [x] T005 Update canonical query-response schema to allow `trace.steps.kind == "coordination_summary"` in specs/005-phase3-lint-impl/contracts/query-response.schema.json
 
 ---
 
@@ -25,15 +25,15 @@
 
 **CRITICAL**: No user story work can begin until this phase is complete.
 
-- [ ] T006 Implement AgentSession, CoordinationLease, HandoffNote, ResourceReference, CoordinationEvent models in src/hks/coordination/models.py
-- [ ] T007 Implement agent_id/resource_key validation in src/hks/coordination/models.py
-- [ ] T008 Implement coordination runtime paths in src/hks/coordination/store.py
-- [ ] T009 Implement locked JSON state + JSONL event persistence in src/hks/coordination/store.py
-- [ ] T010 Map ledger missing/corrupt/validation errors to KSError exit semantics in src/hks/coordination/store.py
-- [ ] T011 Implement QueryResponse builder with `coordination_summary` detail in src/hks/commands/coord.py
-- [ ] T012 [P] Add unit tests for model validation in tests/unit/coordination/test_models.py
-- [ ] T013 [P] Add unit tests for store read/write, event append, and corrupt ledger handling in tests/unit/coordination/test_store.py
-- [ ] T014 [P] Add contract test proving coordination response validates against canonical QueryResponse in tests/contract/test_coordination_contract.py
+- [x] T006 Implement AgentSession, CoordinationLease, HandoffNote, ResourceReference, CoordinationEvent models in src/hks/coordination/models.py
+- [x] T007 Implement agent_id/resource_key validation in src/hks/coordination/models.py
+- [x] T008 Implement coordination runtime paths in src/hks/coordination/store.py
+- [x] T009 Implement locked JSON state + JSONL event persistence in src/hks/coordination/store.py
+- [x] T010 Map ledger missing/corrupt/validation errors to KSError exit semantics in src/hks/coordination/store.py
+- [x] T011 Implement QueryResponse builder with `coordination_summary` detail in src/hks/commands/coord.py
+- [x] T012 [P] Add unit tests for model validation in tests/unit/coordination/test_models.py
+- [x] T013 [P] Add unit tests for store read/write, event append, and corrupt ledger handling in tests/unit/coordination/test_store.py
+- [x] T014 [P] Add contract test proving coordination response validates against canonical QueryResponse in tests/contract/test_coordination_contract.py
 
 **Checkpoint**: coordination state can be read/written safely and returned as schema-valid HKS response without CLI/MCP transport.
 
@@ -47,16 +47,16 @@
 
 ### Tests for User Story 1
 
-- [ ] T015 [P] [US1] Add CLI integration tests for session start/heartbeat/status in tests/integration/test_coordination_cli.py
-- [ ] T016 [P] [US1] Add stale session TTL regression in tests/unit/coordination/test_service.py
-- [ ] T017 [P] [US1] Add invalid agent_id usage-error tests in tests/integration/test_coordination_cli.py
+- [x] T015 [P] [US1] Add CLI integration tests for session start/heartbeat/status in tests/integration/test_coordination_cli.py
+- [x] T016 [P] [US1] Add stale session TTL regression in tests/unit/coordination/test_service.py
+- [x] T017 [P] [US1] Add invalid agent_id usage-error tests in tests/integration/test_coordination_cli.py
 
 ### Implementation for User Story 1
 
-- [ ] T018 [US1] Implement session start/heartbeat/close/status service methods in src/hks/coordination/service.py
-- [ ] T019 [US1] Add `ks coord session start|heartbeat|close` commands in src/hks/cli.py and src/hks/commands/coord.py
-- [ ] T020 [US1] Add `ks coord status` command in src/hks/cli.py and src/hks/commands/coord.py
-- [ ] T021 [US1] Ensure all session writes append CoordinationEvent in src/hks/coordination/service.py
+- [x] T018 [US1] Implement session start/heartbeat/close/status service methods in src/hks/coordination/service.py
+- [x] T019 [US1] Add `ks coord session start|heartbeat|close` commands in src/hks/cli.py and src/hks/commands/coord.py
+- [x] T020 [US1] Add `ks coord status` command in src/hks/cli.py and src/hks/commands/coord.py
+- [x] T021 [US1] Ensure all session writes append CoordinationEvent in src/hks/coordination/service.py
 
 **Checkpoint**: User Story 1 is independently usable by CLI for agent presence.
 
@@ -70,17 +70,17 @@
 
 ### Tests for User Story 2
 
-- [ ] T022 [P] [US2] Add lease claim/renew/release CLI integration tests in tests/integration/test_coordination_cli.py
-- [ ] T023 [P] [US2] Add concurrent claim regression with 100 attempts in tests/integration/test_coordination_concurrency.py
-- [ ] T024 [P] [US2] Add lease conflict structured-response test in tests/integration/test_coordination_cli.py
-- [ ] T025 [P] [US2] Add expired lease takeover unit test in tests/unit/coordination/test_service.py
+- [x] T022 [P] [US2] Add lease claim/renew/release CLI integration tests in tests/integration/test_coordination_cli.py
+- [x] T023 [P] [US2] Add concurrent claim regression with 100 attempts in tests/integration/test_coordination_concurrency.py
+- [x] T024 [P] [US2] Add lease conflict structured-response test in tests/integration/test_coordination_cli.py
+- [x] T025 [P] [US2] Add expired lease takeover unit test in tests/unit/coordination/test_service.py
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Implement lease claim/renew/release/expire service methods in src/hks/coordination/service.py
-- [ ] T027 [US2] Add `ks coord lease claim|renew|release` commands in src/hks/cli.py and src/hks/commands/coord.py
-- [ ] T028 [US2] Implement active-owner conflict response in src/hks/commands/coord.py
-- [ ] T029 [US2] Ensure lease claim decision and state write happen under coordination lock in src/hks/coordination/store.py
+- [x] T026 [US2] Implement lease claim/renew/release/expire service methods in src/hks/coordination/service.py
+- [x] T027 [US2] Add `ks coord lease claim|renew|release` commands in src/hks/cli.py and src/hks/commands/coord.py
+- [x] T028 [US2] Implement active-owner conflict response in src/hks/commands/coord.py
+- [x] T029 [US2] Ensure lease claim decision and state write happen under coordination lock in src/hks/coordination/store.py
 
 **Checkpoint**: User Stories 1 and 2 provide the CLI MVP for multi-agent coordination.
 
@@ -94,16 +94,16 @@
 
 ### Tests for User Story 3
 
-- [ ] T030 [P] [US3] Add handoff add/list CLI integration tests in tests/integration/test_coordination_cli.py
-- [ ] T031 [P] [US3] Add missing reference lint test in tests/integration/test_coordination_lint.py
-- [ ] T032 [P] [US3] Add handoff schema validation tests in tests/unit/coordination/test_models.py
+- [x] T030 [P] [US3] Add handoff add/list CLI integration tests in tests/integration/test_coordination_cli.py
+- [x] T031 [P] [US3] Add missing reference lint test in tests/integration/test_coordination_lint.py
+- [x] T032 [P] [US3] Add handoff schema validation tests in tests/unit/coordination/test_models.py
 
 ### Implementation for User Story 3
 
-- [ ] T033 [US3] Implement handoff add/list service methods in src/hks/coordination/service.py
-- [ ] T034 [US3] Add `ks coord handoff add|list` commands in src/hks/cli.py and src/hks/commands/coord.py
-- [ ] T035 [US3] Implement coordination lint for missing references and stale leases in src/hks/coordination/lint.py
-- [ ] T036 [US3] Add `ks coord lint` command in src/hks/cli.py and src/hks/commands/coord.py
+- [x] T033 [US3] Implement handoff add/list service methods in src/hks/coordination/service.py
+- [x] T034 [US3] Add `ks coord handoff add|list` commands in src/hks/cli.py and src/hks/commands/coord.py
+- [x] T035 [US3] Implement coordination lint for missing references and stale leases in src/hks/coordination/lint.py
+- [x] T036 [US3] Add `ks coord lint` command in src/hks/cli.py and src/hks/commands/coord.py
 
 **Checkpoint**: CLI supports presence, ownership, handoff, and ledger lint.
 
@@ -117,19 +117,19 @@
 
 ### Tests for User Story 4
 
-- [ ] T037 [P] [US4] Add MCP coordination tool contract tests in tests/contract/test_coordination_mcp_contract.py
-- [ ] T038 [P] [US4] Add MCP session/lease/handoff integration tests in tests/integration/test_coordination_mcp.py
-- [ ] T039 [P] [US4] Add MCP/CLI consistency test for same `KS_ROOT` in tests/integration/test_coordination_mcp.py
-- [ ] T040 [P] [US4] Add optional HTTP coordination endpoint tests only if HTTP facade is implemented in tests/integration/test_coordination_http.py
+- [x] T037 [P] [US4] Add MCP coordination tool contract tests in tests/contract/test_coordination_mcp_contract.py
+- [x] T038 [P] [US4] Add MCP session/lease/handoff integration tests in tests/integration/test_coordination_mcp.py
+- [x] T039 [P] [US4] Add MCP/CLI consistency test for same `KS_ROOT` in tests/integration/test_coordination_mcp.py
+- [x] T040 [P] [US4] Add optional HTTP coordination endpoint tests only if HTTP facade is implemented in tests/integration/test_coordination_http.py
 
 ### Implementation for User Story 4
 
-- [ ] T041 [US4] Add hks_coord_session MCP tool in src/hks/adapters/mcp_server.py
-- [ ] T042 [US4] Add hks_coord_lease MCP tool in src/hks/adapters/mcp_server.py
-- [ ] T043 [US4] Add hks_coord_handoff MCP tool in src/hks/adapters/mcp_server.py
-- [ ] T044 [US4] Add hks_coord_status MCP tool in src/hks/adapters/mcp_server.py
-- [ ] T045 [US4] Reuse adapter error envelope mapping for coordination errors in src/hks/adapters/core.py
-- [ ] T046 [US4] Optionally add loopback-only HTTP coordination endpoints in src/hks/adapters/http_server.py
+- [x] T041 [US4] Add hks_coord_session MCP tool in src/hks/adapters/mcp_server.py
+- [x] T042 [US4] Add hks_coord_lease MCP tool in src/hks/adapters/mcp_server.py
+- [x] T043 [US4] Add hks_coord_handoff MCP tool in src/hks/adapters/mcp_server.py
+- [x] T044 [US4] Add hks_coord_status MCP tool in src/hks/adapters/mcp_server.py
+- [x] T045 [US4] Reuse adapter error envelope mapping for coordination errors in src/hks/adapters/core.py
+- [x] T046 [US4] Optionally add loopback-only HTTP coordination endpoints in src/hks/adapters/http_server.py
 
 **Checkpoint**: MCP clients can use all 007 MVP coordination primitives.
 
@@ -139,13 +139,15 @@
 
 **Purpose**: Documentation, consistency, and final verification before implementation branch completion.
 
-- [ ] T047 [P] Update readme.md and README.en.md with `ks coord` and MCP coordination usage
-- [ ] T048 [P] Update docs/main.md and docs/PRD.md to mark 007 status and remaining Phase 3 boundaries
-- [ ] T049 [P] Update specs/ARCHIVE.md only after implementation is complete and verified
-- [ ] T050 Run `.specify/scripts/bash/check-prerequisites.sh --json --include-tasks --require-tasks`
-- [ ] T051 Run `/speckit.analyze` equivalent consistency check across spec.md, plan.md, tasks.md and repair high/critical drift
-- [ ] T052 Run `uv run pytest --tb=short -q`, `uv run ruff check .`, and `uv run mypy src/hks`
-- [ ] T053 Smoke-test quickstart with `HKS_EMBEDDING_MODEL=simple` and temporary `KS_ROOT`
+- [x] T047 [P] Update readme.md and README.en.md with `ks coord` and MCP coordination usage
+- [x] T048 [P] Update docs/main.md and docs/PRD.md to mark 007 status and remaining Phase 3 boundaries
+- [x] T049 [P] Update specs/ARCHIVE.md only after implementation is complete and verified
+- [x] T050 Run `.specify/scripts/bash/check-prerequisites.sh --json --include-tasks --require-tasks`
+- [x] T051 Run `/speckit.analyze` equivalent consistency check across spec.md, plan.md, tasks.md and repair high/critical drift
+- [x] T052 Run `uv run pytest --tb=short -q`, `uv run ruff check .`, and `uv run mypy src/hks`
+- [x] T053 Smoke-test quickstart with `HKS_EMBEDDING_MODEL=simple` and temporary `KS_ROOT`
+- [x] T054 Re-run 005 lint regression suite after adding `coordination_summary`: `tests/contract/test_lint_contract.py`, `tests/integration/test_lint_findings.py`, `tests/integration/test_lint_fix.py`, `tests/integration/test_lint_strict.py`
+- [x] T055 Re-run 006 adapter regression suite after adding coordination tools: `tests/contract/test_mcp_contract.py`, `tests/integration/test_mcp_query.py`, `tests/integration/test_mcp_ingest_lint.py`, `tests/integration/test_http_adapter.py`, `tests/integration/test_mcp_performance.py`
 
 ---
 

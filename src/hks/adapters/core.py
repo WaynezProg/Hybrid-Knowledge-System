@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
 
-from hks.adapters.contracts import validate_tool_input
+from hks.adapters.contracts import validate_coordination_tool_input, validate_tool_input
 from hks.adapters.models import (
     FIX_MODES,
     PPTX_NOTES_MODES,
@@ -21,6 +21,7 @@ from hks.adapters.models import (
     SeverityThreshold,
     WritebackMode,
 )
+from hks.commands import coord as coord_command
 from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
 from hks.commands import query as query_command
@@ -213,6 +214,157 @@ def hks_lint(
         strict=strict,
         severity_threshold=threshold,
         fix_mode=fix_mode,
+        ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_coord_session(
+    *,
+    action: str,
+    agent_id: str,
+    session_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+    ks_root: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "action": action,
+        "agent_id": agent_id,
+        "session_id": session_id,
+        "metadata": metadata or {},
+        "ks_root": ks_root,
+    }
+    try:
+        validate_coordination_tool_input(
+            "hks_coord_session",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    return _run_command(
+        coord_command.run_session,
+        action=action,
+        agent_id=agent_id,
+        session_id=session_id,
+        metadata=metadata or {},
+        ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_coord_lease(
+    *,
+    action: str,
+    agent_id: str,
+    resource_key: str,
+    session_id: str | None = None,
+    lease_id: str | None = None,
+    ttl_seconds: int = 1800,
+    reason: str | None = None,
+    ks_root: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "action": action,
+        "agent_id": agent_id,
+        "resource_key": resource_key,
+        "session_id": session_id,
+        "lease_id": lease_id,
+        "ttl_seconds": ttl_seconds,
+        "reason": reason,
+        "ks_root": ks_root,
+    }
+    try:
+        validate_coordination_tool_input(
+            "hks_coord_lease",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    return _run_command(
+        coord_command.run_lease,
+        action=action,
+        agent_id=agent_id,
+        resource_key=resource_key,
+        session_id=session_id,
+        lease_id=lease_id,
+        ttl_seconds=ttl_seconds,
+        reason=reason,
+        ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_coord_handoff(
+    *,
+    action: str,
+    agent_id: str,
+    resource_key: str | None = None,
+    summary: str | None = None,
+    next_action: str | None = None,
+    references: list[dict[str, Any]] | None = None,
+    blocked_by: list[str] | None = None,
+    ks_root: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "action": action,
+        "agent_id": agent_id,
+        "resource_key": resource_key,
+        "summary": summary,
+        "next_action": next_action,
+        "references": references or [],
+        "blocked_by": blocked_by or [],
+        "ks_root": ks_root,
+    }
+    try:
+        validate_coordination_tool_input(
+            "hks_coord_handoff",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    return _run_command(
+        coord_command.run_handoff,
+        action=action,
+        agent_id=agent_id,
+        resource_key=resource_key,
+        summary=summary,
+        next_action=next_action,
+        references=references or [],
+        blocked_by=blocked_by or [],
+        ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_coord_status(
+    *,
+    agent_id: str | None = None,
+    resource_key: str | None = None,
+    include_stale: bool = True,
+    ks_root: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "agent_id": agent_id,
+        "resource_key": resource_key,
+        "include_stale": include_stale,
+        "ks_root": ks_root,
+    }
+    try:
+        validate_coordination_tool_input(
+            "hks_coord_status",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    return _run_command(
+        coord_command.run_status,
+        agent_id=agent_id,
+        resource_key=resource_key,
+        include_stale=include_stale,
         ks_root=ks_root,
         request_id=request_id,
     )

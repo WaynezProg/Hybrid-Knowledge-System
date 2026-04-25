@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
@@ -10,6 +11,7 @@ from typing import Annotated, NoReturn, cast
 import typer
 
 from hks import __version__
+from hks.commands import coord as coord_command
 from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
 from hks.commands import query as query_command
@@ -22,6 +24,14 @@ app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
     no_args_is_help=True,
 )
+coord_app = typer.Typer(add_completion=False, no_args_is_help=True)
+coord_session_app = typer.Typer(add_completion=False, no_args_is_help=True)
+coord_lease_app = typer.Typer(add_completion=False, no_args_is_help=True)
+coord_handoff_app = typer.Typer(add_completion=False, no_args_is_help=True)
+coord_app.add_typer(coord_session_app, name="session")
+coord_app.add_typer(coord_lease_app, name="lease")
+coord_app.add_typer(coord_handoff_app, name="handoff")
+app.add_typer(coord_app, name="coord")
 
 
 class WritebackMode(StrEnum):
@@ -230,6 +240,225 @@ def _parse_fix_mode(value: str) -> FixMode:
     if value not in {"plan", "apply"}:
         raise ValueError(f"invalid value for --fix: {value}")
     return cast(FixMode, value)
+
+
+def _parse_json_object(value: str | None, *, field: str) -> dict[str, object]:
+    if not value:
+        return {}
+    payload = json.loads(value)
+    if not isinstance(payload, dict):
+        raise ValueError(f"{field} must be a JSON object")
+    return cast(dict[str, object], payload)
+
+
+def _parse_json_array(value: str | None, *, field: str) -> list[dict[str, object]]:
+    if not value:
+        return []
+    payload = json.loads(value)
+    if not isinstance(payload, list) or any(not isinstance(item, dict) for item in payload):
+        raise ValueError(f"{field} must be a JSON array of objects")
+    return cast(list[dict[str, object]], payload)
+
+
+@coord_session_app.command("start")
+def coord_session_start(
+    agent_id: Annotated[str, typer.Argument(help="Agent identifier.")],
+    metadata: Annotated[
+        str | None,
+        typer.Option("--metadata", help="Session metadata JSON object."),
+    ] = None,
+) -> None:
+    try:
+        parsed_metadata = _parse_json_object(metadata, field="metadata")
+    except (json.JSONDecodeError, ValueError) as error:
+        raise typer.Exit(code=_emit_usage_error("coord", str(error))) from error
+    run_command(
+        "coord",
+        coord_command.run_session,
+        action="start",
+        agent_id=agent_id,
+        metadata=parsed_metadata,
+    )
+
+
+@coord_session_app.command("heartbeat")
+def coord_session_heartbeat(
+    agent_id: Annotated[str, typer.Argument(help="Agent identifier.")],
+    session_id: Annotated[
+        str | None,
+        typer.Option("--session-id", help="Session id to heartbeat."),
+    ] = None,
+) -> None:
+    run_command(
+        "coord",
+        coord_command.run_session,
+        action="heartbeat",
+        agent_id=agent_id,
+        session_id=session_id,
+    )
+
+
+@coord_session_app.command("close")
+def coord_session_close(
+    agent_id: Annotated[str, typer.Argument(help="Agent identifier.")],
+    session_id: Annotated[
+        str | None,
+        typer.Option("--session-id", help="Session id to close."),
+    ] = None,
+) -> None:
+    run_command(
+        "coord",
+        coord_command.run_session,
+        action="close",
+        agent_id=agent_id,
+        session_id=session_id,
+    )
+
+
+@coord_lease_app.command("claim")
+def coord_lease_claim(
+    agent_id: Annotated[str, typer.Argument(help="Agent identifier.")],
+    resource_key: Annotated[str, typer.Argument(help="Logical resource key.")],
+    session_id: Annotated[
+        str | None,
+        typer.Option("--session-id", help="Owner session id."),
+    ] = None,
+    ttl_seconds: Annotated[
+        int,
+        typer.Option("--ttl-seconds", help="Lease ttl in seconds."),
+    ] = 1800,
+    reason: Annotated[str | None, typer.Option("--reason", help="Lease reason.")] = None,
+) -> None:
+    run_command(
+        "coord",
+        coord_command.run_lease,
+        action="claim",
+        agent_id=agent_id,
+        resource_key=resource_key,
+        session_id=session_id,
+        ttl_seconds=ttl_seconds,
+        reason=reason,
+    )
+
+
+@coord_lease_app.command("renew")
+def coord_lease_renew(
+    agent_id: Annotated[str, typer.Argument(help="Agent identifier.")],
+    resource_key: Annotated[str, typer.Argument(help="Logical resource key.")],
+    lease_id: Annotated[str | None, typer.Option("--lease-id", help="Lease id.")] = None,
+    ttl_seconds: Annotated[
+        int,
+        typer.Option("--ttl-seconds", help="Lease ttl in seconds."),
+    ] = 1800,
+    reason: Annotated[str | None, typer.Option("--reason", help="Lease reason.")] = None,
+) -> None:
+    run_command(
+        "coord",
+        coord_command.run_lease,
+        action="renew",
+        agent_id=agent_id,
+        resource_key=resource_key,
+        lease_id=lease_id,
+        ttl_seconds=ttl_seconds,
+        reason=reason,
+    )
+
+
+@coord_lease_app.command("release")
+def coord_lease_release(
+    agent_id: Annotated[str, typer.Argument(help="Agent identifier.")],
+    resource_key: Annotated[str, typer.Argument(help="Logical resource key.")],
+    lease_id: Annotated[str | None, typer.Option("--lease-id", help="Lease id.")] = None,
+) -> None:
+    run_command(
+        "coord",
+        coord_command.run_lease,
+        action="release",
+        agent_id=agent_id,
+        resource_key=resource_key,
+        lease_id=lease_id,
+    )
+
+
+@coord_handoff_app.command("add")
+def coord_handoff_add(
+    agent_id: Annotated[str, typer.Argument(help="Agent identifier.")],
+    summary: Annotated[str, typer.Option("--summary", help="Handoff summary.")],
+    next_action: Annotated[str, typer.Option("--next-action", help="Next action.")],
+    resource_key: Annotated[
+        str | None,
+        typer.Option("--resource-key", help="Logical resource key."),
+    ] = None,
+    references: Annotated[
+        str | None,
+        typer.Option("--references", help="Resource references JSON array."),
+    ] = None,
+    blocked_by: Annotated[
+        list[str] | None,
+        typer.Option("--blocked-by", help="Blocking item."),
+    ] = None,
+) -> None:
+    try:
+        parsed_references = _parse_json_array(references, field="references")
+    except (json.JSONDecodeError, ValueError) as error:
+        raise typer.Exit(code=_emit_usage_error("coord", str(error))) from error
+    run_command(
+        "coord",
+        coord_command.run_handoff,
+        action="add",
+        agent_id=agent_id,
+        resource_key=resource_key,
+        summary=summary,
+        next_action=next_action,
+        references=parsed_references,
+        blocked_by=blocked_by or [],
+    )
+
+
+@coord_handoff_app.command("list")
+def coord_handoff_list(
+    agent_id: Annotated[str, typer.Argument(help="Agent identifier.")],
+    resource_key: Annotated[
+        str | None,
+        typer.Option("--resource-key", help="Logical resource key."),
+    ] = None,
+) -> None:
+    run_command(
+        "coord",
+        coord_command.run_handoff,
+        action="list",
+        agent_id=agent_id,
+        resource_key=resource_key,
+    )
+
+
+@coord_app.command("status")
+def coord_status(
+    agent_id: Annotated[
+        str | None,
+        typer.Option("--agent-id", help="Filter by agent id."),
+    ] = None,
+    resource_key: Annotated[
+        str | None,
+        typer.Option("--resource-key", help="Filter by resource key."),
+    ] = None,
+    include_stale: Annotated[
+        bool,
+        typer.Option("--include-stale/--hide-stale", help="Include stale sessions."),
+    ] = True,
+) -> None:
+    run_command(
+        "coord",
+        coord_command.run_status,
+        agent_id=agent_id,
+        resource_key=resource_key,
+        include_stale=include_stale,
+    )
+
+
+@coord_app.command("lint")
+def coord_lint() -> None:
+    run_command("coord", coord_command.run_lint)
 
 
 def main() -> None:

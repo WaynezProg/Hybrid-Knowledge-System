@@ -75,6 +75,96 @@ def create_server() -> FastMCP:
         except AdapterToolError as error:
             return _error_result(error)
 
+    @server.tool()
+    def hks_coord_session(
+        action: str,
+        agent_id: str,
+        session_id: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        ks_root: str | None = None,
+    ) -> Any:
+        """Start, heartbeat, or close a coordination session."""
+        try:
+            return core.hks_coord_session(
+                action=action,
+                agent_id=agent_id,
+                session_id=session_id,
+                metadata=metadata,
+                ks_root=ks_root,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_coord_lease(
+        action: str,
+        agent_id: str,
+        resource_key: str,
+        session_id: str | None = None,
+        lease_id: str | None = None,
+        ttl_seconds: int = 1800,
+        reason: str | None = None,
+        ks_root: str | None = None,
+    ) -> Any:
+        """Claim, renew, or release a coordination lease."""
+        try:
+            return core.hks_coord_lease(
+                action=action,
+                agent_id=agent_id,
+                resource_key=resource_key,
+                session_id=session_id,
+                lease_id=lease_id,
+                ttl_seconds=ttl_seconds,
+                reason=reason,
+                ks_root=ks_root,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_coord_handoff(
+        action: str,
+        agent_id: str,
+        resource_key: str | None = None,
+        summary: str | None = None,
+        next_action: str | None = None,
+        references: list[dict[str, Any]] | None = None,
+        blocked_by: list[str] | None = None,
+        ks_root: str | None = None,
+    ) -> Any:
+        """Add or list coordination handoff notes."""
+        try:
+            return core.hks_coord_handoff(
+                action=action,
+                agent_id=agent_id,
+                resource_key=resource_key,
+                summary=summary,
+                next_action=next_action,
+                references=references,
+                blocked_by=blocked_by,
+                ks_root=ks_root,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_coord_status(
+        agent_id: str | None = None,
+        resource_key: str | None = None,
+        include_stale: bool = True,
+        ks_root: str | None = None,
+    ) -> Any:
+        """Return coordination sessions, leases, and handoffs."""
+        try:
+            return core.hks_coord_status(
+                agent_id=agent_id,
+                resource_key=resource_key,
+                include_stale=include_stale,
+                ks_root=ks_root,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
     return server
 
 

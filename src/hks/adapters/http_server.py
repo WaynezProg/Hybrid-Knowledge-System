@@ -82,12 +82,32 @@ async def lint_endpoint(request: Request) -> Response:
     return await _adapter_response(request, core.hks_lint)
 
 
+async def coord_session_endpoint(request: Request) -> Response:
+    return await _adapter_response(request, core.hks_coord_session)
+
+
+async def coord_lease_endpoint(request: Request) -> Response:
+    return await _adapter_response(request, core.hks_coord_lease)
+
+
+async def coord_handoff_endpoint(request: Request) -> Response:
+    return await _adapter_response(request, core.hks_coord_handoff)
+
+
+async def coord_status_endpoint(request: Request) -> Response:
+    return await _adapter_response(request, core.hks_coord_status)
+
+
 def create_app() -> Starlette:
     return Starlette(
         routes=[
             Route("/query", query_endpoint, methods=["POST"]),
             Route("/ingest", ingest_endpoint, methods=["POST"]),
             Route("/lint", lint_endpoint, methods=["POST"]),
+            Route("/coord/session", coord_session_endpoint, methods=["POST"]),
+            Route("/coord/lease", coord_lease_endpoint, methods=["POST"]),
+            Route("/coord/handoff", coord_handoff_endpoint, methods=["POST"]),
+            Route("/coord/status", coord_status_endpoint, methods=["POST"]),
         ]
     )
 

@@ -2,15 +2,16 @@
 
 [繁體中文](./readme.md)
 
-Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 2 and added Phase 3 image ingest, the lint system, and local MCP / HTTP adapters: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, and high-confidence answers auto write back by default.
+Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 2 and added Phase 3 image ingest, the lint system, multi-agent coordination, and local MCP / HTTP adapters: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, and high-confidence answers auto write back by default.
 
 ## What Ships Today
 
 - `ks ingest <file|dir> [--pptx-notes include|exclude]`: builds `raw_sources/`, `wiki/`, `graph/graph.json`, `vector/db/`, and `manifest.json`
 - `ks query "<question>" [--writeback auto|yes|no|ask]`: returns stable JSON; summary prefers wiki, relation prefers graph, detail prefers vector
 - `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`: checks cross-layer consistency across `wiki / graph / vector / manifest / raw_sources`
-- `hks-mcp --transport stdio|streamable-http`: exposes `hks_query`, `hks_ingest`, and `hks_lint` as local MCP tools
-- `hks-api`: optional loopback HTTP facade for `/query`, `/ingest`, and `/lint`
+- `ks coord session|lease|handoff|status|lint`: provides agent presence, resource leases, handoff notes, and coordination ledger lint
+- `hks-mcp --transport stdio|streamable-http`: exposes query / ingest / lint / coordination tools as local MCP tools
+- `hks-api`: optional loopback HTTP facade for `/query`, `/ingest`, `/lint`, and `/coord/*`
 - Standalone image ingest now supports `png / jpg / jpeg` via local `tesseract`; `.heic / .webp` and VLM are still out of scope
 
 ## 5-Minute Quick Start
@@ -25,6 +26,8 @@ export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
 uv run ks query "What is the main point of these documents?" --writeback=no | jq .
 uv run ks query "Which systems are impacted if Project A slips?" --writeback=no | jq .
+uv run ks coord session start agent-a | jq .
+uv run ks coord lease claim agent-a wiki:atlas | jq .
 uv run hks-mcp --help
 cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 ```
@@ -77,6 +80,24 @@ It emits `trace.steps[kind="lint_summary"].detail` with `findings`, severity/cat
 - `--fix`: plans safe repairs without writing
 - `--fix=apply`: only runs allowlisted actions: rebuild `wiki/index.md`, prune orphan vector chunks, prune orphan graph nodes/edges, and append `wiki/log.md`
 
+### Coordination
+
+```bash
+uv run ks coord session start agent-a
+uv run ks coord session heartbeat agent-a
+uv run ks coord lease claim agent-a wiki:atlas --ttl-seconds 1800
+uv run ks coord handoff add agent-a --summary "checked" --next-action "review"
+uv run ks coord status --agent-id agent-a
+uv run ks coord lint
+```
+
+Coordination state is stored at `$KS_ROOT/coordination/state.json`; events append to `$KS_ROOT/coordination/events.jsonl`.
+
+- `session`: declares agent presence without duplicating an active session for the same agent
+- `lease`: claims ownership for a logical `resource_key`; conflicts exit `1` while stdout remains schema-valid JSON with `trace.steps[kind="coordination_summary"].detail.conflicts`
+- `handoff`: records a summary, next action, blocked_by, and references
+- `coord lint`: checks missing references and stale active leases
+
 ### MCP / HTTP Adapter
 
 ```bash
@@ -85,7 +106,8 @@ uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
-- MCP tools: `hks_query`, `hks_ingest`, `hks_lint`
+- MCP tools: `hks_query`, `hks_ingest`, `hks_lint`, `hks_coord_session`, `hks_coord_lease`, `hks_coord_handoff`, `hks_coord_status`
+- HTTP endpoints: `/query`, `/ingest`, `/lint`, `/coord/session`, `/coord/lease`, `/coord/handoff`, `/coord/status`
 - Successful payloads directly use the existing `ks` top-level JSON shape, with no adapter envelope
 - Error payloads use `{ok:false,error:{code,exit_code,message,details},response?}`
 - The adapter is local-first; Streamable HTTP and the HTTP facade bind to loopback by default
@@ -108,7 +130,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 }
 ```
 
-`ks ingest`, `ks query`, and `ks lint` all share the same top-level JSON shape.
+`ks ingest`, `ks query`, `ks lint`, and `ks coord` all share the same top-level JSON shape.
 
 ## Exit Codes
 
@@ -142,7 +164,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 - Spec archive index: [specs/ARCHIVE.md](./specs/ARCHIVE.md)
 - Phase 3 lint system: [specs/005-phase3-lint-impl/spec.md](./specs/005-phase3-lint-impl/spec.md)
 - Phase 3 MCP / API adapter: [specs/006-mcp-api-adapter/spec.md](./specs/006-mcp-api-adapter/spec.md)
-- Remaining Phase 3 work: multi-agent support
+- Phase 3 multi-agent support: [specs/007-multi-agent-support/spec.md](./specs/007-multi-agent-support/spec.md)
 
 ## Development Checks
 

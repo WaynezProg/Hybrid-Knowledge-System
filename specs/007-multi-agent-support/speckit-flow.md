@@ -82,7 +82,7 @@ Completed checks:
 - Whitespace check: passed with `git diff --check`.
 - Static checks: `uv run ruff check .` and `uv run mypy src/hks` passed.
 - Cross-artifact drift repair:
-  - `spec.md` status set to `Ready for Implementation`.
+  - `spec.md` status was aligned for the pre-implementation checkpoint.
   - `specs/ARCHIVE.md` Active section updated to 007.
   - Temporary FR suffix renumbered to stable FR sequence.
   - Lease conflict exit/error semantics clarified.
@@ -90,7 +90,15 @@ Completed checks:
 
 ### `/speckit.implement`
 
-Not executed.
+Completed checks:
+- Implemented local coordination ledger, service layer, CLI namespace, MCP tools, and optional HTTP endpoints.
+- Added contract, unit, integration, MCP, HTTP, and 100-claim concurrency regression tests.
+- Re-ran 005 lint regression suite after adding `coordination_summary`.
+- Re-ran 006 adapter regression suite after adding coordination tools.
+- Updated user-facing README files, design docs, PRD, tasks, and archive index.
 
-Reason:
-- User requested completion only up to the step before implementation.
+Evidence:
+- `uv run pytest --tb=short -q`
+- `uv run ruff check .`
+- `uv run mypy src/hks`
+- quickstart smoke with `HKS_EMBEDDING_MODEL=simple` and temporary `KS_ROOT`

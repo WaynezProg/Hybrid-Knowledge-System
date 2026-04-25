@@ -9,9 +9,7 @@
 
 ## Active
 
-- `007-multi-agent-support`
-  - Status: Ready for Implementation
-  - Canonical artifacts: [spec.md](./007-multi-agent-support/spec.md), [plan.md](./007-multi-agent-support/plan.md), [tasks.md](./007-multi-agent-support/tasks.md)
+目前沒有 active feature spec。
 
 ## Archived
 
@@ -45,3 +43,8 @@
   - Archived on: 2026-04-26
   - Merged into: `main`
   - Canonical artifacts: [spec.md](./006-mcp-api-adapter/spec.md), [plan.md](./006-mcp-api-adapter/plan.md), [tasks.md](./006-mcp-api-adapter/tasks.md)
+- `007-multi-agent-support`
+  - Status: Complete
+  - Archived on: 2026-04-26
+  - Implemented on: `007-multi-agent-support`
+  - Canonical artifacts: [spec.md](./007-multi-agent-support/spec.md), [plan.md](./007-multi-agent-support/plan.md), [tasks.md](./007-multi-agent-support/tasks.md)

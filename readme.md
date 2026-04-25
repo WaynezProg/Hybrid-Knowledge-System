@@ -2,15 +2,16 @@
 
 [English](./README.en.md)
 
-Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。現在的 runtime 已完成 Phase 2，並補上 Phase 3 的 image ingest、lint system 與 local MCP / HTTP adapter：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 會在 `wiki / graph / vector` 三層間切換，relation 類問題優先走 graph，高 confidence 答案預設自動 write-back。
+Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。現在的 runtime 已完成 Phase 2，並補上 Phase 3 的 image ingest、lint system、multi-agent coordination 與 local MCP / HTTP adapter：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 會在 `wiki / graph / vector` 三層間切換，relation 類問題優先走 graph，高 confidence 答案預設自動 write-back。
 
 ## 目前能做什麼
 
 - `ks ingest <file|dir> [--pptx-notes include|exclude]`：建立 `raw_sources/`、`wiki/`、`graph/graph.json`、`vector/db/`、`manifest.json`
 - `ks query "<question>" [--writeback auto|yes|no|ask]`：回傳穩定 JSON，summary 優先 wiki、relation 優先 graph、detail 優先 vector
 - `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`：檢查 `wiki / graph / vector / manifest / raw_sources` 跨層一致性
-- `hks-mcp --transport stdio|streamable-http`：以本機 MCP tools 暴露 `hks_query`、`hks_ingest`、`hks_lint`
-- `hks-api`：optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`
+- `ks coord session|lease|handoff|status|lint`：提供 agent presence、resource lease、handoff notes 與 coordination ledger lint
+- `hks-mcp --transport stdio|streamable-http`：以本機 MCP tools 暴露 query / ingest / lint / coordination tools
+- `hks-api`：optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`、`/coord/*`
 - 獨立圖片檔 ingest 已支援 `png / jpg / jpeg`，以本機 `tesseract` OCR 處理；`.heic / .webp` 與 VLM 仍未納入
 
 ## 5 分鐘上手
@@ -25,6 +26,8 @@ export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
 uv run ks query "這批文件的重點是什麼" --writeback=no | jq .
 uv run ks query "A 專案延遲會影響哪些系統" --writeback=no | jq .
+uv run ks coord session start agent-a | jq .
+uv run ks coord lease claim agent-a wiki:atlas | jq .
 uv run hks-mcp --help
 cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 ```
@@ -77,6 +80,24 @@ uv run ks lint
 - `--fix`：只列出可安全修復的動作，不寫入
 - `--fix=apply`：只執行 allowlist 動作：rebuild `wiki/index.md`、prune orphan vector chunks、prune orphan graph nodes/edges，並寫入 `wiki/log.md`
 
+### Coordination
+
+```bash
+uv run ks coord session start agent-a
+uv run ks coord session heartbeat agent-a
+uv run ks coord lease claim agent-a wiki:atlas --ttl-seconds 1800
+uv run ks coord handoff add agent-a --summary "完成檢查" --next-action "請複核"
+uv run ks coord status --agent-id agent-a
+uv run ks coord lint
+```
+
+coordination state 寫在 `$KS_ROOT/coordination/state.json`，events 以 JSONL append 到 `$KS_ROOT/coordination/events.jsonl`。
+
+- `session`：宣告 agent presence，避免同一 agent 重複建立 active session
+- `lease`：對 logical `resource_key` 取得 ownership；衝突時 exit `1`，stdout 仍是 schema-valid JSON，`trace.steps[kind="coordination_summary"].detail.conflicts` 會列出 owner
+- `handoff`：記錄交接摘要、下一步、blocked_by 與 references
+- `coord lint`：檢查 missing references 與 stale active leases
+
 ### MCP / HTTP Adapter
 
 ```bash
@@ -85,7 +106,8 @@ uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
-- MCP tools：`hks_query`、`hks_ingest`、`hks_lint`
+- MCP tools：`hks_query`、`hks_ingest`、`hks_lint`、`hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_coord_status`
+- HTTP endpoints：`/query`、`/ingest`、`/lint`、`/coord/session`、`/coord/lease`、`/coord/handoff`、`/coord/status`
 - 成功 payload 直接沿用 `ks` 的 top-level JSON shape，不包 adapter envelope
 - 錯誤 payload 使用 `{ok:false,error:{code,exit_code,message,details},response?}`
 - adapter 預設 local-first；Streamable HTTP 與 HTTP facade 預設只允許 loopback host
@@ -108,7 +130,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 }
 ```
 
-`ks ingest`、`ks query`、`ks lint` 共用同一 top-level JSON shape。
+`ks ingest`、`ks query`、`ks lint`、`ks coord` 共用同一 top-level JSON shape。
 
 ## Exit Code
 
@@ -142,7 +164,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 - Spec archive index：[specs/ARCHIVE.md](./specs/ARCHIVE.md)
 - Phase 3 lint system：[specs/005-phase3-lint-impl/spec.md](./specs/005-phase3-lint-impl/spec.md)
 - Phase 3 MCP / API adapter：[specs/006-mcp-api-adapter/spec.md](./specs/006-mcp-api-adapter/spec.md)
-- 仍未完成的 Phase 3 範圍：多 agent
+- Phase 3 multi-agent support：[specs/007-multi-agent-support/spec.md](./specs/007-multi-agent-support/spec.md)
 
 ## 開發檢查
 

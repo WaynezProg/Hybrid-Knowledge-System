@@ -7,7 +7,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 
 * Phase 1：完成
 * Phase 2：完成
-* Phase 3：部分完成（`004` image ingest、`005` lint system、`006` MCP / API adapter 已完成；multi-agent 未完成）
+* Phase 3：完成（`004` image ingest、`005` lint system、`006` MCP / API adapter、`007` multi-agent support）
 
 ---
 
@@ -25,6 +25,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
   * `ks ingest`
   * `ks query`
   * `ks lint`
+  * `ks coord`
   * `hks-mcp`
   * `hks-api`（optional loopback facade）
 
@@ -42,6 +43,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 ks ingest <file|dir>
 ks query "<question>" [--writeback auto|yes|no|ask]
 ks lint
+ks coord session|lease|handoff|status|lint
 hks-mcp --transport stdio|streamable-http
 hks-api
 ```
@@ -60,7 +62,7 @@ stdout 契約統一：
 }
 ```
 
-`ks ingest`、`ks query`、`ks lint` 共用同一 top-level JSON shape。
+`ks ingest`、`ks query`、`ks lint`、`ks coord` 共用同一 top-level JSON shape。
 `hks-mcp` 與 `hks-api` 的成功 payload 也共用此 shape；adapter 錯誤才使用 `{ok:false,error:{code,exit_code,message,details},response?}` envelope。
 
 ---
@@ -158,6 +160,9 @@ graph persistence 位於 `/ks/graph/graph.json`。
     graph.json
   /vector
     db/
+  /coordination
+    state.json
+    events.jsonl
   /manifest.json
 ```
 
@@ -168,9 +173,25 @@ graph persistence 位於 `/ks/graph/graph.json`。
 * `graph_edges`
 * `vector_ids`
 
+`coordination/state.json` 存 agent sessions、resource leases、handoff notes；`events.jsonl` 是 append-only coordination event log。
+
 ---
 
-## 9. Phase Status
+## 9. Multi-agent Coordination
+
+`ks coord` 是 local-first coordination layer，不提供 RBAC 或多使用者隔離。
+
+* `session`：agent 宣告 presence、heartbeat、close；同一 agent 不重複建立 active session
+* `lease`：對 logical `resource_key` 取得 ownership；claim / renew / release 在 coordination lock 內完成
+* `handoff`：記錄 summary、next_action、references、blocked_by
+* `status`：查 sessions / leases / handoffs
+* `lint`：檢查 missing references 與 stale active leases
+
+MCP 暴露 `hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_coord_status`；HTTP facade 暴露 `/coord/session`、`/coord/lease`、`/coord/handoff`、`/coord/status`。
+
+---
+
+## 10. Phase Status
 
 ### Phase 1
 
@@ -192,13 +213,13 @@ graph persistence 位於 `/ks/graph/graph.json`。
 ### Phase 3
 
 * [x] lint system
-* [ ] 多 agent 支援
+* [x] 多 agent 支援
 * [x] API / MCP adapter
 * [x] 圖片 ingest（`png / jpg / jpeg`；OCR-only）
 
 ---
 
-## 10. 非目標
+## 11. 非目標
 
 目前仍不做：
 

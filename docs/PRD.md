@@ -61,10 +61,17 @@
 
 ### 4.5 MCP / API Adapter
 
-* `hks-mcp` 以 local MCP server 暴露 `hks_query`、`hks_ingest`、`hks_lint`
+* `hks-mcp` 以 local MCP server 暴露 query / ingest / lint / coordination tools
 * 支援 stdio 與 loopback Streamable HTTP transport
-* `hks-api` 是 optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`
+* `hks-api` 是 optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`、`/coord/*`
 * 成功 payload 沿用現有 top-level JSON contract；錯誤 payload 使用 adapter error envelope
+
+### 4.6 Multi-agent Coordination
+
+* `ks coord session` 宣告 agent presence 與 heartbeat
+* `ks coord lease` 對 logical resource 取得 claim / renew / release
+* `ks coord handoff` 記錄交接摘要、下一步、references、blocked_by
+* `ks coord status` 與 `ks coord lint` 提供 runtime visibility 與 missing reference / stale lease 檢查
 
 ---
 
@@ -113,6 +120,6 @@
 ### Phase 3
 
 * [x] lint system
-* [ ] 多 agent
+* [x] 多 agent
 * [x] API / MCP adapter
 * [x] 圖片 ingest（`png / jpg / jpeg`；OCR-only）

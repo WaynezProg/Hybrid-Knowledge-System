@@ -24,6 +24,7 @@ type TraceKind = Literal[
     "error",
     "ingest_summary",
     "lint_summary",
+    "coordination_summary",
 ]
 
 

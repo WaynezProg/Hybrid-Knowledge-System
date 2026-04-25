@@ -1,4 +1,4 @@
-"""Contract helpers for the 006 adapter specs."""
+"""Contract helpers for adapter and coordination specs."""
 
 from __future__ import annotations
 
@@ -15,8 +15,16 @@ def specs_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "specs" / "006-mcp-api-adapter"
 
 
+def feature_specs_dir(feature: str) -> Path:
+    return Path(__file__).resolve().parents[3] / "specs" / feature
+
+
 def contract_path(name: str) -> Path:
     return specs_dir() / "contracts" / name
+
+
+def feature_contract_path(feature: str, name: str) -> Path:
+    return feature_specs_dir(feature) / "contracts" / name
 
 
 @lru_cache(maxsize=1)
@@ -43,11 +51,75 @@ def load_http_openapi() -> dict[str, Any]:
     return payload
 
 
+@lru_cache(maxsize=1)
+def load_coordination_tools_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "007-multi-agent-support",
+                "mcp-coordination-tools.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_coordination_summary_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "007-multi-agent-support",
+                "coordination-summary-detail.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_coordination_ledger_schema() -> dict[str, Any]:
+    ledger_schema = cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "007-multi-agent-support",
+                "coordination-ledger.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+    summary_schema = load_coordination_summary_schema()
+    ledger_schema = dict(ledger_schema)
+    ledger_schema["$defs"] = summary_schema["$defs"]
+    for property_name, definition_name in {
+        "sessions": "agentSession",
+        "leases": "coordinationLease",
+        "handoffs": "handoffNote",
+    }.items():
+        ledger_schema["properties"][property_name]["additionalProperties"] = {
+            "$ref": f"#/$defs/{definition_name}"
+        }
+    return ledger_schema
+
+
 def validate_tool_input(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
     full_schema = load_mcp_tools_schema()
     schema = dict(full_schema["properties"]["tools"]["properties"][tool])
     schema["$defs"] = full_schema["$defs"]
     jsonschema.validate(instance=payload, schema=schema)
+    return payload
+
+
+def validate_coordination_tool_input(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
+    full_schema = load_coordination_tools_schema()
+    schema = dict(full_schema["properties"]["tools"]["properties"][tool])
+    schema["$defs"] = full_schema["$defs"]
+    jsonschema.validate(instance=payload, schema=schema)
+    return payload
+
+
+def validate_coordination_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    jsonschema.validate(instance=payload, schema=load_coordination_summary_schema())
     return payload
 
 
