@@ -28,3 +28,8 @@
   - Archived on: 2026-04-25
   - Merged into: `main`
   - Canonical artifacts: [spec.md](./003-phase2-graph-routing/spec.md), [plan.md](./003-phase2-graph-routing/plan.md), [tasks.md](./003-phase2-graph-routing/tasks.md)
+- `004-phase3-image-ingest`
+  - Status: Complete
+  - Archived on: 2026-04-25
+  - Merged into: `main`
+  - Canonical artifacts: [spec.md](./004-phase3-image-ingest/spec.md), [plan.md](./004-phase3-image-ingest/plan.md), [tasks.md](./004-phase3-image-ingest/tasks.md)
