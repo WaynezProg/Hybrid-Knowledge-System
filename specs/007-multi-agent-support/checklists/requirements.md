@@ -6,8 +6,8 @@
 
 ## Clarity
 
-- [x] CHK001 Does the spec define multi-agent support as coordination primitives rather than agent orchestration? [Scope, FR-013]
-- [x] CHK002 Are agent identity semantics clear and not confused with auth / RBAC? [Clarity, FR-004]
+- [x] CHK001 Does the spec define multi-agent support as coordination primitives rather than agent orchestration? [Scope, FR-018]
+- [x] CHK002 Are agent identity semantics clear and not confused with auth / RBAC? [Clarity, FR-005]
 - [x] CHK003 Are session, lease, handoff, and status independently understandable? [Clarity, Key Entities]
 - [x] CHK004 Are stale session and lease expiry behaviors measurable? [Clarity, US1/US2]
 
@@ -20,10 +20,10 @@
 
 ## Consistency
 
-- [x] CHK009 Does 007 avoid changing existing ingest/query/lint semantics? [Consistency, FR-014]
+- [x] CHK009 Does 007 avoid changing existing ingest/query/lint semantics? [Consistency, FR-019]
 - [x] CHK010 Does the spec preserve QueryResponse as the success output contract? [Consistency, FR-002]
-- [x] CHK011 Does the spec maintain local-first and no UI/cloud/RBAC boundaries? [Consistency, FR-013]
-- [x] CHK012 Is write-back safety preserved for agent read paths? [Consistency, FR-015]
+- [x] CHK011 Does the spec maintain local-first and no UI/cloud/RBAC boundaries? [Consistency, FR-018]
+- [x] CHK012 Is write-back safety preserved for agent read paths? [Consistency, FR-020]
 
 ## Testability
 

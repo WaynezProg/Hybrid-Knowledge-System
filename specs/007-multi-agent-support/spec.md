@@ -2,8 +2,15 @@
 
 **Feature Branch**: `007-multi-agent-support`
 **Created**: 2026-04-26
-**Status**: Ready for Planning
+**Status**: Ready for Implementation
 **Input**: Phase 3 remaining scope: add local multi-agent coordination support on top of the existing HKS CLI/MCP adapter without adding UI, cloud, RBAC, or hosted orchestration.
+
+## Clarifications
+
+- Q: 007 的「multi-agent」是否包含 agent scheduler / supervisor？ → A: 不包含；007 只做本機 coordination primitives：session、lease、handoff、status。
+- Q: CLI namespace 應該叫 `agent` 還是 `coord`？ → A: 使用 `ks coord ...`；這避免把 HKS 誤導成會啟動或管理 agent process。
+- Q: Coordination ledger 是否是 authentication / authorization？ → A: 不是；`agent_id` 僅是 caller-provided local label，不授權、不隔離、不防冒用。
+- Q: HTTP facade 是否阻塞 MVP？ → A: 不阻塞；MVP 是 CLI + MCP coordination tools，HTTP facade 保持 P3 optional。
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -85,20 +92,26 @@ agent 可以留下結構化 handoff note，包含 summary、next_action、refere
 
 - **FR-001**：系統 MUST 提供本機 multi-agent coordination 能力，最小集合包含 session、lease、handoff、status。
 - **FR-002**：所有 coordination command 成功 output MUST 維持 HKS top-level `QueryResponse` shape；若新增 `trace.steps.kind`，MUST 更新 canonical schema，並視為 §II MINOR 擴充。
-- **FR-003**：coordination 錯誤 MUST 沿用現有 exit code 語意：usage 錯誤為 `2`、未初始化 `KS_ROOT` 為 `66`、ledger 壞檔為 `65`、非資料性的 lock / runtime failure 為 `1`。
-- **FR-004**：系統 MUST 支援 caller-provided `agent_id`；`agent_id` 只是本機協作標籤，不得被描述為 authentication 或 authorization。
-- **FR-005**：session MUST 記錄 `agent_id`、`session_id`、`started_at`、`last_seen_at`、`status`。
-- **FR-006**：lease MUST 支援 `claim`、`renew`、`release`、`expire` 語意，且同一 `resource_key` 同時只能有一個 active lease。
-- **FR-007**：lease claim MUST 是 atomic；並行 claim 同一 resource 不得產生兩個 active owner。
-- **FR-008**：handoff note MUST 支援 `summary`、`next_action`、`references`、`blocked_by`、`created_by`、`created_at`。
-- **FR-009**：coordination ledger MUST 位於 `KS_ROOT` 內，不得寫入 repo 根目錄或使用者 home 目錄作為 runtime state。
-- **FR-010**：coordination ledger MUST 可被 `ks lint` 或新增 coordination lint 檢查壞檔、stale lease、missing reference。
-- **FR-011**：MCP adapter MUST 暴露 coordination tools；成功 payload 不得引入 adapter-specific success envelope。
-- **FR-012**：HTTP facade 若納入 007，MUST 沿用 006 loopback-only default。
-- **FR-013**：007 MUST NOT 實作 agent scheduler、agent process launcher、LLM supervisor、task planner、RBAC、cloud sync、UI 或 microservice deployment。
-- **FR-014**：007 MUST NOT 改變 `ks ingest`、`ks query`、`ks lint` 既有語意；coordination 是協作輔助層，不是 query routing 或 ingestion replacement。
-- **FR-015**：write-back safety MUST 保持：agent read path 預設不得默默寫入 wiki；handoff 寫入的是 coordination ledger，不等同 knowledge write-back。
-- **FR-016**：所有 coordination writes MUST append an operational event，可供 audit 與 replay。
+- **FR-003**：coordination 錯誤 MUST 沿用現有 exit code 語意：usage 錯誤為 `2`、未初始化 `KS_ROOT` 為 `66`、ledger 壞檔為 `65`、lease conflict / lock / runtime failure 為 `1`；lease conflict 的 `KSError.code` MUST be `LEASE_CONFLICT`。
+- **FR-004**：系統 MUST 提供 `ks coord` CLI namespace；不得以 `ks agent` 命名，避免暗示 HKS 會啟動或控制 agent。
+- **FR-005**：系統 MUST 支援 caller-provided `agent_id`；`agent_id` 只是本機協作標籤，不得被描述為 authentication 或 authorization。
+- **FR-006**：`ks coord session start|heartbeat|close` MUST 支援 session 建立、心跳更新與關閉。
+- **FR-007**：`ks coord status` MUST 支援 session / lease / handoff 狀態查詢。
+- **FR-008**：`ks coord lease claim|renew|release` MUST 支援 resource lease 生命週期。
+- **FR-009**：`ks coord handoff add|list` MUST 支援 handoff note 寫入與查詢。
+- **FR-010**：session MUST 記錄 `agent_id`、`session_id`、`started_at`、`last_seen_at`、`status`。
+- **FR-011**：lease MUST 支援 `claim`、`renew`、`release`、`expire` 語意，且同一 `resource_key` 同時只能有一個 active lease。
+- **FR-012**：lease claim MUST 是 atomic；並行 claim 同一 resource 不得產生兩個 active owner。
+- **FR-013**：handoff note MUST 支援 `summary`、`next_action`、`references`、`blocked_by`、`created_by`、`created_at`。
+- **FR-014**：coordination ledger MUST 位於 `KS_ROOT/coordination/`，不得寫入 repo 根目錄或使用者 home 目錄作為 runtime state。
+- **FR-015**：coordination ledger MUST 可被 `ks lint` 或 `ks coord lint` 檢查壞檔、stale lease、missing reference。
+- **FR-016**：MCP adapter MUST 暴露 coordination tools；成功 payload 不得引入 adapter-specific success envelope。
+- **FR-017**：HTTP facade 若納入 007，MUST 沿用 006 loopback-only default。
+- **FR-018**：007 MUST NOT 實作 agent scheduler、agent process launcher、LLM supervisor、task planner、RBAC、cloud sync、UI 或 microservice deployment。
+- **FR-019**：007 MUST NOT 改變 `ks ingest`、`ks query`、`ks lint` 既有語意；coordination 是協作輔助層，不是 query routing 或 ingestion replacement。
+- **FR-020**：write-back safety MUST 保持：agent read path 預設不得默默寫入 wiki；handoff 寫入的是 coordination ledger，不等同 knowledge write-back。
+- **FR-021**：所有 coordination writes MUST append an operational event，可供 audit 與 replay。
+- **FR-022**：coordination responses MUST include a `trace.steps[kind="coordination_summary"]` detail payload whose schema is versioned under `specs/007-multi-agent-support/contracts/`。
 
 ### Key Entities
 

@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/mcp-coordination-tools.schema.json",
+  "title": "HKS MCP coordination tool input schemas",
+  "type": "object",
+  "required": ["tools"],
+  "additionalProperties": false,
+  "properties": {
+    "tools": {
+      "type": "object",
+      "required": [
+        "hks_coord_session",
+        "hks_coord_lease",
+        "hks_coord_handoff",
+        "hks_coord_status"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "hks_coord_session": { "$ref": "#/$defs/sessionInput" },
+        "hks_coord_lease": { "$ref": "#/$defs/leaseInput" },
+        "hks_coord_handoff": { "$ref": "#/$defs/handoffInput" },
+        "hks_coord_status": { "$ref": "#/$defs/statusInput" }
+      }
+    }
+  },
+  "$defs": {
+    "agentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[A-Za-z0-9._@-]+$"
+    },
+    "ksRoot": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "resourceKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240
+    },
+    "sessionInput": {
+      "type": "object",
+      "required": ["action", "agent_id"],
+      "additionalProperties": false,
+      "properties": {
+        "action": { "type": "string", "enum": ["start", "heartbeat", "close"] },
+        "agent_id": { "$ref": "#/$defs/agentId" },
+        "session_id": { "type": ["string", "null"], "minLength": 1 },
+        "metadata": { "type": "object", "default": {} },
+        "ks_root": { "$ref": "#/$defs/ksRoot" }
+      }
+    },
+    "leaseInput": {
+      "type": "object",
+      "required": ["action", "agent_id", "resource_key"],
+      "additionalProperties": false,
+      "properties": {
+        "action": { "type": "string", "enum": ["claim", "renew", "release"] },
+        "agent_id": { "$ref": "#/$defs/agentId" },
+        "resource_key": { "$ref": "#/$defs/resourceKey" },
+        "session_id": { "type": ["string", "null"], "minLength": 1 },
+        "lease_id": { "type": ["string", "null"], "minLength": 1 },
+        "ttl_seconds": { "type": "integer", "minimum": 1, "maximum": 86400, "default": 1800 },
+        "reason": { "type": ["string", "null"] },
+        "ks_root": { "$ref": "#/$defs/ksRoot" }
+      }
+    },
+    "resourceReference": {
+      "type": "object",
+      "required": ["type", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["wiki_page", "raw_source", "graph_node", "graph_edge", "vector_chunk", "lease", "handoff", "external"]
+        },
+        "value": { "type": "string", "minLength": 1 },
+        "label": { "type": ["string", "null"] }
+      }
+    },
+    "handoffInput": {
+      "type": "object",
+      "required": ["action", "agent_id"],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": { "action": { "const": "add" } },
+            "required": ["action"]
+          },
+          "then": {
+            "required": ["summary", "next_action"],
+            "properties": {
+              "summary": { "type": "string", "minLength": 1 },
+              "next_action": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "action": { "type": "string", "enum": ["add", "list"] },
+        "agent_id": { "$ref": "#/$defs/agentId" },
+        "resource_key": { "type": ["string", "null"], "minLength": 1, "maxLength": 240 },
+        "summary": { "type": ["string", "null"], "minLength": 1 },
+        "next_action": { "type": ["string", "null"], "minLength": 1 },
+        "references": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/resourceReference" },
+          "default": []
+        },
+        "blocked_by": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": []
+        },
+        "ks_root": { "$ref": "#/$defs/ksRoot" }
+      }
+    },
+    "statusInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "agent_id": { "type": ["string", "null"], "minLength": 1, "maxLength": 80 },
+        "resource_key": { "type": ["string", "null"], "minLength": 1, "maxLength": 240 },
+        "include_stale": { "type": "boolean", "default": true },
+        "ks_root": { "$ref": "#/$defs/ksRoot" }
+      }
+    }
+  }
+}

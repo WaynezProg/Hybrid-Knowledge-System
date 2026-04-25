@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/coordination-summary-detail.schema.json",
+  "title": "HKS coordination summary detail",
+  "type": "object",
+  "required": ["operation", "sessions", "leases", "handoffs", "events_appended", "conflicts", "findings"],
+  "additionalProperties": false,
+  "properties": {
+    "operation": { "type": "string", "minLength": 1 },
+    "sessions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/agentSession" }
+    },
+    "leases": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/coordinationLease" }
+    },
+    "handoffs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/handoffNote" }
+    },
+    "events_appended": { "type": "integer", "minimum": 0 },
+    "conflicts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/conflict" }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    }
+  },
+  "$defs": {
+    "agentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "^[A-Za-z0-9._@-]+$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "agentSession": {
+      "type": "object",
+      "required": ["session_id", "agent_id", "started_at", "last_seen_at", "status", "metadata"],
+      "additionalProperties": false,
+      "properties": {
+        "session_id": { "type": "string", "minLength": 1 },
+        "agent_id": { "$ref": "#/$defs/agentId" },
+        "started_at": { "$ref": "#/$defs/timestamp" },
+        "last_seen_at": { "$ref": "#/$defs/timestamp" },
+        "status": { "type": "string", "enum": ["active", "stale", "closed"] },
+        "metadata": { "type": "object" }
+      }
+    },
+    "coordinationLease": {
+      "type": "object",
+      "required": [
+        "lease_id",
+        "resource_key",
+        "owner_agent_id",
+        "owner_session_id",
+        "status",
+        "created_at",
+        "renewed_at",
+        "expires_at",
+        "released_at",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "lease_id": { "type": "string", "minLength": 1 },
+        "resource_key": { "type": "string", "minLength": 1, "maxLength": 240 },
+        "owner_agent_id": { "$ref": "#/$defs/agentId" },
+        "owner_session_id": { "type": ["string", "null"], "minLength": 1 },
+        "status": { "type": "string", "enum": ["active", "released", "expired"] },
+        "created_at": { "$ref": "#/$defs/timestamp" },
+        "renewed_at": { "$ref": "#/$defs/timestamp" },
+        "expires_at": { "$ref": "#/$defs/timestamp" },
+        "released_at": { "type": ["string", "null"], "format": "date-time" },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "resourceReference": {
+      "type": "object",
+      "required": ["type", "value", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["wiki_page", "raw_source", "graph_node", "graph_edge", "vector_chunk", "lease", "handoff", "external"]
+        },
+        "value": { "type": "string", "minLength": 1 },
+        "label": { "type": ["string", "null"] }
+      }
+    },
+    "handoffNote": {
+      "type": "object",
+      "required": [
+        "handoff_id",
+        "created_by",
+        "created_at",
+        "resource_key",
+        "summary",
+        "next_action",
+        "references",
+        "blocked_by"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "handoff_id": { "type": "string", "minLength": 1 },
+        "created_by": { "$ref": "#/$defs/agentId" },
+        "created_at": { "$ref": "#/$defs/timestamp" },
+        "resource_key": { "type": ["string", "null"], "minLength": 1, "maxLength": 240 },
+        "summary": { "type": "string", "minLength": 1 },
+        "next_action": { "type": "string", "minLength": 1 },
+        "references": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/resourceReference" }
+        },
+        "blocked_by": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "conflict": {
+      "type": "object",
+      "required": ["code", "resource_key", "active_lease_id", "owner_agent_id"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "enum": ["LEASE_CONFLICT"] },
+        "resource_key": { "type": "string", "minLength": 1 },
+        "active_lease_id": { "type": "string", "minLength": 1 },
+        "owner_agent_id": { "$ref": "#/$defs/agentId" }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["category", "severity", "target", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "category": { "type": "string", "minLength": 1 },
+        "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+        "target": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

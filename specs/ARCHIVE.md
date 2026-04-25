@@ -9,7 +9,9 @@
 
 ## Active
 
-目前沒有 active feature spec。
+- `007-multi-agent-support`
+  - Status: Ready for Implementation
+  - Canonical artifacts: [spec.md](./007-multi-agent-support/spec.md), [plan.md](./007-multi-agent-support/plan.md), [tasks.md](./007-multi-agent-support/tasks.md)
 
 ## Archived
 

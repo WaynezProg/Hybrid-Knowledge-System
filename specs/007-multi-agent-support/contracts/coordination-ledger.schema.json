@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/coordination-ledger.schema.json",
+  "title": "HKS coordination ledger state",
+  "type": "object",
+  "required": ["schema_version", "updated_at", "sessions", "leases", "handoffs"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "sessions": {
+      "type": "object",
+      "additionalProperties": { "$ref": "coordination-summary-detail.schema.json#/$defs/agentSession" }
+    },
+    "leases": {
+      "type": "object",
+      "additionalProperties": { "$ref": "coordination-summary-detail.schema.json#/$defs/coordinationLease" }
+    },
+    "handoffs": {
+      "type": "object",
+      "additionalProperties": { "$ref": "coordination-summary-detail.schema.json#/$defs/handoffNote" }
+    }
+  }
+}
