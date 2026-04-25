@@ -200,7 +200,7 @@ MCP 暴露 `hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_
 * [x] rule-based baseline
 * [x] ingest：`txt / md / pdf`
 * [x] 半自動 write-back
-* [x] `ks lint` stub
+* [x] `ks lint` 初始介面（已由 Phase 3 lint system 取代）
 
 ### Phase 2
 

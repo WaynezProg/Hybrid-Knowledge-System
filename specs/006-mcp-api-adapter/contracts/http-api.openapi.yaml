@@ -4,7 +4,7 @@ info:
   version: 0.1.0
   description: Optional P2 loopback HTTP facade over the same adapter core as MCP.
 servers:
-  - url: http://127.0.0.1:8765
+  - url: http://127.0.0.1:8766
 paths:
   /query:
     post:
@@ -24,6 +24,12 @@ paths:
                 $ref: '#/components/schemas/QueryResponse'
         '400':
           description: Adapter error envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+        '500':
+          description: Adapter error envelope for runtime failures
           content:
             application/json:
               schema:
@@ -50,6 +56,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdapterError'
+        '500':
+          description: Adapter error envelope for runtime failures
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
   /lint:
     post:
       summary: Run HKS lint
@@ -68,6 +80,124 @@ paths:
                 $ref: '#/components/schemas/QueryResponse'
         '400':
           description: Adapter error envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+        '500':
+          description: Adapter error envelope for runtime failures
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+  /coord/session:
+    post:
+      summary: Start, heartbeat, or close a coordination session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HksCoordSessionInput'
+      responses:
+        '200':
+          description: Schema-valid HKS coordination response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Adapter error envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+        '500':
+          description: Adapter error envelope for runtime failures
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+  /coord/lease:
+    post:
+      summary: Claim, renew, or release a coordination lease
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HksCoordLeaseInput'
+      responses:
+        '200':
+          description: Schema-valid HKS coordination response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Adapter error envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+        '500':
+          description: Adapter error envelope for runtime failures
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+  /coord/handoff:
+    post:
+      summary: Add or list coordination handoff notes
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HksCoordHandoffInput'
+      responses:
+        '200':
+          description: Schema-valid HKS coordination response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Adapter error envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+        '500':
+          description: Adapter error envelope for runtime failures
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+  /coord/status:
+    post:
+      summary: Read coordination status
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HksCoordStatusInput'
+      responses:
+        '200':
+          description: Schema-valid HKS coordination response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Adapter error envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+        '500':
+          description: Adapter error envelope for runtime failures
           content:
             application/json:
               schema:
@@ -120,6 +250,111 @@ components:
           type: string
           enum: [none, plan, apply]
           default: none
+        ks_root:
+          type: [string, 'null']
+    HksCoordSessionInput:
+      type: object
+      required: [action, agent_id]
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+          enum: [start, heartbeat, close]
+        agent_id:
+          type: string
+          minLength: 1
+          maxLength: 80
+          pattern: '^[A-Za-z0-9._@-]+$'
+        session_id:
+          type: [string, 'null']
+          minLength: 1
+        metadata:
+          type: object
+          default: {}
+        ks_root:
+          type: [string, 'null']
+    HksCoordLeaseInput:
+      type: object
+      required: [action, agent_id, resource_key]
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+          enum: [claim, renew, release]
+        agent_id:
+          type: string
+          minLength: 1
+          maxLength: 80
+          pattern: '^[A-Za-z0-9._@-]+$'
+        resource_key:
+          type: string
+          minLength: 1
+          maxLength: 240
+        session_id:
+          type: [string, 'null']
+          minLength: 1
+        lease_id:
+          type: [string, 'null']
+          minLength: 1
+        ttl_seconds:
+          type: integer
+          minimum: 1
+          maximum: 86400
+          default: 1800
+        reason:
+          type: [string, 'null']
+        ks_root:
+          type: [string, 'null']
+    HksCoordHandoffInput:
+      type: object
+      required: [action, agent_id]
+      additionalProperties: false
+      properties:
+        action:
+          type: string
+          enum: [add, list]
+        agent_id:
+          type: string
+          minLength: 1
+          maxLength: 80
+          pattern: '^[A-Za-z0-9._@-]+$'
+        resource_key:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 240
+        summary:
+          type: [string, 'null']
+          minLength: 1
+        next_action:
+          type: [string, 'null']
+          minLength: 1
+        references:
+          type: array
+          items:
+            type: object
+          default: []
+        blocked_by:
+          type: array
+          items:
+            type: string
+          default: []
+        ks_root:
+          type: [string, 'null']
+    HksCoordStatusInput:
+      type: object
+      additionalProperties: false
+      properties:
+        agent_id:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 80
+        resource_key:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 240
+        include_stale:
+          type: boolean
+          default: true
         ks_root:
           type: [string, 'null']
     QueryResponse:

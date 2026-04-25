@@ -2,7 +2,7 @@
 
 **Feature Branch**: `006-mcp-api-adapter`
 **Created**: 2026-04-26
-**Status**: Ready for Implementation
+**Status**: Complete
 **Input**: 提供 local-first API / MCP adapter，讓外部 agent 能以穩定介面呼叫現有 `ks ingest`、`ks query`、`ks lint`；不引入雲端服務、不做 UI、不改既有 CLI JSON contract。
 
 ## Clarifications

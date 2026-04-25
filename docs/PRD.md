@@ -104,7 +104,7 @@
 
 ### Phase 1
 
-* [x] CLI（query / ingest / lint-stub）
+* [x] CLI（query / ingest / lint；Phase 1 初始 lint 介面已由 Phase 3 取代）
 * [x] wiki + vector
 * [x] rule-based routing
 * [x] ingest：`txt / md / pdf`
