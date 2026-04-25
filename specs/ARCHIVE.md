@@ -46,5 +46,5 @@
 - `007-multi-agent-support`
   - Status: Complete
   - Archived on: 2026-04-26
-  - Implemented on: `007-multi-agent-support`
+  - Merged into: `main`
   - Canonical artifacts: [spec.md](./007-multi-agent-support/spec.md), [plan.md](./007-multi-agent-support/plan.md), [tasks.md](./007-multi-agent-support/tasks.md)
