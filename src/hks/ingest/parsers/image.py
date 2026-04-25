@@ -5,9 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from hks.core.manifest import SourceFormat
+from hks.ingest.fingerprint import ParserFlags, compute_parser_fingerprint
 from hks.ingest.guards import load_image_limits
 from hks.ingest.models import ParsedDocument
-from hks.ingest.ocr import load_preprocessed_image, ocr_engine_signature, run_ocr
+from hks.ingest.ocr import load_preprocessed_image, run_ocr
 from hks.ingest.office_common import Segment, SkippedSegment
 
 
@@ -44,5 +45,5 @@ def parse(path: Path, source_format: SourceFormat) -> ParsedDocument:
         body=body,
         format=source_format,
         segments=segments,
-        parser_fingerprint=f"{source_format}:{ocr_engine_signature()}",
+        parser_fingerprint=compute_parser_fingerprint(source_format, ParserFlags()),
     )

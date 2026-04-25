@@ -57,12 +57,12 @@ agent 或使用者在影像 ingest 完成後執行 `ks query "<question>"`，能
 
 **Why this priority**：影像在企業資料夾中變異極大；降級處理直接影響使用者是否敢把既有影像資料夾丟進 `ks ingest`。但核心能力（US1 + US2）不依賴此故事，故列 P2。
 
-**Independent Test**：準備 5 類 broken fixtures：(a) 位元組損壞的 png；(b) 超過 20MB 的 jpg；(c) 需觸發 30s 超時的 png（以測試 monkeypatch 穩定重現）；(d) 空檔（0 byte）；(e) 無文字純圖（色塊、圖案）。對同一批次執行 `ks ingest`，驗證：(a)(b)(c) 單檔失敗、以 `DATAERR` 標註、不中斷其他檔；(d) 視為 skip、不產出 artifacts；(e) 視為 skip 並於 `log.md` 記 `skipped_segments: ocr_empty`，不入庫為空內容 wiki page；整批 exit code 依 Phase 1 FR-003 契約。
+**Independent Test**：準備 4 類 degradation fixtures：(a) 位元組損壞的 png；(b) oversized jpg seed（測試時把 temp copy 擴張到超過目前 `HKS_IMAGE_MAX_FILE_MB` 設定，以穩定覆蓋 oversized 分支且不把超大 binary 直接放進 repo）；(c) 需觸發 30s 超時的 png（以測試 monkeypatch 穩定重現）；(d) 空檔（0 byte）；另與 US1 的無文字純圖 `no-text.png` 同批驗證 `ocr_empty` skip。對同一批次執行 `ks ingest`，驗證：(a)(b)(c) 單檔失敗、以 `DATAERR` 標註、不中斷其他檔；(d) 視為 skip、不產出 artifacts；`no-text.png` 視為 skip 並於 `log.md` 記 `skipped_segments: ocr_empty`，不入庫為空內容 wiki page；整批 exit code 依 Phase 1 FR-003 契約。
 
 **Acceptance Scenarios**：
 
 1. **Given** 一份位元組損壞的 png，**When** ingest 該檔，**Then** 以 `DATAERR` 標註於失敗清單；partial artifacts MUST NOT 留在 wiki / vector / graph；`manifest.json` 不得為此檔留下孤兒 entry。
-2. **Given** 一份 30MB 的 jpg（超過 20MB soft default），**When** ingest 該檔，**Then** 該檔以 `DATAERR` + `reason=oversized` 標註、不進入 decode、其他同批次檔完成處理。
+2. **Given** 一份超過目前 `HKS_IMAGE_MAX_FILE_MB` 設定的 jpg，**When** ingest 該檔，**Then** 該檔以 `DATAERR` + `reason=oversized` 標註、不進入 decode、其他同批次檔完成處理。
 3. **Given** 一份內容極大 / 極複雜的圖，**When** OCR 花超過 30 秒（soft default），**Then** 系統以超時錯誤終止該檔、標 `DATAERR` + `reason=timeout`；整批 ingest 不中斷。
 4. **Given** 一份 0 byte 空檔，**When** ingest，**Then** 視為 skip + `reason=empty_file`、不產出 artifacts、不視為失敗。
 5. **Given** 一份色塊純圖（OCR 無法辨識任何文字），**When** ingest，**Then** 該檔以 skip + `reason=ocr_empty` 記入 `IngestFileReport`；不產出 wiki 頁面、不新增 vector chunk；`log.md` 附屬欄位記 `skipped_segments: ocr_empty:1`。

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 
+from hks.ingest.fingerprint import ParserFlags, compute_parser_fingerprint
 from hks.ingest.parsers import image as image_parser
 
 
@@ -21,6 +22,7 @@ def test_image_parser_extracts_ocr_segments(fixtures_root) -> None:
         str(segment.metadata["source_engine"]).startswith("tesseract")
         for segment in parsed.segments
     )
+    assert parsed.parser_fingerprint == compute_parser_fingerprint("png", ParserFlags())
 
 
 @pytest.mark.unit

@@ -55,9 +55,10 @@ uv run ks query "Atlas 依賴什麼" --writeback=no
 
 ## 5. Degradation smoke
 
+以下 smoke 會在測試內把 `oversized.jpg` 的 temp copy 擴張到超過預設上限，並把 timeout 降到最小合法值 `5` 秒，快速覆蓋 degradation 分支。
+
 ```bash
-export HKS_IMAGE_TIMEOUT_SEC=1
-export HKS_IMAGE_MAX_FILE_MB=1
+export HKS_IMAGE_TIMEOUT_SEC=5
 uv run pytest tests/integration/test_image_degradation.py -q
 ```
 

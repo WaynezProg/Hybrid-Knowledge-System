@@ -10,6 +10,8 @@ import pytest
 from hks.cli import app
 from hks.ingest import pipeline as ingest_pipeline
 
+_DEFAULT_IMAGE_MAX_FILE_MB = 20
+
 
 def _copy_tree_contents(source: Path, target: Path) -> None:
     target.mkdir(parents=True, exist_ok=True)
@@ -19,6 +21,16 @@ def _copy_tree_contents(source: Path, target: Path) -> None:
             shutil.copytree(child, destination)
         else:
             shutil.copy2(child, destination)
+
+
+def _expand_to_default_oversized(path: Path) -> None:
+    limit_bytes = _DEFAULT_IMAGE_MAX_FILE_MB * 1024 * 1024
+    current_size = path.stat().st_size
+    if current_size > limit_bytes:
+        return
+    padding = (limit_bytes - current_size) + 1024
+    with path.open("ab") as handle:
+        handle.write(b"\x00" * padding)
 
 
 @pytest.mark.integration
@@ -32,6 +44,9 @@ def test_image_ingest_handles_degradation_cases(
     docs = tmp_path / "images"
     _copy_tree_contents(fixtures_root / "valid" / "image", docs)
     _copy_tree_contents(fixtures_root / "broken" / "image", docs)
+    oversized = docs / "oversized.jpg"
+    _expand_to_default_oversized(oversized)
+    assert oversized.stat().st_size > _DEFAULT_IMAGE_MAX_FILE_MB * 1024 * 1024
 
     original_png_parser = ingest_pipeline._IMAGE_PARSERS["png"]
 
@@ -42,7 +57,6 @@ def test_image_ingest_handles_degradation_cases(
 
     monkeypatch.setitem(ingest_pipeline._IMAGE_PARSERS, "png", slow_timeout_parser)
     monkeypatch.setenv("HKS_IMAGE_TIMEOUT_SEC", "5")
-    monkeypatch.setenv("HKS_IMAGE_MAX_FILE_MB", "1")
 
     result = cli_runner.invoke(app, ["ingest", str(docs)])
 

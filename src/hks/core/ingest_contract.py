@@ -1,9 +1,9 @@
 """Runtime validator for the ingest_summary trace detail schema.
 
 Spec FR-045: `ks ingest` top-level response remains Phase 1 QueryResponse;
-Office-specific data lives inside `trace.steps[kind=ingest_summary].detail`.
+ingest-specific detail lives inside `trace.steps[kind=ingest_summary].detail`.
 This module loads the JSON schema shipped under
-`specs/002-phase2-ingest-office/contracts/ingest-summary-detail.schema.json`
+`specs/004-phase3-image-ingest/contracts/ingest-summary-detail.schema.json`
 and exposes `validate_ingest_detail()` for runtime self-checks.
 """
 

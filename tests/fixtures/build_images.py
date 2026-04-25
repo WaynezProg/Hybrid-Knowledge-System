@@ -77,6 +77,8 @@ def build_broken() -> None:
 
     oversized = BROKEN_ROOT / "oversized.jpg"
     shutil.copy2(VALID_ROOT / "mixed-status.jpg", oversized)
+    # Keep the checked-in seed modest; integration tests expand a temp copy
+    # past the configured limit so the repo does not carry a >20MB binary.
     with oversized.open("ab") as handle:
         handle.write(b"\x00" * (2 * 1024 * 1024))
 
