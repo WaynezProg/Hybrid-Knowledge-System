@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/query-response.phase3-lint.schema.json",
+  "title": "HKS CLI Response (Phase 3 lint)",
+  "description": "CLI `ks query` / `ks ingest` / `ks lint` 對外 stdout JSON 契約。005 僅新增 trace step kind `lint_summary`，不擴 source / route enum。",
+  "type": "object",
+  "required": ["answer", "source", "confidence", "trace"],
+  "additionalProperties": false,
+  "properties": {
+    "answer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["wiki", "graph", "vector"]
+      },
+      "uniqueItems": true
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "trace": {
+      "type": "object",
+      "required": ["route", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "route": {
+          "type": "string",
+          "enum": ["wiki", "graph", "vector"]
+        },
+        "steps": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/traceStep" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "traceStep": {
+      "type": "object",
+      "required": ["kind", "detail"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "routing_model",
+            "wiki_lookup",
+            "graph_lookup",
+            "vector_lookup",
+            "fallback",
+            "merge",
+            "writeback",
+            "error",
+            "ingest_summary",
+            "lint_summary"
+          ]
+        },
+        "detail": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "answer": "Atlas: Atlas 專案目前有兩個主要風險： 1. 供應商交期延遲 2. 測試資料尚未匿名化",
+      "source": ["wiki"],
+      "confidence": 1.0,
+      "trace": {
+        "route": "wiki",
+        "steps": [
+          {
+            "kind": "routing_model",
+            "detail": {
+              "backend": "simple",
+              "rule_id": "summary",
+              "target_route": "wiki"
+            }
+          },
+          {
+            "kind": "wiki_lookup",
+            "detail": {
+              "slug": "risk-register",
+              "hit": true,
+              "source_relpath": "risk-register.md"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "answer": "A 專案延遲 會影響 checkout service、notification service",
+      "source": ["graph"],
+      "confidence": 0.88,
+      "trace": {
+        "route": "graph",
+        "steps": [
+          {
+            "kind": "routing_model",
+            "detail": {
+              "backend": "simple",
+              "rule_id": "relation",
+              "target_route": "graph"
+            }
+          },
+          {
+            "kind": "graph_lookup",
+            "detail": {
+              "hit": true,
+              "relpaths": ["dependency-map.md", "impact-analysis.pdf"],
+              "node_ids": ["event:a-zhuan-an-yan-chi"],
+              "edge_ids": ["edge:1234"],
+              "relations": ["impacts"]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "answer": "未能於現有知識中找到答案",
+      "source": [],
+      "confidence": 0.0,
+      "trace": {
+        "route": "vector",
+        "steps": [
+          {
+            "kind": "routing_model",
+            "detail": {
+              "backend": "simple",
+              "rule_id": "default",
+              "target_route": "vector"
+            }
+          },
+          {
+            "kind": "vector_lookup",
+            "detail": {
+              "top_k": 5,
+              "top_similarity": 0.12
+            }
+          }
+        ]
+      }
+    },
+    {
+      "answer": "lint 完成：0 issues",
+      "source": [],
+      "confidence": 0.0,
+      "trace": {
+        "route": "wiki",
+        "steps": [
+          {
+            "kind": "lint_summary",
+            "detail": {
+              "findings": [],
+              "severity_counts": {
+                "error": 0,
+                "warning": 0,
+                "info": 0
+              },
+              "category_counts": {},
+              "fixes_planned": [],
+              "fixes_applied": [],
+              "fixes_skipped": []
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

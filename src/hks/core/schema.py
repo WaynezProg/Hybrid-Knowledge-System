@@ -23,6 +23,7 @@ type TraceKind = Literal[
     "writeback",
     "error",
     "ingest_summary",
+    "lint_summary",
 ]
 
 
@@ -74,7 +75,7 @@ def contract_schema_path() -> Path:
     return (
         Path(__file__).resolve().parents[3]
         / "specs"
-        / "003-phase2-graph-routing"
+        / "005-phase3-lint-impl"
         / "contracts"
         / "query-response.schema.json"
     )

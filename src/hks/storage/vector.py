@@ -62,6 +62,10 @@ class VectorStore:
     def count(self) -> int:
         return int(self.collection.count())
 
+    def list_ids(self) -> list[str]:
+        result = cast(dict[str, Any], self.collection.get())
+        return [str(chunk_id) for chunk_id in result.get("ids", [])]
+
     def delete(self, ids: list[str]) -> None:
         if ids:
             self.collection.delete(ids=ids)

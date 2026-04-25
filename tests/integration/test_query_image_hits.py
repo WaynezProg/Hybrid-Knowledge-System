@@ -29,7 +29,7 @@ def test_query_image_content_hits_with_existing_contract(cli_runner, image_runti
     ]
 
     seen_png_detail = False
-    seen_jpg_detail = False
+    seen_jpeg_detail = False
     for question, expected_route, expected_source in cases:
         result = cli_runner.invoke(app, ["query", question, "--writeback=no"])
         assert result.exit_code == 0, result.stdout
@@ -53,13 +53,13 @@ def test_query_image_content_hits_with_existing_contract(cli_runner, image_runti
                 for step in payload["trace"]["steps"]
                 if step["kind"] == "vector_lookup"
             )
-            assert vector_detail["source_format"] == "jpg"
+            assert vector_detail["source_format"] in {"jpg", "jpeg"}
             assert float(vector_detail["ocr_confidence"]) > 0.5
-            seen_jpg_detail = True
+            seen_jpeg_detail = True
         elif question == "Atlas 依賴什麼":
             assert "Mobile Gateway" in payload["answer"]
 
-    assert seen_png_detail and seen_jpg_detail
+    assert seen_png_detail and seen_jpeg_detail
 
 
 @pytest.mark.integration

@@ -33,3 +33,8 @@
   - Archived on: 2026-04-25
   - Merged into: `main`
   - Canonical artifacts: [spec.md](./004-phase3-image-ingest/spec.md), [plan.md](./004-phase3-image-ingest/plan.md), [tasks.md](./004-phase3-image-ingest/tasks.md)
+- `005-phase3-lint-impl`
+  - Status: Complete
+  - Archived on: 2026-04-26
+  - Merged into: `005-phase3-lint-impl`
+  - Canonical artifacts: [spec.md](./005-phase3-lint-impl/spec.md), [plan.md](./005-phase3-lint-impl/plan.md), [tasks.md](./005-phase3-lint-impl/tasks.md)

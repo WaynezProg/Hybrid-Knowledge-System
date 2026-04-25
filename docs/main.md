@@ -7,7 +7,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 
 * Phase 1：完成
 * Phase 2：完成
-* Phase 3：部分完成（`004` image ingest 已完成；lint / MCP / multi-agent 未完成）
+* Phase 3：部分完成（`004` image ingest 與 `005` lint system 已完成；MCP / multi-agent 未完成）
 
 ---
 
@@ -186,7 +186,7 @@ graph persistence 位於 `/ks/graph/graph.json`。
 
 ### Phase 3
 
-* [ ] lint system
+* [x] lint system
 * [ ] 多 agent 支援
 * [ ] API / MCP adapter
 * [x] 圖片 ingest（`png / jpg / jpeg`；OCR-only）

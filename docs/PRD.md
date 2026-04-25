@@ -56,7 +56,8 @@
 
 ### 4.4 Lint
 
-* 仍是 Phase 3 stub
+* `ks lint` 檢查 wiki / graph / vector / manifest / raw_sources 跨層一致性
+* 預設 read-only；`--strict` 提供 CI exit code；`--fix=apply` 只做 allowlist 安全修復
 
 ---
 
@@ -105,7 +106,7 @@
 
 ### Phase 3
 
-* [ ] lint system
+* [x] lint system
 * [ ] 多 agent
 * [ ] API / MCP adapter
 * [x] 圖片 ingest（`png / jpg / jpeg`；OCR-only）

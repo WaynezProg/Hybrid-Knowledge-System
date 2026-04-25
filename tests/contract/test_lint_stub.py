@@ -10,19 +10,17 @@ from hks.core.schema import validate
 
 @pytest.mark.contract
 @pytest.mark.us4
-def test_lint_stub_returns_schema_valid_json(cli_runner) -> None:
+def test_lint_uninitialized_returns_schema_valid_error(cli_runner) -> None:
     result = cli_runner.invoke(app, ["lint"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 66
 
     payload = json.loads(result.stdout)
     validate(payload)
-    assert payload == {
-        "answer": "lint 尚未實作，預計於 Phase 3 提供",
-        "source": [],
-        "confidence": 0.0,
-        "trace": {"route": "wiki", "steps": []},
-    }
+    assert payload["source"] == []
+    assert payload["trace"]["route"] == "wiki"
+    assert payload["trace"]["steps"][0]["kind"] == "error"
+    assert payload["trace"]["steps"][0]["detail"]["exit_code"] == 66
 
 
 @pytest.mark.contract

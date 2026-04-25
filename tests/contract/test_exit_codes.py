@@ -332,11 +332,23 @@ def test_query_embedding_load_failure_returns_general(tmp_path: Path) -> None:
 
 @pytest.mark.contract
 def test_lint_exit_code_is_zero(tmp_path: Path) -> None:
-    result = _run_cli("lint", ks_root=tmp_path / "ks")
+    ks_root = tmp_path / "ks"
+    _seed_runtime(ks_root, tmp_path / "docs")
+    result = _run_cli("lint", ks_root=ks_root)
 
     assert result.returncode == 0
     payload = _load_stdout_json(result)
-    assert payload["answer"] == "lint 尚未實作，預計於 Phase 3 提供"
+    assert payload["answer"] == "lint 完成：0 issues"
+    assert payload["trace"]["steps"][0]["kind"] == "lint_summary"
+
+
+@pytest.mark.contract
+def test_lint_uninitialized_returns_noinput(tmp_path: Path) -> None:
+    result = _run_cli("lint", ks_root=tmp_path / "ks")
+
+    assert result.returncode == 66
+    assert result.stderr.splitlines()[0].startswith("[ks:lint] error:")
+    _load_stdout_json(result)
 
 
 @pytest.mark.contract
@@ -344,5 +356,55 @@ def test_lint_usage_error_returns_two(tmp_path: Path) -> None:
     result = _run_cli("lint", "--unknown-option", ks_root=tmp_path / "ks")
 
     assert result.returncode == 2
-    assert "No such option" in result.stderr
-    assert result.stdout == ""
+    assert result.stderr.splitlines()[0].startswith("[ks:lint] usage:")
+    _load_stdout_json(result)
+
+
+@pytest.mark.contract
+def test_lint_invalid_threshold_returns_two(tmp_path: Path) -> None:
+    result = _run_cli("lint", "--severity-threshold=garbage", ks_root=tmp_path / "ks")
+
+    assert result.returncode == 2
+    assert result.stderr.splitlines()[0].startswith("[ks:lint] usage:")
+    _load_stdout_json(result)
+
+
+@pytest.mark.contract
+def test_lint_locked_runtime_returns_general(tmp_path: Path) -> None:
+    ks_root = tmp_path / "ks"
+    _seed_runtime(ks_root, tmp_path / "docs")
+
+    with file_lock(runtime_paths(ks_root).lock):
+        result = _run_cli("lint", ks_root=ks_root)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines()[0].startswith("[ks:lint] error:")
+    _load_stdout_json(result)
+
+
+@pytest.mark.contract
+def test_lint_graph_corruption_returns_general(tmp_path: Path) -> None:
+    ks_root = tmp_path / "ks"
+    _seed_runtime(ks_root, tmp_path / "docs")
+    runtime_paths(ks_root).graph_file.write_text("{not json", encoding="utf-8")
+
+    result = _run_cli("lint", ks_root=ks_root)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines()[0].startswith("[ks:lint] error:")
+    _load_stdout_json(result)
+
+
+@pytest.mark.contract
+def test_lint_vector_open_failure_returns_general(tmp_path: Path) -> None:
+    ks_root = tmp_path / "ks"
+    _seed_runtime(ks_root, tmp_path / "docs")
+    paths = runtime_paths(ks_root)
+    shutil.rmtree(paths.vector_db)
+    paths.vector_db.write_text("not a directory", encoding="utf-8")
+
+    result = _run_cli("lint", ks_root=ks_root)
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines()[0].startswith("[ks:lint] error:")
+    _load_stdout_json(result)

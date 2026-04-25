@@ -15,7 +15,7 @@ from hks.ingest.office_common import SkippedSegment
 
 type Origin = Literal["ingest", "writeback"]
 type Route = Literal["wiki", "graph", "vector"]
-type EventType = Literal["ingest", "writeback"]
+type EventType = Literal["ingest", "writeback", "lint"]
 type EventStatus = Literal[
     "created",
     "updated",
@@ -27,6 +27,7 @@ type EventStatus = Literal[
     "skip-non-tty",
     "auto-committed",
     "auto-skipped-low-confidence",
+    "lint_fix_applied",
 ]
 
 FRONTMATTER_BOUNDARY = "\n---\n"
@@ -111,6 +112,8 @@ class LogEntry:
     confidence: float | None = None
     skipped_segments: list[SkippedSegment] = field(default_factory=list)
     pptx_notes: Literal["included", "excluded"] | None = None
+    action: str | None = None
+    outcome: str | None = None
 
     def to_markdown(self) -> str:
         timestamp = self.timestamp.replace("T", " ")[:16]
@@ -130,6 +133,10 @@ class LogEntry:
             details.append(("pages touched", ", ".join(self.pages_touched)))
         if self.confidence is not None:
             details.append(("confidence", f"{self.confidence:.2f}"))
+        if self.action:
+            details.append(("action", self.action))
+        if self.outcome:
+            details.append(("outcome", self.outcome))
         if self.skipped_segments:
             aggregated: dict[str, int] = {}
             for segment in self.skipped_segments:

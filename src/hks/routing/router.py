@@ -29,6 +29,7 @@ def route(query: str, rules: RoutingRuleSet) -> RouteDecision:
     best_rule_id = "default"
     best_route = rules.default_route
     best_score = -1.0
+    first_lexical_match: tuple[str, Route] | None = None
     ranked_scores: list[dict[str, object]] = []
 
     lowered_query = query.lower()
@@ -50,8 +51,12 @@ def route(query: str, rules: RoutingRuleSet) -> RouteDecision:
             best_rule_id = rule.id
             best_route = rule.target_route
             best_score = score
+        if lexical_hits and first_lexical_match is None:
+            first_lexical_match = (rule.id, rule.target_route)
 
-    if best_score <= 0:
+    if first_lexical_match is not None:
+        best_rule_id, best_route = first_lexical_match
+    elif best_score <= 0:
         best_rule_id = "default"
         best_route = rules.default_route
 

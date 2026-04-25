@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, NoReturn
+from typing import Annotated, NoReturn, cast
 
 import typer
 
@@ -15,6 +15,7 @@ from hks.commands import lint as lint_command
 from hks.commands import query as query_command
 from hks.core.schema import QueryResponse, Route, build_error_response
 from hks.errors import ExitCode, KSError
+from hks.lint.models import FixMode, SeverityThreshold
 
 app = typer.Typer(
     add_completion=False,
@@ -162,9 +163,73 @@ def query(
     run_command("query", query_command.run, question, writeback=writeback.value)
 
 
-@app.command("lint")
-def lint() -> None:
-    run_command("lint", lint_command.run)
+@app.command(
+    "lint",
+    context_settings={"allow_extra_args": True, "ignore_unknown_options": True},
+)
+def lint(ctx: typer.Context) -> None:
+    try:
+        strict, severity_threshold, fix_mode = _parse_lint_args(list(ctx.args))
+    except ValueError as error:
+        raise typer.Exit(code=_emit_usage_error("lint", str(error))) from error
+    run_command(
+        "lint",
+        lint_command.run,
+        strict=strict,
+        severity_threshold=severity_threshold,
+        fix_mode=fix_mode,
+    )
+
+
+def _parse_lint_args(args: list[str]) -> tuple[bool, SeverityThreshold, FixMode]:
+    strict = False
+    severity_threshold: SeverityThreshold = "error"
+    fix_mode: FixMode = "none"
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--strict":
+            strict = True
+            index += 1
+            continue
+        if arg == "--severity-threshold":
+            if index + 1 >= len(args):
+                raise ValueError("missing value for --severity-threshold")
+            severity_threshold = _parse_severity_threshold(args[index + 1])
+            index += 2
+            continue
+        if arg.startswith("--severity-threshold="):
+            severity_threshold = _parse_severity_threshold(arg.split("=", 1)[1])
+            index += 1
+            continue
+        if arg == "--fix":
+            if index + 1 < len(args) and not args[index + 1].startswith("--"):
+                fix_mode = _parse_fix_mode(args[index + 1])
+                index += 2
+            else:
+                fix_mode = "plan"
+                index += 1
+            continue
+        if arg.startswith("--fix="):
+            fix_mode = _parse_fix_mode(arg.split("=", 1)[1])
+            index += 1
+            continue
+        raise ValueError(f"unknown option for lint: {arg}")
+    return strict, severity_threshold, fix_mode
+
+
+def _parse_severity_threshold(value: str) -> SeverityThreshold:
+    if value not in {"error", "warning", "info"}:
+        raise ValueError(f"invalid value for --severity-threshold: {value}")
+    return cast(SeverityThreshold, value)
+
+
+def _parse_fix_mode(value: str) -> FixMode:
+    if value == "":
+        return "plan"
+    if value not in {"plan", "apply"}:
+        raise ValueError(f"invalid value for --fix: {value}")
+    return cast(FixMode, value)
 
 
 def main() -> None:

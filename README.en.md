@@ -2,13 +2,13 @@
 
 [繁體中文](./readme.md)
 
-Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 2 and added the first Phase 3 image-ingest slice: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, and high-confidence answers auto write back by default.
+Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 2 and added Phase 3 image ingest plus the lint system: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, and high-confidence answers auto write back by default.
 
 ## What Ships Today
 
 - `ks ingest <file|dir> [--pptx-notes include|exclude]`: builds `raw_sources/`, `wiki/`, `graph/graph.json`, `vector/db/`, and `manifest.json`
 - `ks query "<question>" [--writeback auto|yes|no|ask]`: returns stable JSON; summary prefers wiki, relation prefers graph, detail prefers vector
-- `ks lint`: still a Phase 3 stub
+- `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`: checks cross-layer consistency across `wiki / graph / vector / manifest / raw_sources`
 - Standalone image ingest now supports `png / jpg / jpeg` via local `tesseract`; `.heic / .webp` and VLM are still out of scope
 
 ## 5-Minute Quick Start
@@ -67,7 +67,12 @@ For automation or agent workflows, explicitly using `--writeback=no` is still th
 uv run ks lint
 ```
 
-It still returns the fixed JSON stub. Real linting remains a Phase 3 task.
+It emits `trace.steps[kind="lint_summary"].detail` with `findings`, severity/category counters, and fix plan/apply results.
+
+- Default mode is read-only; findings still exit `0`
+- `--strict`: exits `1` when findings meet `--severity-threshold`
+- `--fix`: plans safe repairs without writing
+- `--fix=apply`: only runs allowlisted actions: rebuild `wiki/index.md`, prune orphan vector chunks, prune orphan graph nodes/edges, and append `wiki/log.md`
 
 ## Output Contract
 
@@ -116,9 +121,10 @@ It still returns the fixed JSON stub. Real linting remains a Phase 3 task.
 - Office ingest expansion: [specs/002-phase2-ingest-office/spec.md](./specs/002-phase2-ingest-office/spec.md)
 - Phase 2 graph / routing / write-back: [specs/003-phase2-graph-routing/spec.md](./specs/003-phase2-graph-routing/spec.md)
 - Phase 3 image ingest: [specs/004-phase3-image-ingest/spec.md](./specs/004-phase3-image-ingest/spec.md)
-- Phase 2 contract: [specs/003-phase2-graph-routing/contracts/query-response.schema.json](./specs/003-phase2-graph-routing/contracts/query-response.schema.json)
+- Current response contract: [specs/005-phase3-lint-impl/contracts/query-response.schema.json](./specs/005-phase3-lint-impl/contracts/query-response.schema.json)
 - Spec archive index: [specs/ARCHIVE.md](./specs/ARCHIVE.md)
-- Remaining Phase 3 work: real `ks lint`, MCP / API adapter, multi-agent support
+- Phase 3 lint system: [specs/005-phase3-lint-impl/spec.md](./specs/005-phase3-lint-impl/spec.md)
+- Remaining Phase 3 work: MCP / API adapter, multi-agent support
 
 ## Development Checks
 

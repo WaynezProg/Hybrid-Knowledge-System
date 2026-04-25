@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/lint-summary-detail.schema.json",
+  "title": "HKS lint_summary detail",
+  "description": "`trace.steps[kind=lint_summary].detail` 的權威契約。top-level stdout 仍由 query-response.schema.json 管轄。",
+  "type": "object",
+  "required": [
+    "findings",
+    "severity_counts",
+    "category_counts",
+    "fixes_planned",
+    "fixes_applied",
+    "fixes_skipped"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "severity_counts": {
+      "type": "object",
+      "required": ["error", "warning", "info"],
+      "additionalProperties": false,
+      "properties": {
+        "error": { "type": "integer", "minimum": 0 },
+        "warning": { "type": "integer", "minimum": 0 },
+        "info": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "category_counts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      },
+      "propertyNames": {
+        "enum": [
+          "orphan_page",
+          "dead_link",
+          "duplicate_slug",
+          "manifest_wiki_mismatch",
+          "wiki_source_mismatch",
+          "dangling_manifest_entry",
+          "orphan_raw_source",
+          "manifest_vector_mismatch",
+          "orphan_vector_chunk",
+          "graph_drift",
+          "fingerprint_drift"
+        ]
+      }
+    },
+    "fixes_planned": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fixAction" }
+    },
+    "fixes_applied": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fixAction" }
+    },
+    "fixes_skipped": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fixSkip" }
+    }
+  },
+  "$defs": {
+    "category": {
+      "type": "string",
+      "enum": [
+        "orphan_page",
+        "dead_link",
+        "duplicate_slug",
+        "manifest_wiki_mismatch",
+        "wiki_source_mismatch",
+        "dangling_manifest_entry",
+        "orphan_raw_source",
+        "manifest_vector_mismatch",
+        "orphan_vector_chunk",
+        "graph_drift",
+        "fingerprint_drift"
+      ]
+    },
+    "severity": {
+      "type": "string",
+      "enum": ["error", "warning", "info"]
+    },
+    "finding": {
+      "type": "object",
+      "required": ["category", "severity", "target", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "category": { "$ref": "#/$defs/category" },
+        "severity": { "$ref": "#/$defs/severity" },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\r\\n\\u001b]+$"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "fixAction": {
+      "type": "object",
+      "required": ["action", "target", "outcome"],
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": [
+            "rebuild_index",
+            "prune_orphan_vector_chunks",
+            "prune_orphan_graph_nodes",
+            "prune_orphan_graph_edges"
+          ]
+        },
+        "target": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outcome": {
+          "type": "string",
+          "enum": ["planned", "success", "apply_failed"]
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "fixSkip": {
+      "type": "object",
+      "required": ["category", "reason", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "category": { "$ref": "#/$defs/category" },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "requires_manual",
+            "unsupported_in_005",
+            "manifest_truth_unknown",
+            "apply_failed"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^\\r\\n\\u001b]+$"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    }
+  }
+}

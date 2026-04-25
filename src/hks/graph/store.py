@@ -183,6 +183,33 @@ class GraphStore:
         payload = self.load()
         return (len(payload.nodes), len(payload.edges))
 
+    def prune_nodes(self, node_ids: list[str]) -> list[str]:
+        payload = self.load()
+        wanted = set(node_ids)
+        removed = sorted(node_id for node_id in wanted if node_id in payload.nodes)
+        if not removed:
+            return []
+        for node_id in removed:
+            payload.nodes.pop(node_id, None)
+        payload.edges = {
+            edge_id: edge
+            for edge_id, edge in payload.edges.items()
+            if edge.source in payload.nodes and edge.target in payload.nodes
+        }
+        self.save(payload)
+        return removed
+
+    def prune_edges(self, edge_ids: list[str]) -> list[str]:
+        payload = self.load()
+        wanted = set(edge_ids)
+        removed = sorted(edge_id for edge_id in wanted if edge_id in payload.edges)
+        if not removed:
+            return []
+        for edge_id in removed:
+            payload.edges.pop(edge_id, None)
+        self.save(payload)
+        return removed
+
     def _remove_document_from_payload(self, payload: GraphPayload, relpath: str) -> None:
         payload.edges = {
             edge_id: edge

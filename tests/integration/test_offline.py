@@ -76,3 +76,25 @@ def test_image_ingest_and_query_run_without_network(
 
     query_result = cli_runner.invoke(app, ["query", "detail Owner Iris", "--writeback=no"])
     assert query_result.exit_code == 0
+
+
+@pytest.mark.integration
+def test_lint_runs_without_network(
+    cli_runner,
+    working_docs: Path,
+    local_embedding_model: Path | str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    model_source = str(local_embedding_model)
+    monkeypatch.setenv("HKS_EMBEDDING_MODEL", model_source)
+    monkeypatch.setenv("HF_HUB_OFFLINE", "1")
+    monkeypatch.setenv("TRANSFORMERS_OFFLINE", "1")
+    monkeypatch.setattr(urllib_request, "urlopen", _deny_network)
+    monkeypatch.setattr(urllib_request.OpenerDirector, "open", _deny_network)
+    _patch_http_clients(monkeypatch)
+
+    ingest_result = cli_runner.invoke(app, ["ingest", str(working_docs)])
+    assert ingest_result.exit_code == 0
+
+    lint_result = cli_runner.invoke(app, ["lint", "--fix"])
+    assert lint_result.exit_code == 0
