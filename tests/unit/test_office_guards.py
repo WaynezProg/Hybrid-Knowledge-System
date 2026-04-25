@@ -8,6 +8,7 @@ import pytest
 
 from hks.ingest.guards import (
     OversizeError,
+    load_image_limits,
     load_office_limits,
     preflight_size_check,
     with_timeout,
@@ -79,3 +80,32 @@ def test_load_office_limits_rejects_non_integer(monkeypatch) -> None:
     monkeypatch.setenv("HKS_OFFICE_MAX_FILE_MB", "not-a-number")
     with pytest.raises(ValueError, match=r"HKS_OFFICE_MAX_FILE_MB"):
         load_office_limits()
+
+
+@pytest.mark.unit
+def test_load_image_limits_defaults(monkeypatch) -> None:
+    monkeypatch.delenv("HKS_IMAGE_TIMEOUT_SEC", raising=False)
+    monkeypatch.delenv("HKS_IMAGE_MAX_FILE_MB", raising=False)
+    monkeypatch.delenv("HKS_IMAGE_MAX_PIXELS", raising=False)
+    limits = load_image_limits()
+    assert limits.timeout_seconds == 30
+    assert limits.max_file_mb == 20
+    assert limits.max_pixels == 100_000_000
+
+
+@pytest.mark.unit
+def test_load_image_limits_honors_env(monkeypatch) -> None:
+    monkeypatch.setenv("HKS_IMAGE_TIMEOUT_SEC", "45")
+    monkeypatch.setenv("HKS_IMAGE_MAX_FILE_MB", "12")
+    monkeypatch.setenv("HKS_IMAGE_MAX_PIXELS", "1200000")
+    limits = load_image_limits()
+    assert limits.timeout_seconds == 45
+    assert limits.max_file_mb == 12
+    assert limits.max_pixels == 1_200_000
+
+
+@pytest.mark.unit
+def test_load_image_limits_rejects_out_of_range(monkeypatch) -> None:
+    monkeypatch.setenv("HKS_IMAGE_MAX_PIXELS", "0")
+    with pytest.raises(ValueError, match=r"HKS_IMAGE_MAX_PIXELS"):
+        load_image_limits()

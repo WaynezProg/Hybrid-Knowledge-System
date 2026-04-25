@@ -61,7 +61,16 @@ def _vector_trace_detail(
     }
     if chosen_hit is None:
         return detail
-    for key in ("source_relpath", "sheet_name", "slide_index", "section_type", "row_index"):
+    for key in (
+        "source_relpath",
+        "sheet_name",
+        "slide_index",
+        "section_type",
+        "row_index",
+        "source_format",
+        "ocr_confidence",
+        "source_engine",
+    ):
         if key in chosen_hit.metadata:
             detail[key] = chosen_hit.metadata[key]
     return detail

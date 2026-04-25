@@ -2,18 +2,19 @@
 
 [English](./README.en.md)
 
-Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。現在的 runtime 已完成 Phase 2：ingest 支援 `txt / md / pdf / docx / xlsx / pptx`，query 會在 `wiki / graph / vector` 三層間切換，relation 類問題優先走 graph，高 confidence 答案預設自動 write-back。
+Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。現在的 runtime 已完成 Phase 2，並補上 Phase 3 的第一段 image ingest：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 會在 `wiki / graph / vector` 三層間切換，relation 類問題優先走 graph，高 confidence 答案預設自動 write-back。
 
 ## 目前能做什麼
 
 - `ks ingest <file|dir> [--pptx-notes include|exclude]`：建立 `raw_sources/`、`wiki/`、`graph/graph.json`、`vector/db/`、`manifest.json`
 - `ks query "<question>" [--writeback auto|yes|no|ask]`：回傳穩定 JSON，summary 優先 wiki、relation 優先 graph、detail 優先 vector
 - `ks lint`：仍為 Phase 3 stub
-- 獨立圖片檔 ingest 尚未實作；後續 Phase 3 spec 才會凍結可接受的 raster formats、normalize / 轉檔策略與 OCR / VLM 流程
+- 獨立圖片檔 ingest 已支援 `png / jpg / jpeg`，以本機 `tesseract` OCR 處理；`.heic / .webp` 與 VLM 仍未納入
 
 ## 5 分鐘上手
 
 ```bash
+brew install tesseract tesseract-lang
 mise install
 uv sync
 make fixtures
@@ -33,10 +34,11 @@ cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 uv run ks ingest <file-or-dir>
 ```
 
-- 支援 `txt`、`md`、`pdf`、`docx`、`xlsx`、`pptx`
+- 支援 `txt`、`md`、`pdf`、`docx`、`xlsx`、`pptx`、`png`、`jpg`、`jpeg`
 - 以 `SHA256 + parser_fingerprint` 做 idempotency
 - `--pptx-notes=exclude` 會改變 parser fingerprint，觸發 pptx re-ingest
-- 目前不接受獨立圖片檔；不要把 `png` / `jpg` / `heic` / `webp` 視為已承諾支援
+- image ingest 需要本機 `tesseract` + `tesseract-lang`
+- `.heic` / `.webp` / gif / tiff / svg 仍未承諾支援
 
 ### Query
 
@@ -102,6 +104,10 @@ uv run ks lint
 - `HKS_WRITEBACK_AUTO_THRESHOLD`：auto write-back 門檻，預設 `0.75`
 - `HKS_OFFICE_MAX_FILE_MB`：Office 單檔 ingest 上限，預設 `200`
 - `HKS_OFFICE_TIMEOUT_SEC`：Office parser timeout，預設 `60`
+- `HKS_IMAGE_MAX_FILE_MB`：Image 單檔 ingest 上限，預設 `20`
+- `HKS_IMAGE_TIMEOUT_SEC`：Image OCR timeout，預設 `30`
+- `HKS_IMAGE_MAX_PIXELS`：Image decode 後像素上限，預設 `100000000`
+- `HKS_OCR_LANGS`：tesseract language set，預設 `eng+chi_tra`
 - `HKS_ROUTING_RULES`：覆寫 routing rules 檔案路徑
 
 ## 進一步文件
@@ -109,9 +115,10 @@ uv run ks lint
 - Phase 1 基線：[specs/001-phase1-cli-mvp/spec.md](./specs/001-phase1-cli-mvp/spec.md)
 - Office ingest 擴充：[specs/002-phase2-ingest-office/spec.md](./specs/002-phase2-ingest-office/spec.md)
 - Phase 2 graph / routing / write-back：[specs/003-phase2-graph-routing/spec.md](./specs/003-phase2-graph-routing/spec.md)
+- Phase 3 image ingest：[specs/004-phase3-image-ingest/spec.md](./specs/004-phase3-image-ingest/spec.md)
 - Phase 2 contract：[specs/003-phase2-graph-routing/contracts/query-response.schema.json](./specs/003-phase2-graph-routing/contracts/query-response.schema.json)
 - Spec archive index：[specs/ARCHIVE.md](./specs/ARCHIVE.md)
-- Phase 3 圖片 ingest 尚未成 spec；目前只確認它會是後續獨立工作，不沿用 `003` scope
+- 仍未完成的 Phase 3 範圍：`ks lint` 真實實作、MCP / API adapter、多 agent
 
 ## 開發檢查
 

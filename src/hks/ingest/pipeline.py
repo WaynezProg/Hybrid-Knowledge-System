@@ -33,7 +33,13 @@ from hks.ingest.fingerprint import (
     are_fingerprints_compatible,
     compute_parser_fingerprint,
 )
-from hks.ingest.guards import OversizeError, load_office_limits, preflight_size_check, with_timeout
+from hks.ingest.guards import (
+    OversizeError,
+    load_image_limits,
+    load_office_limits,
+    preflight_size_check,
+    with_timeout,
+)
 from hks.ingest.models import (
     FileStatus,
     IngestFileReport,
@@ -44,6 +50,7 @@ from hks.ingest.models import (
 )
 from hks.ingest.office_common import SkippedSegment
 from hks.ingest.parsers import docx as docx_parser
+from hks.ingest.parsers import image as image_parser
 from hks.ingest.parsers import md as md_parser
 from hks.ingest.parsers import pdf as pdf_parser
 from hks.ingest.parsers import pptx as pptx_parser
@@ -54,6 +61,7 @@ from hks.storage.wiki import EventStatus, LogEntry, WikiStore
 
 # Office parsers are flag-aware; other formats ignore ParserFlags.
 OfficeParser = Callable[[Path, ParserFlags], ParsedDocument]
+ImageParser = Callable[[Path, SourceFormat], ParsedDocument]
 LegacyParser = Callable[[Path], ParsedDocument]
 
 _LEGACY_PARSERS: dict[SourceFormat, LegacyParser] = {
@@ -68,9 +76,16 @@ _OFFICE_PARSERS: dict[SourceFormat, OfficeParser] = {
     "pptx": pptx_parser.parse,
 }
 
+_IMAGE_PARSERS: dict[SourceFormat, ImageParser] = {
+    "png": image_parser.parse,
+    "jpg": image_parser.parse,
+    "jpeg": image_parser.parse,
+}
+
 PARSERS: dict[SourceFormat, Callable[..., ParsedDocument]] = {
     **_LEGACY_PARSERS,
     **_OFFICE_PARSERS,
+    **_IMAGE_PARSERS,
 }
 
 
@@ -94,6 +109,8 @@ def discover_files(path: Path) -> list[Path]:
 def parse_file(path: Path, source_format: SourceFormat, flags: ParserFlags) -> ParsedDocument:
     if source_format in _OFFICE_PARSERS:
         return _OFFICE_PARSERS[source_format](path, flags)
+    if source_format in _IMAGE_PARSERS:
+        return _IMAGE_PARSERS[source_format](path, source_format)
     return _LEGACY_PARSERS[source_format](path)
 
 
@@ -158,6 +175,7 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
     vector_store = VectorStore(paths, backend=backend)
     summary = IngestSummary()
     limits = load_office_limits()
+    image_limits = load_image_limits()
     flags = ParserFlags(pptx_notes=pptx_notes)
 
     with file_lock(paths.lock):
@@ -171,7 +189,12 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                 reason = "empty_file"
                 summary.skipped.append(IngestIssue(path=relpath, reason=reason, kind="skipped"))
                 summary.files.append(
-                    IngestFileReport(path=relpath, status="skipped", reason=reason)
+                    IngestFileReport(
+                        path=relpath,
+                        status="skipped",
+                        reason=reason,
+                        source_format=suffix_format,
+                    )
                 )
                 _log_and_issue(
                     wiki_store=wiki_store, relpath=relpath, status="skipped", reason=reason
@@ -193,22 +216,39 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                     summary.skipped.append(IngestIssue(path=relpath, reason=reason, kind="skipped"))
                 else:
                     summary.failures.append(IngestIssue(path=relpath, reason=reason, kind="failed"))
-                summary.files.append(IngestFileReport(path=relpath, status=status, reason=reason))
+                summary.files.append(
+                    IngestFileReport(
+                        path=relpath,
+                        status=status,
+                        reason=reason,
+                        source_format=suffix_format,
+                    )
+                )
                 _log_and_issue(wiki_store=wiki_store, relpath=relpath, status=status, reason=reason)
                 continue
 
             is_office = source_format in _OFFICE_PARSERS
+            is_image = source_format in _IMAGE_PARSERS
 
             # Oversize preflight: Office uses its own limit, others use legacy HKS_MAX_FILE_MB.
             try:
                 if is_office:
                     preflight_size_check(file_path, limits.max_file_mb)
+                elif is_image:
+                    preflight_size_check(file_path, image_limits.max_file_mb)
                 else:
                     preflight_size_check(file_path, max_file_mb())
             except OversizeError:
                 reason = "oversized"
                 summary.failures.append(IngestIssue(path=relpath, reason=reason, kind="failed"))
-                summary.files.append(IngestFileReport(path=relpath, status="failed", reason=reason))
+                summary.files.append(
+                    IngestFileReport(
+                        path=relpath,
+                        status="failed",
+                        reason=reason,
+                        source_format=source_format,
+                    )
+                )
                 _log_and_issue(
                     wiki_store=wiki_store, relpath=relpath, status="failed", reason=reason
                 )
@@ -237,12 +277,22 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                 if is_office:
                     with with_timeout(limits.timeout_seconds):
                         parsed = parse_file(file_path, source_format, flags)
+                elif is_image:
+                    with with_timeout(image_limits.timeout_seconds):
+                        parsed = parse_file(file_path, source_format, flags)
                 else:
                     parsed = parse_file(file_path, source_format, flags)
             except TimeoutError:
                 reason = "timeout"
                 summary.failures.append(IngestIssue(path=relpath, reason=reason, kind="failed"))
-                summary.files.append(IngestFileReport(path=relpath, status="failed", reason=reason))
+                summary.files.append(
+                    IngestFileReport(
+                        path=relpath,
+                        status="failed",
+                        reason=reason,
+                        source_format=source_format,
+                    )
+                )
                 _log_and_issue(
                     wiki_store=wiki_store, relpath=relpath, status="failed", reason=reason
                 )
@@ -252,7 +302,12 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                     reason = error.code.lower()
                     summary.failures.append(IngestIssue(path=relpath, reason=reason, kind="failed"))
                     summary.files.append(
-                        IngestFileReport(path=relpath, status="failed", reason=reason)
+                        IngestFileReport(
+                            path=relpath,
+                            status="failed",
+                            reason=reason,
+                            source_format=source_format,
+                        )
                     )
                     _log_and_issue(
                         wiki_store=wiki_store, relpath=relpath, status="failed", reason=reason
@@ -284,13 +339,25 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                     )
                     manifest.entries.pop(relpath, None)
                     save_manifest(manifest, paths.manifest)
-                reason = "empty"
+                reason = _empty_skip_reason(parsed)
                 summary.skipped.append(IngestIssue(path=relpath, reason=reason, kind="skipped"))
                 summary.files.append(
-                    IngestFileReport(path=relpath, status="skipped", reason=reason)
+                    IngestFileReport(
+                        path=relpath,
+                        status="skipped",
+                        reason=reason,
+                        source_format=source_format,
+                        skipped_segments=list(parsed.skipped_segments),
+                        ocr_chunks=0 if is_image else None,
+                        ocr_engine=_image_engine(parsed) if is_image else None,
+                    )
                 )
                 _log_and_issue(
-                    wiki_store=wiki_store, relpath=relpath, status="skipped", reason=reason
+                    wiki_store=wiki_store,
+                    relpath=relpath,
+                    status="skipped",
+                    reason=reason,
+                    skipped_segments=parsed.skipped_segments,
                 )
                 continue
 
@@ -344,6 +411,7 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                         "chunk_idx": index,
                         "tokens": backend.count_tokens(chunk_text),
                         "format": source_format,
+                        "source_format": source_format,
                         "sha256_source": sha256,
                         **_flatten_chunk_metadata(
                             extracted.chunk_metadata[index]
@@ -437,8 +505,13 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                 IngestFileReport(
                     path=relpath,
                     status=result_status,
+                    source_format=source_format,
                     skipped_segments=list(parsed.skipped_segments),
                     pptx_notes=notes_mode,
+                    ocr_chunks=len(parsed.segments) if is_image else None,
+                    ocr_confidence_min=_image_confidence(parsed, min) if is_image else None,
+                    ocr_confidence_max=_image_confidence(parsed, max) if is_image else None,
+                    ocr_engine=_image_engine(parsed) if is_image else None,
                 )
             )
             _log_and_issue(
@@ -480,3 +553,31 @@ def _flatten_chunk_metadata(
         elif value is not None:
             flattened[key] = str(value)
     return flattened
+
+
+def _empty_skip_reason(parsed: ParsedDocument) -> str:
+    if any(segment.type == "ocr_empty" for segment in parsed.skipped_segments):
+        return "ocr_empty"
+    return "empty"
+
+
+def _image_confidence(
+    parsed: ParsedDocument,
+    reducer: Callable[[list[float]], float],
+) -> float | None:
+    values = [
+        float(segment.metadata["ocr_confidence"])
+        for segment in parsed.segments
+        if "ocr_confidence" in segment.metadata
+    ]
+    if not values:
+        return None
+    return round(reducer(values), 4)
+
+
+def _image_engine(parsed: ParsedDocument) -> str | None:
+    for segment in parsed.segments:
+        source_engine = segment.metadata.get("source_engine")
+        if isinstance(source_engine, str) and source_engine:
+            return source_engine
+    return None

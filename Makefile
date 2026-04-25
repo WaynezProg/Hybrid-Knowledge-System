@@ -15,3 +15,4 @@ coverage:
 
 fixtures:
 	uv run python tests/fixtures/build_office.py
+	uv run python tests/fixtures/build_images.py

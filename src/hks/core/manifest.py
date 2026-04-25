@@ -12,21 +12,23 @@ from typing import Any, Literal, cast
 
 from hks.core.paths import RuntimePaths, runtime_paths
 
-type SourceFormat = Literal["txt", "md", "pdf", "docx", "xlsx", "pptx"]
+type SourceFormat = Literal["txt", "md", "pdf", "docx", "xlsx", "pptx", "png", "jpg", "jpeg"]
 
 OFFICE_FORMATS: frozenset[SourceFormat] = frozenset({"docx", "xlsx", "pptx"})
-SUPPORTED_SUFFIXES: frozenset[str] = frozenset({"txt", "md", "pdf", "docx", "xlsx", "pptx"})
+IMAGE_FORMATS: frozenset[SourceFormat] = frozenset({"png", "jpg", "jpeg"})
+SUPPORTED_SUFFIXES: frozenset[str] = frozenset(
+    {"txt", "md", "pdf", "docx", "xlsx", "pptx", "png", "jpg", "jpeg"}
+)
 
 _PDF_MAGIC = b"%PDF-"
 _ZIP_MAGIC = b"PK\x03\x04"
 _OLE_MAGIC = bytes.fromhex("D0CF11E0A1B11AE1")
-_OOXML_MAIN_PART: dict[SourceFormat, str] = {
+_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
+_JPEG_MAGIC = b"\xff\xd8\xff"
+_OOXML_MAIN_PART: dict[Literal["docx", "xlsx", "pptx"], str] = {
     "docx": "word/document.xml",
     "xlsx": "xl/workbook.xml",
     "pptx": "ppt/presentation.xml",
-    "txt": "",
-    "md": "",
-    "pdf": "",
 }
 
 
@@ -152,7 +154,18 @@ def detect_source_format(path: Path) -> SourceFormat | None:
         if not head.startswith(_PDF_MAGIC):
             return None
         return suffix_format
+    if suffix_format == "png":
+        head = _read_head(path, len(_PNG_MAGIC))
+        if not head.startswith(_PNG_MAGIC):
+            return None
+        return suffix_format
+    if suffix_format in {"jpg", "jpeg"}:
+        head = _read_head(path, len(_JPEG_MAGIC))
+        if not head.startswith(_JPEG_MAGIC):
+            return None
+        return suffix_format
     if suffix_format in OFFICE_FORMATS:
+        office_format = cast(Literal["docx", "xlsx", "pptx"], suffix_format)
         head = _read_head(path, max(len(_ZIP_MAGIC), len(_OLE_MAGIC)))
         if head.startswith(_OLE_MAGIC):
             return None
@@ -165,11 +178,11 @@ def detect_source_format(path: Path) -> SourceFormat | None:
             return None
         required_parts = {
             "[Content_Types].xml",
-            _OOXML_MAIN_PART[suffix_format],
+            _OOXML_MAIN_PART[office_format],
         }
         if not required_parts.issubset(names):
             return None
-        return suffix_format
+        return office_format
     return suffix_format
 
 

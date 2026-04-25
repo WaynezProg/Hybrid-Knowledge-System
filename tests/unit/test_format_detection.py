@@ -83,3 +83,34 @@ def test_suffix_helper_accepts_office_extensions(tmp_path) -> None:
         path = tmp_path / f"x.{suffix}"
         path.write_bytes(b"PK\x03\x04")
         assert source_format_from_path(path) == suffix
+
+
+@pytest.mark.unit
+def test_detect_valid_png_requires_magic(tmp_path) -> None:
+    good = tmp_path / "good.png"
+    good.write_bytes(b"\x89PNG\r\n\x1a\npayload")
+    assert detect_source_format(good) == "png"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("suffix", ["jpg", "jpeg"])
+def test_detect_valid_jpeg_requires_magic(tmp_path, suffix: str) -> None:
+    good = tmp_path / f"good.{suffix}"
+    good.write_bytes(b"\xff\xd8\xff\xe0payload")
+    assert detect_source_format(good) == suffix
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("suffix", ["png", "jpg", "jpeg"])
+def test_detect_mislabeled_image_returns_none(tmp_path, suffix: str) -> None:
+    bad = tmp_path / f"bad.{suffix}"
+    bad.write_bytes(b"not-an-image")
+    assert detect_source_format(bad) is None
+
+
+@pytest.mark.unit
+def test_suffix_helper_accepts_image_extensions(tmp_path) -> None:
+    for suffix in ("png", "jpg", "jpeg"):
+        path = tmp_path / f"x.{suffix}"
+        path.write_bytes(b"blob")
+        assert source_format_from_path(path) == suffix

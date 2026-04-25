@@ -7,7 +7,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 
 * Phase 1：完成
 * Phase 2：完成
-* Phase 3：未開始
+* Phase 3：部分完成（`004` image ingest 已完成；lint / MCP / multi-agent 未完成）
 
 ---
 
@@ -65,7 +65,7 @@ stdout 契約統一：
 1. parse
    * Phase 1：`txt / md / pdf`
    * Phase 2：`docx / xlsx / pptx`
-   * Phase 3：圖片 ingest（still raster images；實際接受格式與 normalize / 轉檔策略待後續 spec 凍結）
+   * Phase 3：圖片 ingest（`png / jpg / jpeg`；OCR-only，VLM / `.heic` / `.webp` 延後）
 2. normalize
 3. extract
    * key facts
@@ -77,7 +77,7 @@ stdout 契約統一：
    * vector
 
 目前 graph extraction 是 pattern-based，目的不是做最強 NLP，而是穩定支撐離線 relation query 與 regression tests。
-圖片 ingest 目前只確定會晚於 Phase 2；未來不應把產品邊界寫死成只吃 `png / jpg`，而應以「接受 still raster images → normalize → OCR / VLM」另立 spec。
+目前 `004` 已把獨立圖片 ingest 凍結為 `png / jpg / jpeg` + local OCR。VLM、`.heic` / `.webp` 與更泛化的 normalize/轉檔策略仍留待後續 spec。
 
 ---
 
@@ -189,7 +189,7 @@ graph persistence 位於 `/ks/graph/graph.json`。
 * [ ] lint system
 * [ ] 多 agent 支援
 * [ ] API / MCP adapter
-* [ ] 圖片 ingest（still raster images；exact format set / normalize pipeline / OCR / VLM 待 spec）
+* [x] 圖片 ingest（`png / jpg / jpeg`；OCR-only）
 
 ---
 

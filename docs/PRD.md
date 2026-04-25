@@ -32,7 +32,7 @@
 
 * Phase 1：`txt / md / pdf`
 * Phase 2：`docx / xlsx / pptx`
-* Phase 3：圖片 ingest（still raster images；實際接受格式與 normalize / 轉檔策略待後續 spec 決定）
+* Phase 3：圖片 ingest（`png / jpg / jpeg`；OCR-only，VLM 與其他 raster formats 延後）
 
 輸出三層：
 
@@ -108,4 +108,4 @@
 * [ ] lint system
 * [ ] 多 agent
 * [ ] API / MCP adapter
-* [ ] 圖片 ingest（still raster images；exact format set / normalize pipeline / OCR / VLM 待 spec）
+* [x] 圖片 ingest（`png / jpg / jpeg`；OCR-only）

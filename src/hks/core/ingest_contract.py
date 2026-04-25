@@ -16,7 +16,7 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
-SCHEMA_RELPATH = "specs/002-phase2-ingest-office/contracts/ingest-summary-detail.schema.json"
+SCHEMA_RELPATH = "specs/004-phase3-image-ingest/contracts/ingest-summary-detail.schema.json"
 
 
 def _repo_root() -> Path:

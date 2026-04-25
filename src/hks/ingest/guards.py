@@ -1,4 +1,4 @@
-"""Size and time guards for Office ingest (spec FR-063 / FR-064).
+"""Size and time guards for ingest-time parsers.
 
 - `preflight_size_check(path, max_mb)` raises `OversizeError` if the file
   exceeds the configured limit; the pipeline maps this to DATAERR.
@@ -35,10 +35,21 @@ class OfficeLimits:
     max_file_mb: int
 
 
+@dataclass(frozen=True, slots=True)
+class ImageLimits:
+    timeout_seconds: int
+    max_file_mb: int
+    max_pixels: int
+
+
 _DEFAULT_TIMEOUT_SEC = 60
 _DEFAULT_MAX_FILE_MB = 200
+_DEFAULT_IMAGE_TIMEOUT_SEC = 30
+_DEFAULT_IMAGE_MAX_FILE_MB = 20
+_DEFAULT_IMAGE_MAX_PIXELS = 100_000_000
 _TIMEOUT_MIN, _TIMEOUT_MAX = 5, 600
 _SIZE_MIN, _SIZE_MAX = 1, 2048
+_PIXELS_MIN, _PIXELS_MAX = 1, 500_000_000
 
 
 def _read_int_env(
@@ -76,6 +87,22 @@ def load_office_limits() -> OfficeLimits:
         ),
         max_file_mb=_read_int_env(
             "HKS_OFFICE_MAX_FILE_MB", _DEFAULT_MAX_FILE_MB, _SIZE_MIN, _SIZE_MAX
+        ),
+    )
+
+
+def load_image_limits() -> ImageLimits:
+    """Read image-specific limits from env with validation."""
+
+    return ImageLimits(
+        timeout_seconds=_read_int_env(
+            "HKS_IMAGE_TIMEOUT_SEC", _DEFAULT_IMAGE_TIMEOUT_SEC, _TIMEOUT_MIN, _TIMEOUT_MAX
+        ),
+        max_file_mb=_read_int_env(
+            "HKS_IMAGE_MAX_FILE_MB", _DEFAULT_IMAGE_MAX_FILE_MB, _SIZE_MIN, _SIZE_MAX
+        ),
+        max_pixels=_read_int_env(
+            "HKS_IMAGE_MAX_PIXELS", _DEFAULT_IMAGE_MAX_PIXELS, _PIXELS_MIN, _PIXELS_MAX
         ),
     )
 

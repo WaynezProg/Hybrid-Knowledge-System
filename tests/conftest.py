@@ -17,6 +17,9 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 _OFFICE_SENTINEL = PROJECT_ROOT / "tests" / "fixtures" / "valid" / "docx" / "plain.docx"
+_IMAGE_SENTINEL = (
+    PROJECT_ROOT / "tests" / "fixtures" / "valid" / "image" / "atlas-dependency.png"
+)
 
 
 def _cached_model_snapshot(model_name: str) -> Path | None:
@@ -91,6 +94,17 @@ def ensure_office_fixtures() -> None:
     )
 
 
+@pytest.fixture(scope="session", autouse=True)
+def ensure_image_fixtures() -> None:
+    if _IMAGE_SENTINEL.exists():
+        return
+    subprocess.run(
+        [sys.executable, str(PROJECT_ROOT / "tests" / "fixtures" / "build_images.py")],
+        cwd=PROJECT_ROOT,
+        check=True,
+    )
+
+
 @pytest.fixture()
 def working_docs(tmp_path: Path, valid_fixtures: Path) -> Path:
     target = tmp_path / "docs"
@@ -111,6 +125,23 @@ def working_all_docs(tmp_path: Path, valid_fixtures: Path) -> Path:
     _copy_phase1_valid(valid_fixtures, target)
     for name in ("docx", "xlsx", "pptx"):
         _copy_tree_contents(valid_fixtures / name, target / name)
+    return target
+
+
+@pytest.fixture()
+def working_image_docs(tmp_path: Path, valid_fixtures: Path) -> Path:
+    target = tmp_path / "image-docs"
+    _copy_tree_contents(valid_fixtures / "image", target)
+    return target
+
+
+@pytest.fixture()
+def working_phase3_docs(tmp_path: Path, valid_fixtures: Path) -> Path:
+    target = tmp_path / "phase3-docs"
+    _copy_phase1_valid(valid_fixtures, target)
+    for name in ("docx", "xlsx", "pptx"):
+        _copy_tree_contents(valid_fixtures / name, target / name)
+    _copy_tree_contents(valid_fixtures / "image", target / "image")
     return target
 
 

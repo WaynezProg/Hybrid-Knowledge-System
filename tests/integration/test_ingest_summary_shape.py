@@ -1,9 +1,9 @@
 """Phase 2 Foundational: verify ingest stdout shape is backward-compatible.
 
 Phase 1 txt/md/pdf ingest must continue to produce a top-level QueryResponse
-and a `trace.steps[kind=ingest_summary].detail` that satisfies the new
-contract schema. No Office-specific markers (skipped_segments / pptx_notes)
-should appear for Phase 1 formats.
+and a `trace.steps[kind=ingest_summary].detail` that satisfies the latest
+contract schema. Newer format-specific fields must stay null-default for
+Phase 1 formats.
 """
 
 from __future__ import annotations
@@ -38,8 +38,13 @@ def test_phase1_fixtures_still_produce_valid_detail(cli_runner, working_docs, tm
             "path",
             "status",
             "reason",
+            "source_format",
             "skipped_segments",
             "pptx_notes",
+            "ocr_chunks",
+            "ocr_confidence_min",
+            "ocr_confidence_max",
+            "ocr_engine",
         }
         assert file_report["status"] in {
             "created",
@@ -48,9 +53,14 @@ def test_phase1_fixtures_still_produce_valid_detail(cli_runner, working_docs, tm
             "failed",
             "unsupported",
         }
-        # Phase 1 formats never carry Office markers.
+        # Phase 1 formats never carry Office/image markers.
+        assert file_report["source_format"] in {"txt", "md", "pdf"}
         assert file_report["skipped_segments"] == []
         assert file_report["pptx_notes"] is None
+        assert file_report["ocr_chunks"] is None
+        assert file_report["ocr_confidence_min"] is None
+        assert file_report["ocr_confidence_max"] is None
+        assert file_report["ocr_engine"] is None
 
     # Every created file should be manifested with a parser_fingerprint.
     manifest_path = tmp_ks_root / "manifest.json"

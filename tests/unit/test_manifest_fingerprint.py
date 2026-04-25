@@ -64,6 +64,15 @@ def test_pptx_notes_flag_changes_fingerprint() -> None:
 
 
 @pytest.mark.unit
+def test_image_fingerprint_includes_ocr_engine_signature() -> None:
+    fingerprint = compute_parser_fingerprint("png", ParserFlags())
+    assert fingerprint.startswith("png:v")
+    assert ":exif_transpose+grayscale+autocontrast:" in fingerprint
+    assert ":off" in fingerprint
+    assert "tesseract-" in fingerprint
+
+
+@pytest.mark.unit
 def test_save_and_roundtrip_preserves_fingerprint(tmp_path) -> None:
     manifest = Manifest()
     manifest.entries["deck.pptx"] = ManifestEntry(

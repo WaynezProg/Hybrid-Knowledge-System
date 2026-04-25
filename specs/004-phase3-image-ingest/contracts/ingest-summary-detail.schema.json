@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/ingest-summary-detail.phase3-image.schema.json",
+  "title": "HKS Ingest Summary Trace Detail (Phase 3 image OCR)",
+  "description": "CLI `ks ingest` 的 `trace.steps[kind=ingest_summary].detail` 契約。top-level stdout 仍由 query-response.schema.json 管轄；本檔只固化 ingest_summary detail 的 shape。",
+  "type": "object",
+  "required": ["created", "updated", "skipped", "failures", "pruned", "files"],
+  "additionalProperties": false,
+  "properties": {
+    "created": { "type": "array", "items": { "type": "string" } },
+    "updated": { "type": "array", "items": { "type": "string" } },
+    "skipped": { "type": "array", "items": { "$ref": "#/$defs/issue" } },
+    "failures": { "type": "array", "items": { "$ref": "#/$defs/issue" } },
+    "pruned": { "type": "array", "items": { "type": "string" } },
+    "files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fileReport" }
+    }
+  },
+  "$defs": {
+    "issue": {
+      "type": "object",
+      "required": ["path", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" },
+        "reason": { "type": "string" }
+      }
+    },
+    "fileReport": {
+      "type": "object",
+      "required": [
+        "path",
+        "status",
+        "reason",
+        "source_format",
+        "skipped_segments",
+        "pptx_notes",
+        "ocr_chunks",
+        "ocr_confidence_min",
+        "ocr_confidence_max",
+        "ocr_engine"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["created", "updated", "skipped", "failed", "unsupported"]
+        },
+        "reason": { "type": ["string", "null"] },
+        "source_format": {
+          "type": ["string", "null"],
+          "enum": ["txt", "md", "pdf", "docx", "xlsx", "pptx", "png", "jpg", "jpeg", null]
+        },
+        "skipped_segments": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/skippedSegment" }
+        },
+        "pptx_notes": {
+          "type": ["string", "null"],
+          "enum": ["included", "excluded", null]
+        },
+        "ocr_chunks": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "ocr_confidence_min": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "ocr_confidence_max": {
+          "type": ["number", "null"],
+          "minimum": 0.0,
+          "maximum": 1.0
+        },
+        "ocr_engine": {
+          "type": ["string", "null"]
+        }
+      }
+    },
+    "skippedSegment": {
+      "type": "object",
+      "required": ["type", "count"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "image",
+            "embedded_object",
+            "smartart",
+            "macros",
+            "video",
+            "audio",
+            "chart",
+            "pivot",
+            "empty_slide",
+            "ocr_empty"
+          ]
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "created": ["atlas-dependency.png"],
+      "updated": [],
+      "skipped": [{ "path": "no-text.png", "reason": "ocr_empty" }],
+      "failures": [{ "path": "corrupt.png", "reason": "corrupt" }],
+      "pruned": [],
+      "files": [
+        {
+          "path": "atlas-dependency.png",
+          "status": "created",
+          "reason": null,
+          "source_format": "png",
+          "skipped_segments": [],
+          "pptx_notes": null,
+          "ocr_chunks": 3,
+          "ocr_confidence_min": 0.89,
+          "ocr_confidence_max": 0.96,
+          "ocr_engine": "tesseract-5.5.2"
+        },
+        {
+          "path": "no-text.png",
+          "status": "skipped",
+          "reason": "ocr_empty",
+          "source_format": "png",
+          "skipped_segments": [
+            { "type": "ocr_empty", "count": 1 }
+          ],
+          "pptx_notes": null,
+          "ocr_chunks": 0,
+          "ocr_confidence_min": null,
+          "ocr_confidence_max": null,
+          "ocr_engine": "tesseract-5.5.2"
+        },
+        {
+          "path": "corrupt.png",
+          "status": "failed",
+          "reason": "corrupt",
+          "source_format": "png",
+          "skipped_segments": [],
+          "pptx_notes": null,
+          "ocr_chunks": null,
+          "ocr_confidence_min": null,
+          "ocr_confidence_max": null,
+          "ocr_engine": null
+        }
+      ]
+    }
+  ]
+}

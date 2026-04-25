@@ -58,6 +58,13 @@ def _copy_office_docs(target: Path) -> Path:
     return target
 
 
+def _copy_image_docs(target: Path) -> Path:
+    target.mkdir(parents=True, exist_ok=True)
+    for child in sorted((FIXTURES_ROOT / "valid" / "image").iterdir()):
+        shutil.copy2(child, target / child.name)
+    return target
+
+
 def _seed_runtime(ks_root: Path, docs_dir: Path) -> None:
     result = _run_cli("ingest", str(_copy_valid_docs(docs_dir)), ks_root=ks_root)
     assert result.returncode == 0, result.stderr
@@ -214,6 +221,22 @@ def test_ingest_oversized_office_returns_dataerr_with_valid_json(tmp_path: Path)
     payload = _load_stdout_json(result)
     failures = payload["trace"]["steps"][0]["detail"]["failures"]  # type: ignore[index]
     assert {"path": "oversized.xlsx", "reason": "oversized"} in failures
+
+
+@pytest.mark.contract
+def test_ingest_image_partial_failure_returns_dataerr_with_valid_json(tmp_path: Path) -> None:
+    docs = _copy_image_docs(tmp_path / "images")
+    shutil.copy2(FIXTURES_ROOT / "broken" / "image" / "corrupt.png", docs / "corrupt.png")
+
+    result = _run_cli("ingest", str(docs), ks_root=tmp_path / "ks")
+
+    assert result.returncode == 65
+    assert result.stderr.splitlines()[0].startswith("[ks:ingest] error:")
+    payload = _load_stdout_json(result)
+    failures = payload["trace"]["steps"][0]["detail"]["failures"]  # type: ignore[index]
+    skipped = payload["trace"]["steps"][0]["detail"]["skipped"]  # type: ignore[index]
+    assert {"path": "corrupt.png", "reason": "corrupt"} in failures
+    assert {"path": "no-text.png", "reason": "ocr_empty"} in skipped
 
 
 @pytest.mark.contract

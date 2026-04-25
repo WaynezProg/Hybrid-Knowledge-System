@@ -18,6 +18,7 @@ SegmentKind = Literal[
     "heading",
     "list_item",
     "table_row",
+    "ocr_text",
     "sheet_header",
     "slide_header",
     "notes",
@@ -34,6 +35,7 @@ SkippedSegmentType = Literal[
     "chart",
     "pivot",
     "empty_slide",
+    "ocr_empty",
 ]
 
 # Placeholder prefixes — must stay ASCII and lowercase. See

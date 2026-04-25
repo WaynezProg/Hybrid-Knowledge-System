@@ -44,8 +44,13 @@ class IngestFileReport:
     path: str
     status: FileStatus
     reason: str | None = None
+    source_format: SourceFormat | None = None
     skipped_segments: list[SkippedSegment] = field(default_factory=list)
     pptx_notes: PptxNotesMode | None = None
+    ocr_chunks: int | None = None
+    ocr_confidence_min: float | None = None
+    ocr_confidence_max: float | None = None
+    ocr_engine: str | None = None
 
 
 @dataclass(slots=True)

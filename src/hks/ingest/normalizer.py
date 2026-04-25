@@ -65,7 +65,7 @@ def chunk(
 
 
 _SECTION_KINDS = {"heading", "sheet_header", "slide_header"}
-_ISOLATED_KINDS = {"table_row", "notes", "placeholder"}
+_ISOLATED_KINDS = {"table_row", "notes", "placeholder", "ocr_text"}
 
 
 def segments_to_body(segments: list[Segment]) -> str:
@@ -84,7 +84,7 @@ def segments_to_body(segments: list[Segment]) -> str:
         text = segment.text
         if not text:
             continue
-        if segment.kind == "table_row" and prev_kind == "table_row":
+        if segment.kind in {"table_row", "ocr_text"} and prev_kind == segment.kind:
             parts.append(text)
         else:
             if parts:
@@ -97,7 +97,18 @@ def segments_to_body(segments: list[Segment]) -> str:
 def _metadata_for_segment(segment: Segment, carry: dict[str, Any]) -> dict[str, Any]:
     meta: dict[str, Any] = dict(carry)
     meta["section_type"] = segment.kind
-    for key in ("sheet_name", "slide_index", "row_index", "formula_only"):
+    for key in (
+        "sheet_name",
+        "slide_index",
+        "row_index",
+        "formula_only",
+        "ocr_confidence",
+        "source_engine",
+        "bbox_left",
+        "bbox_top",
+        "bbox_width",
+        "bbox_height",
+    ):
         if key in segment.metadata:
             meta[key] = segment.metadata[key]
     return meta

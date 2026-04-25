@@ -117,10 +117,11 @@ def ingest(
         ),
     ] = PptxNotesMode.include,
 ) -> None:
-    from hks.ingest.guards import load_office_limits
+    from hks.ingest.guards import load_image_limits, load_office_limits
 
     try:
         load_office_limits()
+        load_image_limits()
     except ValueError as error:
         raise typer.Exit(code=_emit_usage_error("ingest", str(error))) from error
     run_command(

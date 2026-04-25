@@ -2,18 +2,19 @@
 
 [繁體中文](./readme.md)
 
-Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 2: ingest supports `txt / md / pdf / docx / xlsx / pptx`, query can route across `wiki / graph / vector`, relation-style questions prefer graph, and high-confidence answers auto write back by default.
+Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 2 and added the first Phase 3 image-ingest slice: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, and high-confidence answers auto write back by default.
 
 ## What Ships Today
 
 - `ks ingest <file|dir> [--pptx-notes include|exclude]`: builds `raw_sources/`, `wiki/`, `graph/graph.json`, `vector/db/`, and `manifest.json`
 - `ks query "<question>" [--writeback auto|yes|no|ask]`: returns stable JSON; summary prefers wiki, relation prefers graph, detail prefers vector
 - `ks lint`: still a Phase 3 stub
-- Standalone image ingest is not implemented yet; a later Phase 3 spec will freeze the accepted raster formats, normalization/conversion strategy, and OCR/VLM flow
+- Standalone image ingest now supports `png / jpg / jpeg` via local `tesseract`; `.heic / .webp` and VLM are still out of scope
 
 ## 5-Minute Quick Start
 
 ```bash
+brew install tesseract tesseract-lang
 mise install
 uv sync
 make fixtures
@@ -33,10 +34,11 @@ cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 uv run ks ingest <file-or-dir>
 ```
 
-- Supports `txt`, `md`, `pdf`, `docx`, `xlsx`, and `pptx`
+- Supports `txt`, `md`, `pdf`, `docx`, `xlsx`, `pptx`, `png`, `jpg`, and `jpeg`
 - Uses `SHA256 + parser_fingerprint` for idempotency
 - `--pptx-notes=exclude` changes the parser fingerprint and forces pptx re-ingest
-- Standalone image files are not accepted yet; do not treat `png`, `jpg`, `heic`, or `webp` as committed support
+- Image ingest requires local `tesseract` + `tesseract-lang`
+- `.heic` / `.webp` / gif / tiff / svg are still unsupported
 
 ### Query
 
@@ -102,6 +104,10 @@ It still returns the fixed JSON stub. Real linting remains a Phase 3 task.
 - `HKS_WRITEBACK_AUTO_THRESHOLD`: auto write-back threshold, default `0.75`
 - `HKS_OFFICE_MAX_FILE_MB`: max Office file size for ingest, default `200`
 - `HKS_OFFICE_TIMEOUT_SEC`: Office parser timeout in seconds, default `60`
+- `HKS_IMAGE_MAX_FILE_MB`: max image file size for ingest, default `20`
+- `HKS_IMAGE_TIMEOUT_SEC`: image OCR timeout in seconds, default `30`
+- `HKS_IMAGE_MAX_PIXELS`: max decoded image pixels, default `100000000`
+- `HKS_OCR_LANGS`: tesseract language set, default `eng+chi_tra`
 - `HKS_ROUTING_RULES`: override the routing rules file path
 
 ## Further Reading
@@ -109,9 +115,10 @@ It still returns the fixed JSON stub. Real linting remains a Phase 3 task.
 - Phase 1 baseline: [specs/001-phase1-cli-mvp/spec.md](./specs/001-phase1-cli-mvp/spec.md)
 - Office ingest expansion: [specs/002-phase2-ingest-office/spec.md](./specs/002-phase2-ingest-office/spec.md)
 - Phase 2 graph / routing / write-back: [specs/003-phase2-graph-routing/spec.md](./specs/003-phase2-graph-routing/spec.md)
+- Phase 3 image ingest: [specs/004-phase3-image-ingest/spec.md](./specs/004-phase3-image-ingest/spec.md)
 - Phase 2 contract: [specs/003-phase2-graph-routing/contracts/query-response.schema.json](./specs/003-phase2-graph-routing/contracts/query-response.schema.json)
 - Spec archive index: [specs/ARCHIVE.md](./specs/ARCHIVE.md)
-- Phase 3 image ingest is not spec'd yet; only its existence as later work is fixed today
+- Remaining Phase 3 work: real `ks lint`, MCP / API adapter, multi-agent support
 
 ## Development Checks
 

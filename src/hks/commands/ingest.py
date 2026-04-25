@@ -25,8 +25,13 @@ def _serialize_file(report: IngestFileReport) -> dict[str, Any]:
         "path": report.path,
         "status": report.status,
         "reason": report.reason,
+        "source_format": report.source_format,
         "skipped_segments": _serialize_skipped(report.skipped_segments),
         "pptx_notes": report.pptx_notes,
+        "ocr_chunks": report.ocr_chunks,
+        "ocr_confidence_min": report.ocr_confidence_min,
+        "ocr_confidence_max": report.ocr_confidence_max,
+        "ocr_engine": report.ocr_engine,
     }
 
 

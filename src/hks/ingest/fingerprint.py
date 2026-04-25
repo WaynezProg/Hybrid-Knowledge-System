@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 
 from hks.core.manifest import SourceFormat
+from hks.ingest.ocr import ocr_engine_signature, preprocess_signature
 
 _FORMAT_TO_PACKAGE: dict[SourceFormat, str | None] = {
     "txt": None,
@@ -25,6 +26,9 @@ _FORMAT_TO_PACKAGE: dict[SourceFormat, str | None] = {
     "docx": "python-docx",
     "xlsx": "openpyxl",
     "pptx": "python-pptx",
+    "png": "pillow",
+    "jpg": "pillow",
+    "jpeg": "pillow",
 }
 
 
@@ -53,6 +57,10 @@ def _flags_digest(format_: SourceFormat, flags: ParserFlags) -> str:
 
 def compute_parser_fingerprint(format_: SourceFormat, flags: ParserFlags) -> str:
     lib = _library_version(format_)
+    if format_ in {"png", "jpg", "jpeg"}:
+        return (
+            f"{format_}:v{lib}:{preprocess_signature()}:{ocr_engine_signature()}:off"
+        )
     return f"{format_}:v{lib}:{_flags_digest(format_, flags)}"
 
 
