@@ -1,0 +1,177 @@
+openapi: 3.1.0
+info:
+  title: HKS Local HTTP Adapter
+  version: 0.1.0
+  description: Optional P2 loopback HTTP facade over the same adapter core as MCP.
+servers:
+  - url: http://127.0.0.1:8765
+paths:
+  /query:
+    post:
+      summary: Query HKS knowledge base
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HksQueryInput'
+      responses:
+        '200':
+          description: Schema-valid HKS QueryResponse
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Adapter error envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+  /ingest:
+    post:
+      summary: Ingest local file or directory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HksIngestInput'
+      responses:
+        '200':
+          description: Schema-valid HKS ingest response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Adapter error envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+  /lint:
+    post:
+      summary: Run HKS lint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HksLintInput'
+      responses:
+        '200':
+          description: Schema-valid HKS lint response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Adapter error envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+components:
+  schemas:
+    HksQueryInput:
+      type: object
+      required: [question]
+      additionalProperties: false
+      properties:
+        question:
+          type: string
+          minLength: 1
+        writeback:
+          type: string
+          enum: [no, auto, yes, ask]
+          default: no
+        ks_root:
+          type: [string, 'null']
+    HksIngestInput:
+      type: object
+      required: [path]
+      additionalProperties: false
+      properties:
+        path:
+          type: string
+          minLength: 1
+        prune:
+          type: boolean
+          default: false
+        pptx_notes:
+          type: string
+          enum: [include, exclude]
+          default: include
+        ks_root:
+          type: [string, 'null']
+    HksLintInput:
+      type: object
+      additionalProperties: false
+      properties:
+        strict:
+          type: boolean
+          default: false
+        severity_threshold:
+          type: string
+          enum: [error, warning, info]
+          default: error
+        fix:
+          type: string
+          enum: [none, plan, apply]
+          default: none
+        ks_root:
+          type: [string, 'null']
+    QueryResponse:
+      type: object
+      required: [answer, source, confidence, trace]
+      additionalProperties: false
+      properties:
+        answer:
+          type: string
+        source:
+          type: array
+          items:
+            type: string
+            enum: [wiki, graph, vector]
+          uniqueItems: true
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        trace:
+          type: object
+          required: [route, steps]
+          properties:
+            route:
+              type: string
+              enum: [wiki, graph, vector]
+            steps:
+              type: array
+              items:
+                type: object
+    AdapterError:
+      type: object
+      required: [ok, error]
+      properties:
+        ok:
+          const: false
+        error:
+          type: object
+          required: [code, exit_code, message, details]
+          properties:
+            code:
+              type: string
+            exit_code:
+              type: integer
+              enum: [1, 2, 65, 66]
+            message:
+              type: string
+            hint:
+              type: [string, 'null']
+            details:
+              type: array
+              items:
+                type: string
+        response:
+          type: [object, 'null']

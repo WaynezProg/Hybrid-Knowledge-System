@@ -38,3 +38,8 @@
   - Archived on: 2026-04-26
   - Merged into: `005-phase3-lint-impl`
   - Canonical artifacts: [spec.md](./005-phase3-lint-impl/spec.md), [plan.md](./005-phase3-lint-impl/plan.md), [tasks.md](./005-phase3-lint-impl/tasks.md)
+- `006-mcp-api-adapter`
+  - Status: Complete
+  - Archived on: 2026-04-26
+  - Merged into: `006-mcp-api-adapter`
+  - Canonical artifacts: [spec.md](./006-mcp-api-adapter/spec.md), [plan.md](./006-mcp-api-adapter/plan.md), [tasks.md](./006-mcp-api-adapter/tasks.md)

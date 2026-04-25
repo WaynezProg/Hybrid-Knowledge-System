@@ -2,13 +2,15 @@
 
 [繁體中文](./readme.md)
 
-Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 2 and added Phase 3 image ingest plus the lint system: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, and high-confidence answers auto write back by default.
+Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 2 and added Phase 3 image ingest, the lint system, and local MCP / HTTP adapters: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, and high-confidence answers auto write back by default.
 
 ## What Ships Today
 
 - `ks ingest <file|dir> [--pptx-notes include|exclude]`: builds `raw_sources/`, `wiki/`, `graph/graph.json`, `vector/db/`, and `manifest.json`
 - `ks query "<question>" [--writeback auto|yes|no|ask]`: returns stable JSON; summary prefers wiki, relation prefers graph, detail prefers vector
 - `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`: checks cross-layer consistency across `wiki / graph / vector / manifest / raw_sources`
+- `hks-mcp --transport stdio|streamable-http`: exposes `hks_query`, `hks_ingest`, and `hks_lint` as local MCP tools
+- `hks-api`: optional loopback HTTP facade for `/query`, `/ingest`, and `/lint`
 - Standalone image ingest now supports `png / jpg / jpeg` via local `tesseract`; `.heic / .webp` and VLM are still out of scope
 
 ## 5-Minute Quick Start
@@ -23,6 +25,7 @@ export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
 uv run ks query "What is the main point of these documents?" --writeback=no | jq .
 uv run ks query "Which systems are impacted if Project A slips?" --writeback=no | jq .
+uv run hks-mcp --help
 cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 ```
 
@@ -74,6 +77,20 @@ It emits `trace.steps[kind="lint_summary"].detail` with `findings`, severity/cat
 - `--fix`: plans safe repairs without writing
 - `--fix=apply`: only runs allowlisted actions: rebuild `wiki/index.md`, prune orphan vector chunks, prune orphan graph nodes/edges, and append `wiki/log.md`
 
+### MCP / HTTP Adapter
+
+```bash
+uv run hks-mcp --transport stdio
+uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
+uv run hks-api --host 127.0.0.1 --port 8766
+```
+
+- MCP tools: `hks_query`, `hks_ingest`, `hks_lint`
+- Successful payloads directly use the existing `ks` top-level JSON shape, with no adapter envelope
+- Error payloads use `{ok:false,error:{code,exit_code,message,details},response?}`
+- The adapter is local-first; Streamable HTTP and the HTTP facade bind to loopback by default
+- Agent workflows should keep the `hks_query` default `writeback=no`
+
 ## Output Contract
 
 ```json
@@ -124,7 +141,8 @@ It emits `trace.steps[kind="lint_summary"].detail` with `findings`, severity/cat
 - Current response contract: [specs/005-phase3-lint-impl/contracts/query-response.schema.json](./specs/005-phase3-lint-impl/contracts/query-response.schema.json)
 - Spec archive index: [specs/ARCHIVE.md](./specs/ARCHIVE.md)
 - Phase 3 lint system: [specs/005-phase3-lint-impl/spec.md](./specs/005-phase3-lint-impl/spec.md)
-- Remaining Phase 3 work: MCP / API adapter, multi-agent support
+- Phase 3 MCP / API adapter: [specs/006-mcp-api-adapter/spec.md](./specs/006-mcp-api-adapter/spec.md)
+- Remaining Phase 3 work: multi-agent support
 
 ## Development Checks
 

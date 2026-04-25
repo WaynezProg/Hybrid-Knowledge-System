@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/adapter-error.schema.json",
+  "title": "HKS adapter error envelope",
+  "type": "object",
+  "required": ["ok", "error"],
+  "additionalProperties": false,
+  "properties": {
+    "ok": { "const": false },
+    "request_id": { "type": ["string", "null"] },
+    "error": {
+      "type": "object",
+      "required": ["code", "exit_code", "message", "details"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "exit_code": { "type": "integer", "enum": [1, 2, 65, 66] },
+        "message": { "type": "string", "minLength": 1 },
+        "hint": { "type": ["string", "null"] },
+        "details": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "response": {
+      "type": ["object", "null"],
+      "description": "When present, MUST validate against the current HKS query-response schema."
+    }
+  }
+}

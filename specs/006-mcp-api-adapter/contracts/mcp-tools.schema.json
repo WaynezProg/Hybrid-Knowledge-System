@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/mcp-tools.schema.json",
+  "title": "HKS MCP tool input schemas",
+  "type": "object",
+  "required": ["tools"],
+  "additionalProperties": false,
+  "properties": {
+    "tools": {
+      "type": "object",
+      "required": ["hks_query", "hks_ingest", "hks_lint"],
+      "additionalProperties": false,
+      "properties": {
+        "hks_query": { "$ref": "#/$defs/hksQueryInput" },
+        "hks_ingest": { "$ref": "#/$defs/hksIngestInput" },
+        "hks_lint": { "$ref": "#/$defs/hksLintInput" }
+      }
+    }
+  },
+  "$defs": {
+    "ksRoot": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "hksQueryInput": {
+      "type": "object",
+      "required": ["question"],
+      "additionalProperties": false,
+      "properties": {
+        "question": { "type": "string", "minLength": 1 },
+        "writeback": {
+          "type": "string",
+          "enum": ["no", "auto", "yes", "ask"],
+          "default": "no"
+        },
+        "ks_root": { "$ref": "#/$defs/ksRoot" }
+      }
+    },
+    "hksIngestInput": {
+      "type": "object",
+      "required": ["path"],
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "prune": { "type": "boolean", "default": false },
+        "pptx_notes": {
+          "type": "string",
+          "enum": ["include", "exclude"],
+          "default": "include"
+        },
+        "ks_root": { "$ref": "#/$defs/ksRoot" }
+      }
+    },
+    "hksLintInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "strict": { "type": "boolean", "default": false },
+        "severity_threshold": {
+          "type": "string",
+          "enum": ["error", "warning", "info"],
+          "default": "error"
+        },
+        "fix": {
+          "type": "string",
+          "enum": ["none", "plan", "apply"],
+          "default": "none"
+        },
+        "ks_root": { "$ref": "#/$defs/ksRoot" }
+      }
+    }
+  }
+}

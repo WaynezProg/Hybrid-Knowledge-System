@@ -7,7 +7,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 
 * Phase 1：完成
 * Phase 2：完成
-* Phase 3：部分完成（`004` image ingest 與 `005` lint system 已完成；MCP / multi-agent 未完成）
+* Phase 3：部分完成（`004` image ingest、`005` lint system、`006` MCP / API adapter 已完成；multi-agent 未完成）
 
 ---
 
@@ -25,6 +25,8 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
   * `ks ingest`
   * `ks query`
   * `ks lint`
+  * `hks-mcp`
+  * `hks-api`（optional loopback facade）
 
 ![LLM Wiki 概念示意](LLM%20wiki.png)
 
@@ -40,6 +42,8 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 ks ingest <file|dir>
 ks query "<question>" [--writeback auto|yes|no|ask]
 ks lint
+hks-mcp --transport stdio|streamable-http
+hks-api
 ```
 
 stdout 契約統一：
@@ -57,6 +61,7 @@ stdout 契約統一：
 ```
 
 `ks ingest`、`ks query`、`ks lint` 共用同一 top-level JSON shape。
+`hks-mcp` 與 `hks-api` 的成功 payload 也共用此 shape；adapter 錯誤才使用 `{ok:false,error:{code,exit_code,message,details},response?}` envelope。
 
 ---
 
@@ -188,18 +193,17 @@ graph persistence 位於 `/ks/graph/graph.json`。
 
 * [x] lint system
 * [ ] 多 agent 支援
-* [ ] API / MCP adapter
+* [x] API / MCP adapter
 * [x] 圖片 ingest（`png / jpg / jpeg`；OCR-only）
 
 ---
 
 ## 10. 非目標
 
-Phase 2 仍不做：
+目前仍不做：
 
 * UI
 * 多使用者 / RBAC
 * 雲端部署
 * microservice
 * 非文字素材（影片、音訊）
-* API / MCP adapter

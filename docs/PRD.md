@@ -59,6 +59,13 @@
 * `ks lint` 檢查 wiki / graph / vector / manifest / raw_sources 跨層一致性
 * 預設 read-only；`--strict` 提供 CI exit code；`--fix=apply` 只做 allowlist 安全修復
 
+### 4.5 MCP / API Adapter
+
+* `hks-mcp` 以 local MCP server 暴露 `hks_query`、`hks_ingest`、`hks_lint`
+* 支援 stdio 與 loopback Streamable HTTP transport
+* `hks-api` 是 optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`
+* 成功 payload 沿用現有 top-level JSON contract；錯誤 payload 使用 adapter error envelope
+
 ---
 
 ## 5. 非功能需求
@@ -76,13 +83,12 @@
 * 本地知識管理
 * wiki / graph / vector 三層同步
 
-## 7. Out of Scope（直到 Phase 3 前都不做）
+## 7. Out of Scope
 
 * UI
 * 多使用者 / RBAC
 * 雲端部署
 * microservice
-* API / MCP adapter
 * 非文字素材（影片、音訊）
 
 ---
@@ -108,5 +114,5 @@
 
 * [x] lint system
 * [ ] 多 agent
-* [ ] API / MCP adapter
+* [x] API / MCP adapter
 * [x] 圖片 ingest（`png / jpg / jpeg`；OCR-only）

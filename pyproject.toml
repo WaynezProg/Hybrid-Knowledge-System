@@ -12,6 +12,7 @@ dependencies = [
   "chromadb",
   "jsonschema",
   "markdown-it-py",
+  "mcp>=1.27.0",
   "openpyxl>=3.1,<4",
   "pillow",
   "pypdf",
@@ -25,6 +26,8 @@ dependencies = [
 
 [project.scripts]
 ks = "hks.cli:app"
+hks-mcp = "hks.adapters.mcp_server:main"
+hks-api = "hks.adapters.http_server:main"
 
 [dependency-groups]
 dev = [
@@ -75,6 +78,8 @@ module = [
   "docx.*",
   "jsonschema",
   "markdown_it",
+  "mcp",
+  "mcp.*",
   "openpyxl",
   "openpyxl.*",
   "pptx",
