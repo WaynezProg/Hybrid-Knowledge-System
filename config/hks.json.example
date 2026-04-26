@@ -13,6 +13,7 @@
     }
   },
   "routing": {
+    "_comment": "Use simple for no-cost local routing, or openai:text-embedding-3-small for OpenAI routing.",
     "model": "simple",
     "rules_path": null
   },

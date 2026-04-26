@@ -82,6 +82,12 @@ llm:
       endpoint: null
 ```
 
+`routing.model` 會真的決定 routing semantic scoring 使用的 embedding backend。可用值包含：
+
+- `simple`：本機 deterministic backend，無 API cost，適合 smoke test / CI。
+- `openai:text-embedding-3-small`：使用 OpenAI Embeddings API 做 routing scoring。
+- sentence-transformers model id 或本機模型路徑：使用本機 sentence-transformers backend。
+
 這些欄位會對應到既有 env contract，例如 `HKS_MAX_FILE_MB`、`HKS_IMAGE_TIMEOUT_SEC`、`HKS_WRITEBACK_AUTO_THRESHOLD`、`HKS_LLM_PROVIDER_OPENAI_API_KEY`。
 
 ## 啟用設定

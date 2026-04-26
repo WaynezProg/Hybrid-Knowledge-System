@@ -20,7 +20,7 @@ class RouteDecision:
 
 def route(query: str, rules: RoutingRuleSet) -> RouteDecision:
     backend_name = config_value("HKS_ROUTING_MODEL") or "simple"
-    backend = TextModelBackend()
+    backend = TextModelBackend(backend_name)
     prototype_texts = [
         " ".join((*rule.keywords_zh, *rule.keywords_en)).strip() or rule.id for rule in rules.rules
     ]
