@@ -16,6 +16,7 @@ from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
 from hks.commands import llm as llm_command
 from hks.commands import query as query_command
+from hks.commands import wiki as wiki_command
 from hks.core.schema import QueryResponse, Route, build_error_response
 from hks.errors import ExitCode, KSError
 from hks.lint.models import FixMode, SeverityThreshold
@@ -27,6 +28,7 @@ app = typer.Typer(
 )
 coord_app = typer.Typer(add_completion=False, no_args_is_help=True)
 llm_app = typer.Typer(add_completion=False, no_args_is_help=True)
+wiki_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_session_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_lease_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_handoff_app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -35,6 +37,7 @@ coord_app.add_typer(coord_lease_app, name="lease")
 coord_app.add_typer(coord_handoff_app, name="handoff")
 app.add_typer(coord_app, name="coord")
 app.add_typer(llm_app, name="llm")
+app.add_typer(wiki_app, name="wiki")
 
 
 class WritebackMode(StrEnum):
@@ -52,6 +55,12 @@ class PptxNotesMode(StrEnum):
 class LlmMode(StrEnum):
     preview = "preview"
     store = "store"
+
+
+class WikiSynthesisMode(StrEnum):
+    preview = "preview"
+    store = "store"
+    apply = "apply"
 
 
 def version_callback(value: bool) -> None:
@@ -208,6 +217,59 @@ def llm_classify(
         llm_command.run_classify,
         source_relpath=source_relpath,
         mode=mode.value,
+        provider=provider,
+        model=model,
+        prompt_version=prompt_version,
+        force_new_run=force_new_run,
+        requested_by=requested_by,
+    )
+
+
+@wiki_app.command("synthesize")
+def wiki_synthesize(
+    source_relpath: Annotated[
+        str | None,
+        typer.Option("--source-relpath", help="Ingested source relpath."),
+    ] = None,
+    extraction_artifact_id: Annotated[
+        str | None,
+        typer.Option("--extraction-artifact-id", help="Stored 008 extraction artifact id."),
+    ] = None,
+    candidate_artifact_id: Annotated[
+        str | None,
+        typer.Option("--candidate-artifact-id", help="Stored 009 candidate artifact id."),
+    ] = None,
+    mode: Annotated[
+        WikiSynthesisMode,
+        typer.Option("--mode", case_sensitive=False, help="Wiki synthesis mode."),
+    ] = WikiSynthesisMode.preview,
+    target_slug: Annotated[
+        str | None,
+        typer.Option("--target-slug", help="Requested wiki page slug."),
+    ] = None,
+    provider: Annotated[str, typer.Option("--provider", help="LLM provider id.")] = "fake",
+    model: Annotated[str | None, typer.Option("--model", help="Provider model id.")] = None,
+    prompt_version: Annotated[
+        str | None,
+        typer.Option("--prompt-version", help="Prompt contract version."),
+    ] = None,
+    force_new_run: Annotated[
+        bool,
+        typer.Option("--force-new-run", help="Do not reuse an existing stored candidate."),
+    ] = False,
+    requested_by: Annotated[
+        str | None,
+        typer.Option("--requested-by", help="Agent or user label for audit."),
+    ] = None,
+) -> None:
+    run_command(
+        "wiki synthesize",
+        wiki_command.run_synthesize,
+        source_relpath=source_relpath,
+        extraction_artifact_id=extraction_artifact_id,
+        candidate_artifact_id=candidate_artifact_id,
+        mode=mode.value,
+        target_slug=target_slug,
         provider=provider,
         model=model,
         prompt_version=prompt_version,

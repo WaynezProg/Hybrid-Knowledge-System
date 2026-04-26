@@ -102,6 +102,38 @@ def create_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
+    def hks_wiki_synthesize(
+        mode: str = "preview",
+        source_relpath: str | None = None,
+        extraction_artifact_id: str | None = None,
+        candidate_artifact_id: str | None = None,
+        target_slug: str | None = None,
+        provider: str = "fake",
+        model: str | None = None,
+        prompt_version: str | None = None,
+        force_new_run: bool = False,
+        requested_by: str | None = None,
+        ks_root: str | None = None,
+    ) -> Any:
+        """Synthesize or apply a wiki page candidate from stored LLM artifacts."""
+        try:
+            return core.hks_wiki_synthesize(
+                mode=mode,
+                source_relpath=source_relpath,
+                extraction_artifact_id=extraction_artifact_id,
+                candidate_artifact_id=candidate_artifact_id,
+                target_slug=target_slug,
+                provider=provider,
+                model=model,
+                prompt_version=prompt_version,
+                force_new_run=force_new_run,
+                requested_by=requested_by,
+                ks_root=ks_root,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
     def hks_coord_session(
         action: str,
         agent_id: str,

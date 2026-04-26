@@ -24,6 +24,10 @@ type FindingCategory = Literal[
     "fingerprint_drift",
     "llm_artifact_invalid",
     "llm_artifact_corrupt",
+    "wiki_candidate_artifact_invalid",
+    "wiki_candidate_artifact_corrupt",
+    "wiki_synthesis_frontmatter_invalid",
+    "wiki_synthesis_partial_apply",
 ]
 type FixActionKind = Literal[
     "rebuild_index",
@@ -55,6 +59,10 @@ FINDING_SEVERITY: dict[FindingCategory, Severity] = {
     "fingerprint_drift": "info",
     "llm_artifact_invalid": "error",
     "llm_artifact_corrupt": "error",
+    "wiki_candidate_artifact_invalid": "error",
+    "wiki_candidate_artifact_corrupt": "error",
+    "wiki_synthesis_frontmatter_invalid": "error",
+    "wiki_synthesis_partial_apply": "error",
 }
 
 SEVERITY_RANK: dict[Severity, int] = {"info": 0, "warning": 1, "error": 2}
@@ -149,6 +157,8 @@ class RuntimeSnapshot:
     graph: GraphPayload
     llm_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
     llm_artifact_errors: dict[str, str] = field(default_factory=dict)
+    wiki_candidate_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    wiki_candidate_artifact_errors: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

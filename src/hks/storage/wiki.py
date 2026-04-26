@@ -13,9 +13,9 @@ from hks.core.manifest import utc_now_iso
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.ingest.office_common import SkippedSegment
 
-type Origin = Literal["ingest", "writeback"]
+type Origin = Literal["ingest", "writeback", "llm_wiki"]
 type Route = Literal["wiki", "graph", "vector"]
-type EventType = Literal["ingest", "writeback", "lint"]
+type EventType = Literal["ingest", "writeback", "lint", "wiki_synthesis"]
 type EventStatus = Literal[
     "created",
     "updated",
@@ -28,6 +28,9 @@ type EventStatus = Literal[
     "auto-committed",
     "auto-skipped-low-confidence",
     "lint_fix_applied",
+    "applied",
+    "already_applied",
+    "conflict",
 ]
 
 FRONTMATTER_BOUNDARY = "\n---\n"
@@ -42,25 +45,27 @@ class WikiPage:
     source_relpath: str
     origin: Origin
     updated_at: str
+    metadata: dict[str, str] = field(default_factory=dict)
 
     def to_markdown(self) -> str:
-        if self.origin == "writeback":
+        if self.origin in {"writeback", "llm_wiki"}:
             source = self.source_relpath
         else:
             source = f"raw_sources/{self.source_relpath}"
-        header = "\n".join(
-            [
-                "---",
-                f"slug: {self.slug}",
-                f"title: {self.title}",
-                f"summary: {self.summary}",
-                f"source: {source}",
-                f"origin: {self.origin}",
-                f"updated_at: {self.updated_at}",
-                "---",
-                "",
-            ]
-        )
+        header_lines = [
+            "---",
+            f"slug: {self.slug}",
+            f"title: {self.title}",
+            f"summary: {self.summary}",
+            f"source: {source}",
+            f"origin: {self.origin}",
+            f"updated_at: {self.updated_at}",
+        ]
+        for key, value in sorted(self.metadata.items()):
+            if key not in {"slug", "title", "summary", "source", "origin", "updated_at"}:
+                header_lines.append(f"{key}: {value}")
+        header_lines.extend(["---", ""])
+        header = "\n".join(header_lines)
         return f"{header}\n{self.body.strip()}\n"
 
     @classmethod
@@ -78,8 +83,9 @@ class WikiPage:
         if source_value.startswith("raw_sources/"):
             source_value = source_value.removeprefix("raw_sources/")
         origin = metadata["origin"]
-        if origin not in {"ingest", "writeback"}:
+        if origin not in {"ingest", "writeback", "llm_wiki"}:
             raise ValueError(f"invalid wiki origin: {origin}")
+        reserved = {"slug", "title", "summary", "source", "origin", "updated_at"}
         return cls(
             slug=metadata["slug"],
             title=metadata["title"],
@@ -88,6 +94,7 @@ class WikiPage:
             source_relpath=source_value,
             origin=cast(Origin, origin),
             updated_at=metadata["updated_at"],
+            metadata={key: value for key, value in metadata.items() if key not in reserved},
         )
 
 
@@ -197,6 +204,7 @@ class WikiStore:
         source_relpath: str,
         origin: Origin,
         preferred_slug: str | None = None,
+        metadata: dict[str, str] | None = None,
     ) -> WikiPage:
         self.ensure()
         base = self.slug_base(preferred_slug or title or Path(source_relpath).stem)
@@ -210,6 +218,7 @@ class WikiStore:
             source_relpath=source_relpath,
             origin=origin,
             updated_at=utc_now_iso(),
+            metadata=dict(metadata or {}),
         )
         (self.paths.wiki_pages / f"{slug}.md").write_text(page.to_markdown(), encoding="utf-8")
         self.rebuild_index()
