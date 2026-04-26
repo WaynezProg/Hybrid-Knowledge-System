@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/wiki-synthesis-candidate.schema.json",
+  "title": "HKS wiki synthesis candidate",
+  "type": "object",
+  "required": [
+    "candidate_id",
+    "schema_version",
+    "target_slug",
+    "title",
+    "summary",
+    "body",
+    "source_relpath",
+    "extraction_artifact_id",
+    "source_fingerprint",
+    "parser_fingerprint",
+    "prompt_version",
+    "provider_id",
+    "model_id",
+    "confidence",
+    "diff_summary",
+    "findings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "candidate_id": { "type": "string", "minLength": 1 },
+    "schema_version": { "type": "integer", "const": 1 },
+    "target_slug": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "title": { "type": "string", "minLength": 1 },
+    "summary": { "type": "string", "minLength": 1 },
+    "body": { "type": "string", "minLength": 1 },
+    "source_relpath": { "type": "string", "minLength": 1 },
+    "extraction_artifact_id": { "type": "string", "minLength": 1 },
+    "source_fingerprint": { "type": "string", "minLength": 1 },
+    "parser_fingerprint": { "type": "string", "minLength": 1 },
+    "prompt_version": { "type": "string", "minLength": 1 },
+    "provider_id": { "type": "string", "minLength": 1 },
+    "model_id": { "type": "string", "minLength": 1 },
+    "confidence": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+    "diff_summary": { "type": "string", "minLength": 1 },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "code", "message"],
+        "additionalProperties": false,
+        "properties": {
+          "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+          "code": { "type": "string", "minLength": 1 },
+          "message": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

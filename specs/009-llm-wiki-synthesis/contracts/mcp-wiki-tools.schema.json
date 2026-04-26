@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/mcp-wiki-tools.schema.json",
+  "title": "HKS MCP wiki synthesis tool input schemas",
+  "type": "object",
+  "required": ["tools"],
+  "additionalProperties": false,
+  "properties": {
+    "tools": {
+      "type": "object",
+      "required": ["hks_wiki_synthesize"],
+      "additionalProperties": false,
+      "properties": {
+        "hks_wiki_synthesize": { "$ref": "#/$defs/synthesizeInput" }
+      }
+    }
+  },
+  "$defs": {
+    "synthesizeInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_relpath": { "type": "string", "minLength": 1 },
+        "extraction_artifact_id": { "type": "string", "minLength": 1 },
+        "candidate_artifact_id": { "type": "string", "minLength": 1 },
+        "mode": {
+          "type": "string",
+          "enum": ["preview", "store", "apply"],
+          "default": "preview"
+        },
+        "target_slug": { "type": ["string", "null"], "minLength": 1 },
+        "provider": { "type": "string", "default": "fake" },
+        "model": { "type": ["string", "null"], "minLength": 1 },
+        "prompt_version": { "type": ["string", "null"], "minLength": 1 },
+        "force_new_run": { "type": "boolean", "default": false },
+        "requested_by": { "type": ["string", "null"], "minLength": 1 },
+        "ks_root": { "type": ["string", "null"], "minLength": 1 }
+      },
+      "anyOf": [
+        { "required": ["source_relpath"] },
+        { "required": ["extraction_artifact_id"] },
+        { "required": ["candidate_artifact_id"] }
+      ]
+    }
+  }
+}

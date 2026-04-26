@@ -6,7 +6,7 @@ from collections import Counter
 
 from jsonschema import ValidationError
 
-from hks.adapters.contracts import validate_llm_artifact
+from hks.adapters.contracts import validate_llm_artifact, validate_wiki_artifact
 from hks.ingest.fingerprint import (
     ParserFlags,
     are_fingerprints_compatible,
@@ -23,6 +23,7 @@ def run_checks(snapshot: RuntimeSnapshot) -> list[Finding]:
     findings.extend(check_graph(snapshot))
     findings.extend(check_fingerprint(snapshot))
     findings.extend(check_llm_artifacts(snapshot))
+    findings.extend(check_wiki_synthesis(snapshot))
     return sorted(
         findings,
         key=lambda finding: (finding.category, finding.target, finding.message),
@@ -273,6 +274,67 @@ def check_llm_artifacts(snapshot: RuntimeSnapshot) -> list[Finding]:
                     relpath,
                     f"LLM extraction artifact `{relpath}` does not match schema",
                     details={"error": exc.message},
+                )
+            )
+    return findings
+
+
+def check_wiki_synthesis(snapshot: RuntimeSnapshot) -> list[Finding]:
+    findings: list[Finding] = []
+    for relpath, error in sorted(snapshot.wiki_candidate_artifact_errors.items()):
+        findings.append(
+            Finding.make(
+                "wiki_candidate_artifact_corrupt",
+                relpath,
+                f"wiki synthesis candidate artifact `{relpath}` cannot be parsed",
+                details={"error": error},
+            )
+        )
+    for relpath, payload in sorted(snapshot.wiki_candidate_artifacts.items()):
+        try:
+            validate_wiki_artifact(payload)
+        except ValidationError as exc:
+            findings.append(
+                Finding.make(
+                    "wiki_candidate_artifact_invalid",
+                    relpath,
+                    f"wiki synthesis candidate artifact `{relpath}` does not match schema",
+                    details={"error": exc.message},
+                )
+            )
+
+    required = {
+        "generated_at",
+        "extraction_artifact_id",
+        "wiki_candidate_artifact_id",
+        "source_fingerprint",
+        "parser_fingerprint",
+        "prompt_version",
+        "provider_id",
+        "model_id",
+    }
+    for record in sorted(snapshot.wiki_pages.values(), key=lambda item: item.file_slug):
+        page = record.page
+        if page.origin != "llm_wiki":
+            continue
+        missing = sorted(key for key in required if not page.metadata.get(key))
+        if missing:
+            findings.append(
+                Finding.make(
+                    "wiki_synthesis_frontmatter_invalid",
+                    record.file_slug,
+                    f"llm_wiki page `{record.file_slug}` is missing synthesis frontmatter",
+                    details={"missing": missing},
+                )
+            )
+        candidate_id = page.metadata.get("wiki_candidate_artifact_id")
+        if candidate_id and f"{candidate_id}.json" not in snapshot.wiki_candidate_artifacts:
+            findings.append(
+                Finding.make(
+                    "wiki_synthesis_frontmatter_invalid",
+                    record.file_slug,
+                    f"llm_wiki page `{record.file_slug}` references missing candidate artifact",
+                    details={"wiki_candidate_artifact_id": candidate_id},
                 )
             )
     return findings

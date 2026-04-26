@@ -97,6 +97,8 @@ def _build_snapshot(paths: RuntimePaths) -> RuntimeSnapshot:
         graph=graph,
         llm_artifacts=_load_llm_artifacts(paths),
         llm_artifact_errors=_load_llm_artifact_errors(paths),
+        wiki_candidate_artifacts=_load_wiki_candidate_artifacts(paths),
+        wiki_candidate_artifact_errors=_load_wiki_candidate_artifact_errors(paths),
     )
 
 
@@ -191,6 +193,41 @@ def _load_llm_artifacts(paths: RuntimePaths) -> dict[str, dict[str, object]]:
 
 def _load_llm_artifact_errors(paths: RuntimePaths) -> dict[str, str]:
     base = _llm_extractions_dir(paths)
+    if not base.exists():
+        return {}
+    errors: dict[str, str] = {}
+    for path in sorted(base.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            errors[path.name] = str(exc)
+            continue
+        if not isinstance(payload, dict):
+            errors[path.name] = "artifact root must be an object"
+    return errors
+
+
+def _wiki_candidates_dir(paths: RuntimePaths) -> Path:
+    return paths.root / "llm" / "wiki-candidates"
+
+
+def _load_wiki_candidate_artifacts(paths: RuntimePaths) -> dict[str, dict[str, object]]:
+    base = _wiki_candidates_dir(paths)
+    if not base.exists():
+        return {}
+    artifacts: dict[str, dict[str, object]] = {}
+    for path in sorted(base.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            artifacts[path.name] = payload
+    return artifacts
+
+
+def _load_wiki_candidate_artifact_errors(paths: RuntimePaths) -> dict[str, str]:
+    base = _wiki_candidates_dir(paths)
     if not base.exists():
         return {}
     errors: dict[str, str] = {}

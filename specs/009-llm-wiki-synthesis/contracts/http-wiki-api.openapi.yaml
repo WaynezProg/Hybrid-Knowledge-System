@@ -1,0 +1,144 @@
+openapi: 3.1.0
+info:
+  title: HKS wiki synthesis API
+  version: 0.1.0
+  description: Loopback-only HTTP facade for 009 LLM-assisted wiki synthesis.
+servers:
+  - url: http://127.0.0.1:8766
+paths:
+  /wiki/synthesize:
+    post:
+      summary: Synthesize a wiki page candidate from an 008 extraction artifact
+      operationId: wikiSynthesize
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WikiSynthesizeRequest"
+      responses:
+        "200":
+          description: HKS top-level response shape with wiki_synthesis_summary trace detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HksResponse"
+        "400":
+          description: Usage, validation, stale artifact, or provider configuration error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdapterError"
+        "500":
+          description: Runtime failure or apply conflict
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdapterError"
+components:
+  schemas:
+    WikiSynthesizeRequest:
+      type: object
+      additionalProperties: false
+      anyOf:
+        - required: [source_relpath]
+        - required: [extraction_artifact_id]
+        - required: [candidate_artifact_id]
+      properties:
+        source_relpath:
+          type: string
+          minLength: 1
+        extraction_artifact_id:
+          type: string
+          minLength: 1
+        candidate_artifact_id:
+          type: string
+          minLength: 1
+        mode:
+          type: string
+          enum: [preview, store, apply]
+          default: preview
+        target_slug:
+          type:
+            - string
+            - "null"
+          minLength: 1
+        provider:
+          type: string
+          default: fake
+        model:
+          type:
+            - string
+            - "null"
+          minLength: 1
+        prompt_version:
+          type:
+            - string
+            - "null"
+          minLength: 1
+        force_new_run:
+          type: boolean
+          default: false
+        requested_by:
+          type:
+            - string
+            - "null"
+          minLength: 1
+    HksResponse:
+      type: object
+      required: [answer, source, confidence, trace]
+      additionalProperties: false
+      properties:
+        answer:
+          type: string
+        source:
+          type: array
+          items:
+            type: string
+            enum: [wiki, graph, vector]
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        trace:
+          type: object
+          required: [route, steps]
+          additionalProperties: false
+          properties:
+            route:
+              type: string
+              enum: [wiki, graph, vector]
+            steps:
+              type: array
+              items:
+                type: object
+                required: [kind, detail]
+                additionalProperties: false
+                properties:
+                  kind:
+                    type: string
+                  detail:
+                    type: object
+    AdapterError:
+      type: object
+      required: [ok, error, response]
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: object
+          required: [code, exit_code, message, details]
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+            exit_code:
+              type: integer
+            message:
+              type: string
+            details:
+              type: object
+        response:
+          type: object

@@ -26,6 +26,7 @@ type TraceKind = Literal[
     "lint_summary",
     "coordination_summary",
     "llm_extraction_summary",
+    "wiki_synthesis_summary",
 ]
 
 

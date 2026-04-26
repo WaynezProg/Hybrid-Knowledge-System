@@ -48,7 +48,11 @@
           "graph_drift",
           "fingerprint_drift",
           "llm_artifact_invalid",
-          "llm_artifact_corrupt"
+          "llm_artifact_corrupt",
+          "wiki_candidate_artifact_invalid",
+          "wiki_candidate_artifact_corrupt",
+          "wiki_synthesis_frontmatter_invalid",
+          "wiki_synthesis_partial_apply"
         ]
       }
     },
@@ -81,7 +85,11 @@
         "graph_drift",
         "fingerprint_drift",
         "llm_artifact_invalid",
-        "llm_artifact_corrupt"
+        "llm_artifact_corrupt",
+        "wiki_candidate_artifact_invalid",
+        "wiki_candidate_artifact_corrupt",
+        "wiki_synthesis_frontmatter_invalid",
+        "wiki_synthesis_partial_apply"
       ]
     },
     "severity": {

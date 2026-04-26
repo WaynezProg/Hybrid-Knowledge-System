@@ -34,7 +34,7 @@
 
 * HKS 負責 ingest、wiki / graph / vector 同步、query routing、write-back、lint、coordination。
 * 外部 agent（Codex / Claude Code / OpenClaw 等）負責 LLM reasoning、任務拆解與是否呼叫 HKS。
-* 008 已提供 LLM-assisted classification / extraction candidate artifacts；目前仍不自動 apply 到 wiki / graph / vector。
+* 008 已提供 LLM-assisted classification / extraction candidate artifacts；009 已提供 explicit wiki synthesis apply，但不自動 apply 到 graph / vector / manifest。
 * 目前 graph extraction 是 pattern-based；Graphify 等級的 community clustering、HTML visualization、audit report 尚未納入 runtime。
 
 ### 4.1 Ingest
@@ -70,9 +70,9 @@
 
 ### 4.5 MCP / API Adapter
 
-* `hks-mcp` 以 local MCP server 暴露 query / ingest / lint / coordination tools
+* `hks-mcp` 以 local MCP server 暴露 query / ingest / lint / coordination / LLM tools
 * 支援 stdio 與 loopback Streamable HTTP transport
-* `hks-api` 是 optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`、`/coord/*`
+* `hks-api` 是 optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`、`/coord/*`、`/llm/classify`、`/wiki/synthesize`
 * 成功 payload 沿用現有 top-level JSON contract；錯誤 payload 使用 adapter error envelope
 
 ### 4.6 Multi-agent Coordination
@@ -91,6 +91,15 @@
 * 成功 response 使用 `trace.steps[kind="llm_extraction_summary"]`
 * MCP tool：`hks_llm_classify`
 * HTTP endpoint：`/llm/classify`
+
+### 4.8 LLM Wiki Synthesis
+
+* `ks wiki synthesize --mode preview|store|apply`
+* `preview` 與 `store` 只產生或儲存 wiki synthesis candidate，不改 authoritative wiki / graph / vector / manifest
+* `apply` 只接受 stored candidate artifact，成功後寫入 `origin=llm_wiki` wiki page、重建 index、append log
+* 成功 response 使用 `trace.steps[kind="wiki_synthesis_summary"]`
+* MCP tool：`hks_wiki_synthesize`
+* HTTP endpoint：`/wiki/synthesize`
 
 ---
 
@@ -146,6 +155,6 @@
 ### Candidate Phase 4
 
 * [x] 008 LLM-assisted classification / extraction candidate artifacts
-* [ ] 009 LLM-assisted wiki rewriting / summarization
+* [x] 009 LLM-assisted wiki rewriting / summarization
 * [ ] Graphify pipeline：community clustering、HTML visualization、audit report
 * [ ] Watch / re-ingest workflow for continuously updated personal knowledge roots
