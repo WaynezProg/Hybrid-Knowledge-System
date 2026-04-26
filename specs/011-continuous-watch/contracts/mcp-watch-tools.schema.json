@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/mcp-watch-tools.schema.json",
+  "title": "HKS MCP Watch tool input schemas",
+  "type": "object",
+  "required": ["tools"],
+  "additionalProperties": false,
+  "properties": {
+    "tools": {
+      "type": "object",
+      "required": ["hks_watch_scan", "hks_watch_run", "hks_watch_status"],
+      "additionalProperties": false,
+      "properties": {
+        "hks_watch_scan": { "$ref": "#/$defs/scanInput" },
+        "hks_watch_run": { "$ref": "#/$defs/runInput" },
+        "hks_watch_status": { "$ref": "#/$defs/statusInput" }
+      }
+    }
+  },
+  "$defs": {
+    "scanInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_roots": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "ks_root": { "type": ["string", "null"], "minLength": 1 },
+        "request_id": { "type": ["string", "null"], "minLength": 1 }
+      }
+    },
+    "runInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "type": "string", "enum": ["dry-run", "execute"], "default": "dry-run" },
+        "profile": { "type": "string", "enum": ["scan-only", "ingest-only", "derived-refresh", "wiki-apply", "full"], "default": "scan-only" },
+        "source_roots": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "prune": { "type": "boolean", "default": false },
+        "include_llm": { "type": "boolean", "default": false },
+        "include_wiki_apply": { "type": "boolean", "default": false },
+        "include_graphify": { "type": "boolean", "default": false },
+        "force": { "type": "boolean", "default": false },
+        "requested_by": { "type": ["string", "null"], "minLength": 1 },
+        "ks_root": { "type": ["string", "null"], "minLength": 1 },
+        "request_id": { "type": ["string", "null"], "minLength": 1 }
+      }
+    },
+    "statusInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ks_root": { "type": ["string", "null"], "minLength": 1 },
+        "request_id": { "type": ["string", "null"], "minLength": 1 }
+      }
+    }
+  }
+}

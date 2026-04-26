@@ -162,6 +162,55 @@ def create_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
+    def hks_watch_scan(
+        source_roots: list[str] | None = None,
+        ks_root: str | None = None,
+    ) -> Any:
+        """Scan sources and derived lineage for refresh needs."""
+        try:
+            return core.hks_watch_scan(source_roots=source_roots or [], ks_root=ks_root)
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_watch_run(
+        mode: str = "dry-run",
+        profile: str = "scan-only",
+        source_roots: list[str] | None = None,
+        prune: bool = False,
+        include_llm: bool = False,
+        include_wiki_apply: bool = False,
+        include_graphify: bool = False,
+        force: bool = False,
+        requested_by: str | None = None,
+        ks_root: str | None = None,
+    ) -> Any:
+        """Execute a bounded watch refresh."""
+        try:
+            return core.hks_watch_run(
+                mode=mode,
+                profile=profile,
+                source_roots=source_roots or [],
+                prune=prune,
+                include_llm=include_llm,
+                include_wiki_apply=include_wiki_apply,
+                include_graphify=include_graphify,
+                force=force,
+                requested_by=requested_by,
+                ks_root=ks_root,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_watch_status(ks_root: str | None = None) -> Any:
+        """Return latest watch plan/run status."""
+        try:
+            return core.hks_watch_status(ks_root=ks_root)
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
     def hks_coord_session(
         action: str,
         agent_id: str,

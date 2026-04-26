@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/watch-summary-detail.schema.json",
+  "title": "HKS Watch summary trace detail",
+  "type": "object",
+  "required": ["kind", "operation", "mode", "profile", "plan_id", "run_id", "plan_fingerprint", "source_counts", "action_counts", "artifacts", "idempotent_reuse", "confidence"],
+  "additionalProperties": false,
+  "properties": {
+    "kind": { "type": "string", "const": "watch_summary" },
+    "operation": { "type": "string", "enum": ["scan", "run", "status"] },
+    "mode": { "type": "string", "enum": ["dry-run", "execute"] },
+    "profile": { "type": "string", "enum": ["scan-only", "ingest-only", "derived-refresh", "wiki-apply", "full"] },
+    "plan_id": { "type": ["string", "null"], "minLength": 1 },
+    "run_id": { "type": ["string", "null"], "minLength": 1 },
+    "plan_fingerprint": { "type": ["string", "null"], "minLength": 1 },
+    "source_counts": {
+      "type": "object",
+      "required": ["unchanged", "stale", "new", "missing", "unsupported", "corrupt"],
+      "additionalProperties": false,
+      "properties": {
+        "unchanged": { "type": "integer", "minimum": 0 },
+        "stale": { "type": "integer", "minimum": 0 },
+        "new": { "type": "integer", "minimum": 0 },
+        "missing": { "type": "integer", "minimum": 0 },
+        "unsupported": { "type": "integer", "minimum": 0 },
+        "corrupt": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "action_counts": {
+      "type": "object",
+      "required": ["planned", "skipped", "running", "completed", "failed"],
+      "additionalProperties": false,
+      "properties": {
+        "planned": { "type": "integer", "minimum": 0 },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "running": { "type": "integer", "minimum": 0 },
+        "completed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["plan", "run", "latest"],
+      "additionalProperties": false,
+      "properties": {
+        "plan": { "type": ["string", "null"], "minLength": 1 },
+        "run": { "type": ["string", "null"], "minLength": 1 },
+        "latest": { "type": ["string", "null"], "minLength": 1 }
+      }
+    },
+    "idempotent_reuse": { "type": "boolean" },
+    "confidence": { "type": "number", "enum": [0.0, 1.0] }
+  }
+}

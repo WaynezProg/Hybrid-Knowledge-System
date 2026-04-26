@@ -56,7 +56,11 @@
           "graphify_invalid_graph",
           "graphify_corrupt_upstream_artifact",
           "graphify_partial_run",
-          "graphify_latest_mismatch"
+          "graphify_latest_mismatch",
+          "watch_artifact_invalid",
+          "watch_artifact_corrupt",
+          "watch_partial_run",
+          "watch_latest_mismatch"
         ]
       }
     },
@@ -97,7 +101,11 @@
         "graphify_invalid_graph",
         "graphify_corrupt_upstream_artifact",
         "graphify_partial_run",
-        "graphify_latest_mismatch"
+        "graphify_latest_mismatch",
+        "watch_artifact_invalid",
+        "watch_artifact_corrupt",
+        "watch_partial_run",
+        "watch_latest_mismatch"
       ]
     },
     "severity": {

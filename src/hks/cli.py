@@ -17,6 +17,7 @@ from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
 from hks.commands import llm as llm_command
 from hks.commands import query as query_command
+from hks.commands import watch as watch_command
 from hks.commands import wiki as wiki_command
 from hks.core.schema import QueryResponse, Route, build_error_response
 from hks.errors import ExitCode, KSError
@@ -31,6 +32,7 @@ coord_app = typer.Typer(add_completion=False, no_args_is_help=True)
 llm_app = typer.Typer(add_completion=False, no_args_is_help=True)
 wiki_app = typer.Typer(add_completion=False, no_args_is_help=True)
 graphify_app = typer.Typer(add_completion=False, no_args_is_help=True)
+watch_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_session_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_lease_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_handoff_app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -41,6 +43,7 @@ app.add_typer(coord_app, name="coord")
 app.add_typer(llm_app, name="llm")
 app.add_typer(wiki_app, name="wiki")
 app.add_typer(graphify_app, name="graphify")
+app.add_typer(watch_app, name="watch")
 
 
 class WritebackMode(StrEnum):
@@ -69,6 +72,19 @@ class WikiSynthesisMode(StrEnum):
 class GraphifyMode(StrEnum):
     preview = "preview"
     store = "store"
+
+
+class WatchMode(StrEnum):
+    dry_run = "dry-run"
+    execute = "execute"
+
+
+class WatchProfile(StrEnum):
+    scan_only = "scan-only"
+    ingest_only = "ingest-only"
+    derived_refresh = "derived-refresh"
+    wiki_apply = "wiki-apply"
+    full = "full"
 
 
 def version_callback(value: bool) -> None:
@@ -329,6 +345,75 @@ def graphify_build(
         force_new_run=force_new_run,
         requested_by=requested_by,
     )
+
+
+@watch_app.command("scan")
+def watch_scan(
+    source_roots: Annotated[
+        list[Path] | None,
+        typer.Option("--source-root", help="Source root to compare against manifest."),
+    ] = None,
+) -> None:
+    run_command("watch scan", watch_command.run_scan, source_roots=source_roots or [])
+
+
+@watch_app.command("run")
+def watch_run(
+    source_roots: Annotated[
+        list[Path] | None,
+        typer.Option("--source-root", help="Source root to compare against manifest."),
+    ] = None,
+    mode: Annotated[
+        WatchMode,
+        typer.Option("--mode", case_sensitive=False, help="Watch run mode."),
+    ] = WatchMode.dry_run,
+    profile: Annotated[
+        WatchProfile,
+        typer.Option("--profile", case_sensitive=False, help="Watch refresh profile."),
+    ] = WatchProfile.scan_only,
+    prune: Annotated[
+        bool,
+        typer.Option("--prune", help="Allow explicit prune actions for missing sources."),
+    ] = False,
+    include_llm: Annotated[
+        bool,
+        typer.Option("--include-llm", help="Allow LLM extraction refresh actions."),
+    ] = False,
+    include_wiki_apply: Annotated[
+        bool,
+        typer.Option("--include-wiki-apply", help="Allow explicit wiki apply actions."),
+    ] = False,
+    include_graphify: Annotated[
+        bool,
+        typer.Option("--include-graphify", help="Allow Graphify store refresh action."),
+    ] = False,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Force refresh even when a previous plan exists."),
+    ] = False,
+    requested_by: Annotated[
+        str | None,
+        typer.Option("--requested-by", help="Agent or user label for audit."),
+    ] = None,
+) -> None:
+    run_command(
+        "watch run",
+        watch_command.run_watch,
+        source_roots=source_roots or [],
+        mode=mode.value,
+        profile=profile.value,
+        prune=prune,
+        include_llm=include_llm,
+        include_wiki_apply=include_wiki_apply,
+        include_graphify=include_graphify,
+        force=force,
+        requested_by=requested_by,
+    )
+
+
+@watch_app.command("status")
+def watch_status() -> None:
+    run_command("watch status", watch_command.run_status)
 
 
 @app.command(

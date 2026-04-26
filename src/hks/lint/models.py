@@ -32,6 +32,10 @@ type FindingCategory = Literal[
     "graphify_corrupt_upstream_artifact",
     "graphify_partial_run",
     "graphify_latest_mismatch",
+    "watch_artifact_invalid",
+    "watch_artifact_corrupt",
+    "watch_partial_run",
+    "watch_latest_mismatch",
 ]
 type FixActionKind = Literal[
     "rebuild_index",
@@ -71,6 +75,10 @@ FINDING_SEVERITY: dict[FindingCategory, Severity] = {
     "graphify_corrupt_upstream_artifact": "warning",
     "graphify_partial_run": "error",
     "graphify_latest_mismatch": "error",
+    "watch_artifact_invalid": "error",
+    "watch_artifact_corrupt": "error",
+    "watch_partial_run": "error",
+    "watch_latest_mismatch": "error",
 }
 
 SEVERITY_RANK: dict[Severity, int] = {"info": 0, "warning": 1, "error": 2}
@@ -172,6 +180,10 @@ class RuntimeSnapshot:
     graphify_artifact_errors: dict[str, str] = field(default_factory=dict)
     graphify_partial_runs: set[str] = field(default_factory=set)
     graphify_latest_error: str | None = None
+    watch_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    watch_artifact_errors: dict[str, str] = field(default_factory=dict)
+    watch_partial_runs: set[str] = field(default_factory=set)
+    watch_latest_error: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
