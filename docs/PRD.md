@@ -30,13 +30,14 @@
 
 ### 4.0 Current runtime boundary
 
-目前已完成的是 local-first HKS runtime，已包含 LLM-assisted wiki synthesis、derived Graphify artifacts 與 bounded watch/re-ingest workflow；常駐 daemon 仍未完成。
+目前已完成的是 local-first HKS runtime，已包含 LLM-assisted wiki synthesis、derived Graphify artifacts、bounded watch/re-ingest workflow，以及 source catalog / workspace selection；常駐 daemon 仍未完成。
 
 * HKS 負責 ingest、wiki / graph / vector 同步、query routing、write-back、lint、coordination。
 * 外部 agent（Codex / Claude Code / OpenClaw 等）負責 LLM reasoning、任務拆解與是否呼叫 HKS。
 * 008 已提供 LLM-assisted classification / extraction candidate artifacts；009 已提供 explicit wiki synthesis apply，但不自動 apply 到 graph / vector / manifest。
 * 010 已提供 derived Graphify community clustering、HTML visualization、JSON export、audit report；它不修改 authoritative `graph/graph.json`。
 * 011 已提供 bounded `ks watch scan|run|status`；它不是常駐 daemon，scan / dry-run 不改 authoritative layers。
+* 012 已提供 `ks source` 與 `ks workspace`，讓使用者或 agent 可以查看已 ingest sources、管理多個 named `KS_ROOT`，並對指定 workspace query。
 
 ### 4.1 Ingest
 
@@ -120,6 +121,15 @@
 * MCP tools：`hks_watch_scan`、`hks_watch_run`、`hks_watch_status`
 * HTTP endpoints：`/watch/scan`、`/watch/run`、`/watch/status`
 
+### 4.11 Source Catalog / Workspace Selection
+
+* `ks source list|show` 提供 read-only source catalog，從 `manifest.json` 顯示 relpath、format、size、ingested time 與 derived artifact references
+* `ks workspace register|list|show|remove|use|query` 管理多個 named `KS_ROOT`
+* `workspace use` 回傳 shell-safe export command，不假裝修改 parent shell
+* `workspace query` 委派既有 query，維持相同 response contract
+* MCP tools：`hks_source_list`、`hks_source_show`、`hks_workspace_list`、`hks_workspace_register`、`hks_workspace_show`、`hks_workspace_remove`、`hks_workspace_use`、`hks_workspace_query`
+* HTTP endpoints：`/catalog/sources`、`/catalog/sources/{relpath}`、`/workspaces`、`/workspaces/{workspace_id}`、`/workspaces/{workspace_id}/query`
+
 ---
 
 ## 5. 非功能需求
@@ -177,3 +187,4 @@
 * [x] 009 LLM-assisted wiki rewriting / summarization
 * [x] Graphify pipeline：community clustering、HTML visualization、audit report
 * [x] Watch / re-ingest workflow for continuously updated personal knowledge roots
+* [x] Source catalog / workspace selection

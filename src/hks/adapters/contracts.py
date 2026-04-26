@@ -385,6 +385,71 @@ def load_watch_http_openapi() -> dict[str, Any]:
     return payload
 
 
+@lru_cache(maxsize=1)
+def load_catalog_tools_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "012-source-catalog",
+                "mcp-catalog-tools.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_catalog_summary_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "012-source-catalog",
+                "catalog-summary-detail.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_source_catalog_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "012-source-catalog",
+                "source-catalog.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_workspace_registry_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "012-source-catalog",
+                "workspace-registry.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_catalog_http_openapi() -> dict[str, Any]:
+    payload = YAML(typ="safe").load(
+        feature_contract_path(
+            "012-source-catalog",
+            "http-catalog-api.openapi.yaml",
+        ).read_text("utf-8")
+    )
+    if not isinstance(payload, dict):
+        raise ValueError("http-catalog-api.openapi.yaml must be an object")
+    return payload
+
+
 def validate_tool_input(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
     full_schema = load_mcp_tools_schema()
     schema = dict(full_schema["properties"]["tools"]["properties"][tool])
@@ -427,6 +492,14 @@ def validate_graphify_tool_input(tool: str, payload: dict[str, Any]) -> dict[str
 
 def validate_watch_tool_input(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
     full_schema = load_watch_tools_schema()
+    schema = dict(full_schema["properties"]["tools"]["properties"][tool])
+    schema["$defs"] = full_schema["$defs"]
+    jsonschema.validate(instance=payload, schema=schema)
+    return payload
+
+
+def validate_catalog_tool_input(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
+    full_schema = load_catalog_tools_schema()
     schema = dict(full_schema["properties"]["tools"]["properties"][tool])
     schema["$defs"] = full_schema["$defs"]
     jsonschema.validate(instance=payload, schema=schema)
@@ -495,6 +568,34 @@ def validate_watch_run(payload: dict[str, Any]) -> dict[str, Any]:
 
 def validate_watch_latest(payload: dict[str, Any]) -> dict[str, Any]:
     jsonschema.validate(instance=payload, schema=load_watch_latest_schema())
+    return payload
+
+
+def validate_catalog_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    jsonschema.validate(instance=payload, schema=load_catalog_summary_schema())
+    return payload
+
+
+def validate_source_catalog_entry(payload: dict[str, Any]) -> dict[str, Any]:
+    schema = load_source_catalog_schema()
+    jsonschema.validate(
+        instance=payload,
+        schema={"$ref": "#/$defs/sourceCatalogEntry", "$defs": schema["$defs"]},
+    )
+    return payload
+
+
+def validate_source_detail(payload: dict[str, Any]) -> dict[str, Any]:
+    schema = load_source_catalog_schema()
+    jsonschema.validate(
+        instance=payload,
+        schema={"$ref": "#/$defs/sourceDetail", "$defs": schema["$defs"]},
+    )
+    return payload
+
+
+def validate_workspace_registry(payload: dict[str, Any]) -> dict[str, Any]:
+    jsonschema.validate(instance=payload, schema=load_workspace_registry_schema())
     return payload
 
 

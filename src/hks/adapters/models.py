@@ -17,6 +17,7 @@ type WikiSynthesisMode = Literal["preview", "store", "apply"]
 type GraphifyMode = Literal["preview", "store"]
 type WatchMode = Literal["dry-run", "execute"]
 type WatchProfile = Literal["scan-only", "ingest-only", "derived-refresh", "wiki-apply", "full"]
+type SourceFormatFilter = Literal["txt", "md", "pdf", "docx", "xlsx", "pptx", "png", "jpg", "jpeg"]
 
 WRITEBACK_MODES: frozenset[str] = frozenset(("no", "auto", "yes", "ask"))
 PPTX_NOTES_MODES: frozenset[str] = frozenset(("include", "exclude"))
@@ -28,6 +29,9 @@ GRAPHIFY_MODES: frozenset[str] = frozenset(("preview", "store"))
 WATCH_MODES: frozenset[str] = frozenset(("dry-run", "execute"))
 WATCH_PROFILES: frozenset[str] = frozenset(
     ("scan-only", "ingest-only", "derived-refresh", "wiki-apply", "full")
+)
+SOURCE_FORMATS: frozenset[str] = frozenset(
+    ("txt", "md", "pdf", "docx", "xlsx", "pptx", "png", "jpg", "jpeg")
 )
 
 

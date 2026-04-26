@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/mcp-catalog-tools.schema.json",
+  "title": "HKS MCP catalog tool input schemas",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tools"],
+  "properties": {
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hks_source_list",
+        "hks_source_show",
+        "hks_workspace_list",
+        "hks_workspace_register",
+        "hks_workspace_show",
+        "hks_workspace_remove",
+        "hks_workspace_use",
+        "hks_workspace_query"
+      ],
+      "properties": {
+        "hks_source_list": { "$ref": "#/$defs/sourceListInput" },
+        "hks_source_show": { "$ref": "#/$defs/sourceShowInput" },
+        "hks_workspace_list": { "$ref": "#/$defs/workspaceListInput" },
+        "hks_workspace_register": { "$ref": "#/$defs/workspaceRegisterInput" },
+        "hks_workspace_show": { "$ref": "#/$defs/workspaceIdInput" },
+        "hks_workspace_remove": { "$ref": "#/$defs/workspaceIdInput" },
+        "hks_workspace_use": { "$ref": "#/$defs/workspaceIdInput" },
+        "hks_workspace_query": { "$ref": "#/$defs/workspaceQueryInput" }
+      }
+    }
+  },
+  "$defs": {
+    "ksRoot": { "type": ["string", "null"], "minLength": 1 },
+    "registryPath": { "type": ["string", "null"], "minLength": 1 },
+    "workspaceId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$" },
+    "sourceListInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ks_root": { "$ref": "#/$defs/ksRoot" },
+        "format": { "type": ["string", "null"] },
+        "relpath_query": { "type": ["string", "null"] },
+        "limit": { "type": ["integer", "null"], "minimum": 1 },
+        "offset": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "sourceShowInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relpath"],
+      "properties": {
+        "relpath": { "type": "string", "minLength": 1 },
+        "ks_root": { "$ref": "#/$defs/ksRoot" }
+      }
+    },
+    "workspaceListInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "registry_path": { "$ref": "#/$defs/registryPath" }
+      }
+    },
+    "workspaceRegisterInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace_id", "ks_root"],
+      "properties": {
+        "workspace_id": { "$ref": "#/$defs/workspaceId" },
+        "ks_root": { "type": "string", "minLength": 1 },
+        "label": { "type": ["string", "null"], "minLength": 1 },
+        "tags": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "force": { "type": "boolean" },
+        "registry_path": { "$ref": "#/$defs/registryPath" }
+      }
+    },
+    "workspaceIdInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace_id"],
+      "properties": {
+        "workspace_id": { "$ref": "#/$defs/workspaceId" },
+        "registry_path": { "$ref": "#/$defs/registryPath" }
+      }
+    },
+    "workspaceQueryInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace_id", "question"],
+      "properties": {
+        "workspace_id": { "$ref": "#/$defs/workspaceId" },
+        "question": { "type": "string", "minLength": 1 },
+        "writeback": { "type": "string", "enum": ["auto", "yes", "no", "ask"] },
+        "registry_path": { "$ref": "#/$defs/registryPath" }
+      }
+    }
+  }
+}

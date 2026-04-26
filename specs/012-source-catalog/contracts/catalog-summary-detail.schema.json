@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/catalog-summary-detail.schema.json",
+  "title": "HKS catalog summary detail",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "command", "total_count", "filtered_count", "filter", "warnings"],
+  "properties": {
+    "kind": { "type": "string", "const": "catalog_summary" },
+    "command": {
+      "type": "string",
+      "enum": [
+        "source.list",
+        "source.show",
+        "workspace.list",
+        "workspace.show",
+        "workspace.register",
+        "workspace.remove",
+        "workspace.use"
+      ]
+    },
+    "total_count": { "type": "integer", "minimum": 0 },
+    "filtered_count": { "type": "integer", "minimum": 0 },
+    "filter": {
+      "type": ["object", "null"],
+      "additionalProperties": {
+        "type": ["string", "number", "integer", "boolean", "null"]
+      }
+    },
+    "workspace_id": { "type": ["string", "null"], "minLength": 1 },
+    "ks_root": { "type": ["string", "null"], "minLength": 1 },
+    "registry_path": { "type": ["string", "null"], "minLength": 1 },
+    "previous_root": { "type": ["string", "null"], "minLength": 1 },
+    "sources": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "source": {
+      "type": ["object", "null"],
+      "additionalProperties": true
+    },
+    "workspaces": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "export_command": { "type": ["string", "null"], "minLength": 1 },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "command": { "enum": ["workspace.show", "workspace.register", "workspace.remove", "workspace.use"] } },
+        "required": ["command"]
+      },
+      "then": {
+        "required": ["workspace_id"]
+      }
+    }
+  ]
+}

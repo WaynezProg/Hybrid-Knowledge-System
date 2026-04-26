@@ -60,7 +60,11 @@
           "watch_artifact_invalid",
           "watch_artifact_corrupt",
           "watch_partial_run",
-          "watch_latest_mismatch"
+          "watch_latest_mismatch",
+          "workspace_registry_corrupt",
+          "workspace_registry_invalid",
+          "workspace_root_missing",
+          "workspace_duplicate_root"
         ]
       }
     },
@@ -105,7 +109,11 @@
         "watch_artifact_invalid",
         "watch_artifact_corrupt",
         "watch_partial_run",
-        "watch_latest_mismatch"
+        "watch_latest_mismatch",
+        "workspace_registry_corrupt",
+        "workspace_registry_invalid",
+        "workspace_root_missing",
+        "workspace_duplicate_root"
       ]
     },
     "severity": {

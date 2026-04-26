@@ -1,0 +1,162 @@
+openapi: 3.1.0
+info:
+  title: HKS Catalog API
+  version: 0.1.0
+paths:
+  /catalog/sources:
+    post:
+      summary: List sources in one HKS runtime
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                ks_root:
+                  type: [string, "null"]
+                format:
+                  type: [string, "null"]
+                relpath_query:
+                  type: [string, "null"]
+                limit:
+                  type: [integer, "null"]
+                  minimum: 1
+                offset:
+                  type: [integer, "null"]
+                  minimum: 0
+      responses:
+        "200":
+          description: HKS QueryResponse with catalog_summary detail
+        "400":
+          description: Adapter error envelope
+        "500":
+          description: Adapter error envelope
+  /catalog/sources/{relpath}:
+    post:
+      summary: Show one source detail
+      parameters:
+        - name: relpath
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                ks_root:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: HKS QueryResponse with catalog_summary detail
+        "400":
+          description: Adapter error envelope
+        "500":
+          description: Adapter error envelope
+  /workspaces:
+    post:
+      summary: List or register workspaces
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                action:
+                  type: string
+                  enum: [list, register]
+                  default: list
+                workspace_id:
+                  type: [string, "null"]
+                ks_root:
+                  type: [string, "null"]
+                label:
+                  type: [string, "null"]
+                tags:
+                  type: array
+                  items:
+                    type: string
+                force:
+                  type: boolean
+                  default: false
+                registry_path:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: HKS QueryResponse with catalog_summary detail
+        "400":
+          description: Adapter error envelope
+        "500":
+          description: Adapter error envelope
+  /workspaces/{workspace_id}:
+    post:
+      summary: Show, remove, or use one workspace
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                action:
+                  type: string
+                  enum: [show, remove, use]
+                  default: show
+                registry_path:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: HKS QueryResponse with catalog_summary detail
+        "400":
+          description: Adapter error envelope
+        "500":
+          description: Adapter error envelope
+  /workspaces/{workspace_id}/query:
+    post:
+      summary: Query one registered workspace
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [question]
+              properties:
+                question:
+                  type: string
+                  minLength: 1
+                writeback:
+                  type: string
+                  enum: [auto, "yes", "no", ask]
+                  default: "no"
+                registry_path:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: Existing HKS query response
+        "400":
+          description: Adapter error envelope
+        "500":
+          description: Adapter error envelope
