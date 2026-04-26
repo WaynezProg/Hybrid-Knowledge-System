@@ -353,7 +353,7 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 
 ---
 
-## 15. 非目標
+## 16. 非目標
 
 目前仍不做：
 
