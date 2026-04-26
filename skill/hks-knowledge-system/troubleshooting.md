@@ -31,7 +31,24 @@ uv run ks ingest <source-dir>
 uv run ks workspace register work --ks-root "$KS_ROOT" --label "Work"
 ```
 
-注意：`.hks-runs/` 和 `testhks/` 被 `.gitignore` 忽略，不會跟著 repo clone 或 skill install 給其他 agent。
+注意：`.hks-runs/` 和其他 repo-local runtime 目錄被 `.gitignore` 忽略，不會跟著 repo clone 或 skill install 給其他 agent。
+
+如果本機已經有一套要所有 agent 共用的 runtime，建立 `.hks-runs/shared-runtime.env`，讓 `shared-runtime.sh` 自動讀取：
+
+```bash
+mkdir -p .hks-runs
+cat > .hks-runs/shared-runtime.env <<'EOF'
+export KS_ROOT="$HKS_REPO_ROOT/.hks-runs/work/ks"
+export HKS_WORKSPACE_REGISTRY="$HKS_REPO_ROOT/.hks-runs/workspaces.json"
+export HKS_EMBEDDING_MODEL=simple
+EOF
+```
+
+之後所有 agent 都先跑：
+
+```bash
+. skill/hks-knowledge-system/config/shared-runtime.sh
+```
 
 ## Query 產生 wiki page
 
@@ -52,6 +69,24 @@ uv run ks query "<question>" --writeback=no
 ## 測試要穩定重現
 
 用 deterministic embedding：
+
+```bash
+export HKS_EMBEDDING_MODEL=simple
+```
+
+## `Collection expecting embedding with dimension ...`
+
+原因：查詢時使用的 `HKS_EMBEDDING_MODEL` 跟 vector DB 建立時不同。
+
+先確認：
+
+```bash
+. skill/hks-knowledge-system/config/shared-runtime.sh
+echo "$HKS_EMBEDDING_MODEL"
+uv run ks query "smoke test" --writeback=no
+```
+
+若既有 runtime 是用 deterministic smoke-test 建的，請在 `.hks-runs/shared-runtime.env` 設：
 
 ```bash
 export HKS_EMBEDDING_MODEL=simple

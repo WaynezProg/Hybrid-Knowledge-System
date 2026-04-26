@@ -51,6 +51,8 @@ uv run ks workspace register work --ks-root "$KS_ROOT" --label "Work"
 uv run ks workspace query work "目前有哪些資料？" --writeback=no
 ```
 
+如果本機已有既有 runtime，將 `.hks-runs/shared-runtime.env` 指向那套 runtime；所有 agent source `shared-runtime.sh` 後會共用同一套。`HKS_EMBEDDING_MODEL` 必須跟該 runtime ingest 時使用的 model 一致，否則 vector query 會出現 dimension mismatch。
+
 ## 權威來源
 
 - Architecture：`docs/main.md`
