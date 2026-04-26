@@ -49,7 +49,8 @@ make fixtures
 ## 5 分鐘上手
 
 ```bash
-export KS_ROOT=$(mktemp -d /tmp/hks.XXXXXX)
+mkdir -p .hks-runs/demo
+export KS_ROOT="$PWD/.hks-runs/demo/ks"
 export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
 uv run ks query "這批文件的重點是什麼" --writeback=no | jq .
@@ -64,6 +65,8 @@ uv run ks coord lease claim agent-a wiki:atlas | jq .
 uv run hks-mcp --help
 cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 ```
+
+`.hks-runs/` 是 repo-local runtime 目錄，已被 `.gitignore` 忽略；這比 `/tmp` 更適合跨平台與長期保留測試輸出。
 
 `HKS_EMBEDDING_MODEL=simple` 適合 CI、demo 與 agent smoke test。正式使用可移除此設定，改用預設 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`，或把 `HKS_EMBEDDING_MODEL` 指向本機模型目錄。
 

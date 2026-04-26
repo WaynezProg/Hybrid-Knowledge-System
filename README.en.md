@@ -49,7 +49,8 @@ If you only need text / Office ingest, you can skip `tesseract` until you ingest
 ## 5-Minute Quick Start
 
 ```bash
-export KS_ROOT=$(mktemp -d /tmp/hks.XXXXXX)
+mkdir -p .hks-runs/demo
+export KS_ROOT="$PWD/.hks-runs/demo/ks"
 export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
 uv run ks query "What is the main point of these documents?" --writeback=no | jq .
@@ -64,6 +65,8 @@ uv run ks coord lease claim agent-a wiki:atlas | jq .
 uv run hks-mcp --help
 cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 ```
+
+`.hks-runs/` is a repo-local runtime directory and is ignored by `.gitignore`; it is safer than `/tmp` for cross-platform use and for keeping test outputs around.
 
 `HKS_EMBEDDING_MODEL=simple` is best for CI, demos, and agent smoke tests. For real use, remove it to use the default `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, or point `HKS_EMBEDDING_MODEL` at a local model directory.
 

@@ -36,6 +36,7 @@ Thumbs.db
 
 # HKS runtime data (wiki / graph / vector 實體資料)
 /ks/
+.hks-runs/
 
 # Secrets
 .env
