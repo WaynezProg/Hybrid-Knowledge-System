@@ -82,8 +82,8 @@ tests/
 
 設計產出（`research.md` / `data-model.md` / `contracts/` / `quickstart.md`）完成後重新對照憲法與 cross-artifact 一致性：
 
-- **§II Stable Output Contract**：`contracts/query-response.schema.json` 僅把 `source` / `trace.route` 擴充為允許 `graph`，top-level 仍維持 `answer / source / confidence / trace` 四欄；`ks ingest`、`ks query`、`ks lint` 的共用 shape 與 [docs/main.md](../../docs/main.md) / [readme.md](../../readme.md) 一致。**PASS**。
-- **§III CLI-First & Domain-Agnostic**：`spec.md` clarify 後明確凍結 `003` 不新增 ingest 格式；Phase 2 的格式全集維持 `txt / md / pdf / docx / xlsx / pptx`。圖片 ingest 仍在後續 Phase 3 spec，但 exact raster format set 與 normalize / 轉檔策略尚未凍結。此邊界與 [docs/main.md](../../docs/main.md)、[docs/PRD.md](../../docs/PRD.md)、[readme.md](../../readme.md)、[README.en.md](../../README.en.md) 一致。**PASS**。
+- **§II Stable Output Contract**：`contracts/query-response.schema.json` 僅把 `source` / `trace.route` 擴充為允許 `graph`，top-level 仍維持 `answer / source / confidence / trace` 四欄；`ks ingest`、`ks query`、`ks lint` 的共用 shape 與 [docs/main.md](../../docs/main.md) / [README.md](../../README.md) 一致。**PASS**。
+- **§III CLI-First & Domain-Agnostic**：`spec.md` clarify 後明確凍結 `003` 不新增 ingest 格式；Phase 2 的格式全集維持 `txt / md / pdf / docx / xlsx / pptx`。圖片 ingest 仍在後續 Phase 3 spec，但 exact raster format set 與 normalize / 轉檔策略尚未凍結。此邊界與 [docs/main.md](../../docs/main.md)、[docs/PRD.md](../../docs/PRD.md)、[README.md](../../README.md)、[README.en.md](../../README.en.md) 一致。**PASS**。
 - **§IV Ingest-Time Organization**：graph extraction 仍在 ingest 階段完成，`data-model.md` 與 `research.md` 都以 `graph.json`、manifest derived artifacts、re-ingest cleanup 為中心；`003` 沒有偷偷新增新的 source format 或 query-time re-parse。**PASS**。
 - **§V Write-back Safety**：`spec.md` clarify 後把 `auto` write-back 的 automation 邊界寫死：runtime 預設 `auto`，但 CI / smoke / agent workflow 以顯式 `--writeback=no` 關閉；non-TTY 不得因互動邏輯阻塞。此行為與 [quickstart.md](./quickstart.md) 及 README 敘述一致。**PASS**。
 - **Analyze 結論**：未發現要求把圖片 ingest 提前到 `003` 的 artifact；`003` 補的是 graph / routing / auto write-back，不是新一輪格式擴充。`001` + `002` + `003` 合起來才構成完整 Phase 2；圖片格式與 normalize 策略留待後續 spec。**PASS**。

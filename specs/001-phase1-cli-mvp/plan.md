@@ -177,7 +177,7 @@ specs/001-phase1-cli-mvp/
 │       ├── test_no_graph_in_runtime.py
 │       ├── test_no_graph_in_src.py
 │       └── test_exit_codes.py
-├── readme.md
+├── README.md
 ├── CLAUDE.md
 ├── LICENSE
 ├── .gitignore

@@ -4,6 +4,14 @@
 
 Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。目前 runtime 已完成 Phase 1-3：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 會在 `wiki / graph / vector` 三層間切換，relation 類問題優先走 graph，高 confidence 答案預設自動 write-back，並提供 image ingest、lint system、multi-agent coordination 與 local MCP / HTTP adapter。
 
+## 這個專案怎麼運作
+
+HKS 預設不是常駐服務。一般使用方式是需要時執行 `uv run ks ...` 指令，指令完成後結束；資料會保存在 `$KS_ROOT`。
+
+- 一般使用者 / shell / Codex / Claude Code / OpenClaw：直接呼叫 `ks ingest`、`ks query`、`ks lint`、`ks coord`
+- MCP agent integration：啟動 `hks-mcp`；stdio 模式通常由 agent client 啟動並跟著 session 存活
+- HTTP client integration：啟動 `hks-api` 或 `hks-mcp --transport streamable-http`；有 client 要連線時才需要保持該 process running
+
 ## 目前能做什麼
 
 - `ks ingest <file|dir> [--pptx-notes include|exclude]`：建立 `raw_sources/`、`wiki/`、`graph/graph.json`、`vector/db/`、`manifest.json`
@@ -14,13 +22,29 @@ Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。
 - `hks-api`：optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`、`/coord/*`
 - 獨立圖片檔 ingest 已支援 `png / jpg / jpeg`，以本機 `tesseract` OCR 處理；`.heic / .webp` 與 VLM 仍未納入
 
-## 5 分鐘上手
+## 安裝
+
+前置需求：
+
+- macOS 建議使用 Homebrew 安裝系統工具
+- Python runtime 由 `mise` 管理，套件由 `uv` 安裝
+- image ingest 需要本機 `tesseract` 與語言包
+- `jq` 非必要，但方便檢查 JSON output
 
 ```bash
-brew install tesseract tesseract-lang
+git clone https://github.com/WaynezProg/Hybrid-Knowledge-System.git
+cd Hybrid-Knowledge-System
+brew install tesseract tesseract-lang jq
 mise install
 uv sync
 make fixtures
+```
+
+如果只要跑文字 / Office ingest，可以先不裝 `tesseract`；遇到 `png / jpg / jpeg` ingest 再補。
+
+## 5 分鐘上手
+
+```bash
 export KS_ROOT=$(mktemp -d /tmp/hks.XXXXXX)
 export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
@@ -31,6 +55,8 @@ uv run ks coord lease claim agent-a wiki:atlas | jq .
 uv run hks-mcp --help
 cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 ```
+
+`HKS_EMBEDDING_MODEL=simple` 適合 CI、demo 與 agent smoke test。正式使用可移除此設定，改用預設 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`，或把 `HKS_EMBEDDING_MODEL` 指向本機模型目錄。
 
 ## 怎麼使用
 
@@ -97,6 +123,25 @@ coordination state 寫在 `$KS_ROOT/coordination/state.json`，events 以 JSONL 
 - `lease`：對 logical `resource_key` 取得 ownership；衝突時 exit `1`，stdout 仍是 schema-valid JSON，`trace.steps[kind="coordination_summary"].detail.conflicts` 會列出 owner
 - `handoff`：記錄交接摘要、下一步、blocked_by 與 references
 - `coord lint`：檢查 missing references 與 stale active leases
+
+### Agent 接法
+
+Codex、Claude Code、OpenClaw 或其他 local agent 可以用三種方式接 HKS：
+
+```bash
+# 1. 最簡單：agent 直接執行 CLI
+export KS_ROOT=/path/to/hks-runtime
+uv run ks query "Project Atlas 目前風險是什麼？" --writeback=no
+uv run ks lint --strict
+
+# 2. MCP stdio：讓支援 MCP 的 agent client 啟動這個 server
+uv run hks-mcp --transport stdio
+
+# 3. HTTP：給不支援 MCP、但能呼叫 loopback HTTP 的工具
+uv run hks-api --host 127.0.0.1 --port 8766
+```
+
+agent read path 建議一律顯式使用 `--writeback=no` 或 MCP `hks_query` 預設值，避免背景查詢產生 wiki page。多個 agent 共用同一個 `$KS_ROOT` 時，用 `ks coord lease` 先 claim logical resource，再寫 handoff note。
 
 ### MCP / HTTP Adapter
 

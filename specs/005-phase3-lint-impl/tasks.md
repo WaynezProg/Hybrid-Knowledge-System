@@ -65,7 +65,7 @@
 
 - [X] T038 Add airgapped/no-network lint regression in `tests/integration/test_offline.py`
 - [X] T039 Add lint wall-clock regression for medium fixture corpus in `tests/integration/test_lint_performance.py`
-- [X] T040 Update `readme.md`, `README.en.md`, `docs/main.md`, and `docs/PRD.md` to describe real `ks lint`
+- [X] T040 Update `README.md`, `README.en.md`, `docs/main.md`, and `docs/PRD.md` to describe real `ks lint`
 - [X] T041 Archive or update `specs/004-phase3-image-ingest` references that still call lint a stub
 - [X] T042 Run `.specify/scripts/bash/check-prerequisites.sh --json --include-tasks --require-tasks`
 - [X] T043 Run `/speckit.analyze` equivalent consistency check and fix any critical/high artifact drift before implementation

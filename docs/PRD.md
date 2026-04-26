@@ -28,6 +28,14 @@
 
 ## 4. 核心能力
 
+### 4.0 Current runtime boundary
+
+目前已完成的是 local-first HKS runtime，不是完整 LLM Wiki + Graphify 產品。
+
+* HKS 負責 ingest、wiki / graph / vector 同步、query routing、write-back、lint、coordination。
+* 外部 agent（Codex / Claude Code / OpenClaw 等）負責 LLM reasoning、任務拆解與是否呼叫 HKS。
+* 目前 graph extraction 是 pattern-based；Graphify 等級的 community clustering、HTML visualization、audit report 尚未納入 runtime。
+
 ### 4.1 Ingest
 
 * Phase 1：`txt / md / pdf`
@@ -123,3 +131,10 @@
 * [x] 多 agent
 * [x] API / MCP adapter
 * [x] 圖片 ingest（`png / jpg / jpeg`；OCR-only）
+
+### Candidate Phase 4
+
+* [ ] LLM-assisted wiki rewriting / summarization
+* [ ] LLM-assisted entity / relation extraction
+* [ ] Graphify pipeline：community clustering、HTML visualization、audit report
+* [ ] Watch / re-ingest workflow for continuously updated personal knowledge roots

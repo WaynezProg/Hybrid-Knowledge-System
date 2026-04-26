@@ -144,7 +144,7 @@ description: "Phase 2 階段一 — Office 文件（docx / xlsx / pptx）ingest 
 **Purpose**：文件同步、憲法 §I 終檢、覆蓋率、離線驗證、效能回歸。
 
 - [X] T080 [P] 同步 [docs/main.md](../../docs/main.md) §3.1 / §5 / §8：補上 Phase 2 階段一 ingest 範圍、Office 檔案寫入結構說明、placeholder 前綴示意；不改動 query routing 敘述 —（readme sync、Phase 2 路線圖）
-- [X] T081 [P] 更新 [readme.md](../../readme.md) 路線圖與 `ks ingest --help` 的 flag 說明；補上「支援 docx/xlsx/pptx」與 `--pptx-notes` 說明 —（DX）
+- [X] T081 [P] 更新 [README.md](../../README.md) 路線圖與 `ks ingest --help` 的 flag 說明；補上「支援 docx/xlsx/pptx」與 `--pptx-notes` 說明 —（DX）
 - [X] T082 [P] 在 CI（`.github/workflows/*.yml` 或等效）加入「airgapped install 驗證」：`uv sync --offline` 從 wheel cache 能裝起；`pytest tests/integration/test_office_pipeline.py` 可於無網路執行 —（FR-082、SC-009）
 - [X] T083 憲法 §I 終檢（grep + filesystem）：
   - `rg -n '"graph"' src/ ks/ config/ tests/` → 僅出現於 Phase 2 預告註解（documented allowlist），runtime code 0 命中

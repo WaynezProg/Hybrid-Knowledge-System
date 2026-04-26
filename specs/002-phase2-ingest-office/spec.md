@@ -3,7 +3,7 @@
 **Feature Branch**: `002-phase2-ingest-office`
 **Created**: 2026-04-24
 **Status**: Complete
-**Input**: 擴充 `ks ingest` 支援 docx / xlsx / pptx 三種 Office 格式，沿用 Phase 1 既有 ingestion 契約與兩層儲存（wiki + vector）。本 spec 不觸及 graph、不變更 query 路徑、不升級 routing 至 LLM，不開放 write-back 全自動化；graph / LLM routing / 自動 write-back 留待 Phase 2 第二、第三張 spec（[docs/main.md §9](../../docs/main.md)、[readme.md](../../readme.md) 路線圖）。對應憲法 [§I / §III / §IV](../../.specify/memory/constitution.md)。
+**Input**: 擴充 `ks ingest` 支援 docx / xlsx / pptx 三種 Office 格式，沿用 Phase 1 既有 ingestion 契約與兩層儲存（wiki + vector）。本 spec 不觸及 graph、不變更 query 路徑、不升級 routing 至 LLM，不開放 write-back 全自動化；graph / LLM routing / 自動 write-back 留待 Phase 2 第二、第三張 spec（[docs/main.md §9](../../docs/main.md)、[README.md](../../README.md) 路線圖）。對應憲法 [§I / §III / §IV](../../.specify/memory/constitution.md)。
 
 ## Clarifications
 

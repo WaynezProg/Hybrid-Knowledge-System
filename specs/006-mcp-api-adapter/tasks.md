@@ -116,7 +116,7 @@
 
 **Purpose**: Documentation, regression, and final verification before merge.
 
-- [x] T040 [P] Update readme.md and README.en.md with MCP adapter usage and safety defaults
+- [x] T040 [P] Update README.md and README.en.md with MCP adapter usage and safety defaults
 - [x] T041 [P] Update docs/main.md and docs/PRD.md to mark 006 status and adapter boundaries
 - [x] T042 [P] Add or update mypy missing-import override for `mcp` only if required in pyproject.toml
 - [x] T043 Run `.specify/scripts/bash/check-prerequisites.sh --json --include-tasks --require-tasks`

@@ -36,7 +36,7 @@
 
 ## Phase 6: Polish
 
-- [X] T040 更新 `readme.md` / `README.en.md` / `docs/main.md` / `docs/PRD.md`
+- [X] T040 更新 `README.md` / `README.en.md` / `docs/main.md` / `docs/PRD.md`
 - [X] T041 跑 `./.specify/scripts/bash/check-prerequisites.sh --json --include-tasks --require-tasks`
 - [X] T042 跑 `uv run pytest -q`、`uv run ruff check .`、`uv run mypy src/hks`
 

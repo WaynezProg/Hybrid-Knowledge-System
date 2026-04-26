@@ -35,6 +35,18 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 
 ![Graphify 流程](graphify.png)
 
+### 2.1 Vision vs current runtime
+
+原始產品願景是 **LLM Wiki + Graphify + Vector**：由 agent / LLM 協助整理個人資料庫，產生可讀 wiki、可分析 graph、可檢索 vector，並讓後續 query 持續沉澱回知識庫。
+
+目前 runtime 已完成可執行的本地骨架，但不是完整 Graphify pipeline：
+
+* 已完成：來源 ingest 後同步更新 `wiki / graph / vector / manifest`；修改來源後重跑 `ks ingest` 可依 hash / parser fingerprint 更新資料庫。
+* 已完成：query 會依問題類型走 wiki、graph 或 vector；高 confidence 結果可 write-back 成 wiki page。
+* 尚未完成：LLM-based wiki rewriting、LLM-based entity / relation extraction、Graphify community clustering、HTML visualization、audit report、資料夾 watch / daemon 式持續 ingest。
+
+換句話說，HKS 現在是 agent 可調用的 local knowledge runtime；完整 LLM Wiki + Graphify 應以後續 feature 擴充，而不是視為 Phase 1-3 已交付內容。
+
 ---
 
 ## 3. CLI Contract
@@ -221,7 +233,7 @@ MCP 暴露 `hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_
 
 ## 11. Runtime configuration
 
-常用環境變數不在本文件重複列完整清單，避免 drift。請以 [readme.md#常用環境變數](../readme.md#常用環境變數) 與 [README.en.md#useful-environment-variables](../README.en.md#useful-environment-variables) 為準。
+常用環境變數不在本文件重複列完整清單，避免 drift。請以 [README.md#常用環境變數](../README.md#常用環境變數) 與 [README.en.md#useful-environment-variables](../README.en.md#useful-environment-variables) 為準。
 
 檔案大小上限分三組：`HKS_MAX_FILE_MB` 管 `txt / md / pdf`，`HKS_OFFICE_MAX_FILE_MB` 管 Office，`HKS_IMAGE_MAX_FILE_MB` 管 image。
 

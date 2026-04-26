@@ -139,7 +139,7 @@
 
 **Purpose**: Documentation, consistency, and final verification before implementation branch completion.
 
-- [x] T047 [P] Update readme.md and README.en.md with `ks coord` and MCP coordination usage
+- [x] T047 [P] Update README.md and README.en.md with `ks coord` and MCP coordination usage
 - [x] T048 [P] Update docs/main.md and docs/PRD.md to mark 007 status and remaining Phase 3 boundaries
 - [x] T049 [P] Update specs/ARCHIVE.md only after implementation is complete and verified
 - [x] T050 Run `.specify/scripts/bash/check-prerequisites.sh --json --include-tasks --require-tasks`

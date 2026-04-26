@@ -44,7 +44,7 @@ description: "Phase 2 階段二 — Graph Query、Model-Driven Routing、Auto Wr
 
 ## Phase 6: Polish
 
-- [x] T050 更新 `readme.md`、`README.en.md`、`docs/main.md`、`docs/PRD.md`
+- [x] T050 更新 `README.md`、`README.en.md`、`docs/main.md`、`docs/PRD.md`
 - [x] T051 執行 `uv run pytest -q`
 - [x] T052 執行 `uv run ruff check .`
 - [x] T053 執行 `uv run mypy src/hks`

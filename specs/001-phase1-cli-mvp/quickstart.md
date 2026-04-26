@@ -9,7 +9,7 @@
 ## 1. 取得程式碼並準備 Python 環境
 
 ```bash
-git clone <repo-url> hks && cd hks
+git clone https://github.com/WaynezProg/Hybrid-Knowledge-System.git hks && cd hks
 git checkout 001-phase1-cli-mvp       # 本 feature branch
 
 # mise 自動讀取 .mise.toml → 選 Python 3.12

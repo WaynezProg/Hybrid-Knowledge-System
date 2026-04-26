@@ -169,7 +169,7 @@ tests/
     └── broken/
         └── office/                           # encrypted.pptx / corrupt.xlsx / oversized.docx / timeout_bomb.docx / empty.docx
 
-docs/ / readme.md / AGENTS.md                 # 不動（Phase 2 階段性文件更新交由實作 commit）
+docs/ / README.md / AGENTS.md                 # 不動（Phase 2 階段性文件更新交由實作 commit）
 ```
 
 **Structure Decision**: 沿用 Phase 1 單一 Python package `src/hks/` 布局；新功能以 parser 擴充 + 少量 core / ingest 檔的微調實作，不新增子套件層級（graph 子套件留到 Phase 2 第二張 spec）。`ingest/office_common.py` 為新增共用模組，聚合佔位符常數、SkippedSegment 型別、markdown 表格 helper，避免三個 parser 重複定義。

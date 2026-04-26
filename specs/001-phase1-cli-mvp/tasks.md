@@ -196,7 +196,7 @@ CLI 單一 package（`cli`）+ src-layout：
 - [x] T073 [P] 覆蓋率設定驗收：在 `pyproject.toml` 鎖定 `[tool.coverage.report] fail_under = 80`、`[tool.coverage.run] source = ["src/hks"]`、`omit = ["src/hks/__init__.py"]`；CI 以 `uv run pytest --cov` 判斷 —（SC-009, FR-061）
 - [x] T074 [P] SC-006 一致性測試 `tests/integration/test_wiki_reconcile.py`：ingest + writeback 若干輪後呼叫 `WikiStore.reconcile()` assert 無 orphan / 無 dead link —（SC-006）
 - [x] T075 [P] Local-first 離線測試 `tests/integration/test_offline.py`：以 monkeypatch 禁用 `httpx` / `requests` / `urllib` 網路呼叫，僅允許 `HKS_EMBEDDING_MODEL` 指向本機快取（預先於 conftest fixture 下載）；ingest + query 全流程成功 —（FR-060, research §5）
-- [x] T076 [P] 更新 [readme.md](../../readme.md)：明示 repo 目前仍以 specification-first 交付，但 Phase 1 CLI runtime 已落地；於「安裝」與「CLI 使用」區塊指向本 feature 的 [quickstart.md](./quickstart.md)；列出 `--writeback` flag 與 exit code 摘要 —（DX）
+- [x] T076 [P] 更新 [README.md](../../README.md)：明示 repo 目前仍以 specification-first 交付，但 Phase 1 CLI runtime 已落地；於「安裝」與「CLI 使用」區塊指向本 feature 的 [quickstart.md](./quickstart.md)；列出 `--writeback` flag 與 exit code 摘要 —（DX）
 - [x] T077 [P] 執行 `uv run ruff format .` + `uv run ruff check --fix .` + `uv run mypy src/hks`，全綠並 commit 清理 —（DX, FR-061）
 - [x] T078 手動走 [quickstart.md](./quickstart.md) §1–§9 端對端；任何不符合描述處回頭修 code 或修 quickstart —（SC-004, acceptance）
 - [x] T079 最終憲法再檢：逐條核對 [plan.md Post-Design Re-Check](./plan.md) 五項 §I–§V 閘門；更新 `Complexity Tracking`（若有豁免）；更新 `spec.md` `Status: Draft → Complete` —（§I–§V）

@@ -1,8 +1,16 @@
 # Hybrid Knowledge System (HKS)
 
-[繁體中文](./readme.md)
+[繁體中文](./README.md)
 
 Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 1-3: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, high-confidence answers auto write back by default, and the system ships image ingest, the lint system, multi-agent coordination, and local MCP / HTTP adapters.
+
+## How This Project Runs
+
+HKS is not a daemon by default. The normal workflow is to run `uv run ks ...` only when you need it; each command exits after it finishes, and runtime data is stored under `$KS_ROOT`.
+
+- Humans / shell scripts / Codex / Claude Code / OpenClaw: call `ks ingest`, `ks query`, `ks lint`, and `ks coord` directly
+- MCP agent integration: start `hks-mcp`; stdio mode is usually launched by the agent client and lives for that session
+- HTTP client integration: start `hks-api` or `hks-mcp --transport streamable-http`; keep that process running only while clients need to call it
 
 ## What Ships Today
 
@@ -14,13 +22,29 @@ Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The cu
 - `hks-api`: optional loopback HTTP facade for `/query`, `/ingest`, `/lint`, and `/coord/*`
 - Standalone image ingest now supports `png / jpg / jpeg` via local `tesseract`; `.heic / .webp` and VLM are still out of scope
 
-## 5-Minute Quick Start
+## Installation
+
+Prerequisites:
+
+- On macOS, use Homebrew for system tools
+- Python runtime is managed by `mise`; Python packages are installed by `uv`
+- Image ingest requires local `tesseract` and language data
+- `jq` is optional, but useful for checking JSON output
 
 ```bash
-brew install tesseract tesseract-lang
+git clone https://github.com/WaynezProg/Hybrid-Knowledge-System.git
+cd Hybrid-Knowledge-System
+brew install tesseract tesseract-lang jq
 mise install
 uv sync
 make fixtures
+```
+
+If you only need text / Office ingest, you can skip `tesseract` until you ingest `png / jpg / jpeg`.
+
+## 5-Minute Quick Start
+
+```bash
 export KS_ROOT=$(mktemp -d /tmp/hks.XXXXXX)
 export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
@@ -31,6 +55,8 @@ uv run ks coord lease claim agent-a wiki:atlas | jq .
 uv run hks-mcp --help
 cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 ```
+
+`HKS_EMBEDDING_MODEL=simple` is best for CI, demos, and agent smoke tests. For real use, remove it to use the default `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, or point `HKS_EMBEDDING_MODEL` at a local model directory.
 
 ## How To Use It
 
@@ -97,6 +123,25 @@ Coordination state is stored at `$KS_ROOT/coordination/state.json`; events appen
 - `lease`: claims ownership for a logical `resource_key`; conflicts exit `1` while stdout remains schema-valid JSON with `trace.steps[kind="coordination_summary"].detail.conflicts`
 - `handoff`: records a summary, next action, blocked_by, and references
 - `coord lint`: checks missing references and stale active leases
+
+### Agent Integration
+
+Codex, Claude Code, OpenClaw, or any other local agent can use HKS in three ways:
+
+```bash
+# 1. Simplest path: the agent runs CLI commands directly
+export KS_ROOT=/path/to/hks-runtime
+uv run ks query "What are the current Project Atlas risks?" --writeback=no
+uv run ks lint --strict
+
+# 2. MCP stdio: let an MCP-capable agent client launch this server
+uv run hks-mcp --transport stdio
+
+# 3. HTTP: for tools that cannot use MCP but can call loopback HTTP
+uv run hks-api --host 127.0.0.1 --port 8766
+```
+
+Agent read paths should explicitly use `--writeback=no`, or rely on the MCP `hks_query` default, to avoid background queries creating wiki pages. When multiple agents share one `$KS_ROOT`, use `ks coord lease` to claim a logical resource before editing and record handoffs with `ks coord handoff`.
 
 ### MCP / HTTP Adapter
 
