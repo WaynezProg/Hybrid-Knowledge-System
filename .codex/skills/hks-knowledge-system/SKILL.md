@@ -11,13 +11,16 @@ description: Operate the Hybrid Knowledge System through its main `ks` CLI. Use 
 
 ## 先讀順序
 
-1. `README.md`：skill 框架與檔案地圖
-2. `commands/cli.md`：完整 `ks` command surface
-3. `workflows/persistent-workspace.md`：建立可重用的持久化 knowledge runtime
-4. `config/shared-runtime.sh`：多 agent 共用同一個 repo-local runtime
-5. `workflows/smoke-test.md`：最小驗證流程
-6. `policies/safety.md`：mutation boundary 與環境規則
-7. `contracts/response-contract.md`：JSON response contract
+完整 skill framework 在 repo root 的 `skill/hks-knowledge-system/`。先讀：
+
+1. `skill/hks-knowledge-system/README.md`：skill 框架與檔案地圖
+2. `skill/hks-knowledge-system/commands/cli.md`：完整 `ks` command surface
+3. `skill/hks-knowledge-system/config/discover-runtime.sh`：先找出目前 workspace 內的 ignored local runtime
+4. `skill/hks-knowledge-system/workflows/persistent-workspace.md`：建立可重用的持久化 knowledge runtime
+5. `skill/hks-knowledge-system/config/shared-runtime.sh`：多 agent 共用同一個 repo-local runtime
+6. `skill/hks-knowledge-system/workflows/smoke-test.md`：最小驗證流程
+7. `skill/hks-knowledge-system/policies/safety.md`：mutation boundary 與環境規則
+8. `skill/hks-knowledge-system/contracts/response-contract.md`：JSON response contract
 
 ## 核心規則
 
@@ -45,6 +48,7 @@ uv run ks lint --strict
 如果 agent 要跨 session 重用知識庫，不要只用 temporary `KS_ROOT`。先建立 repo-local runtime 並註冊 workspace：
 
 ```bash
+sh skill/hks-knowledge-system/config/discover-runtime.sh
 . skill/hks-knowledge-system/config/shared-runtime.sh
 uv run ks ingest <source-dir>
 uv run ks workspace register work --ks-root "$KS_ROOT" --label "Work"

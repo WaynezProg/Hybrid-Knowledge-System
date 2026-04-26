@@ -49,6 +49,7 @@ uv run ks lint --strict
 ## Persistent Setup
 
 ```bash
+sh skill/hks-knowledge-system/config/discover-runtime.sh
 . skill/hks-knowledge-system/config/shared-runtime.sh
 uv run ks ingest <source-dir>
 uv run ks workspace register work --ks-root "$KS_ROOT" --label "Work"
@@ -58,6 +59,7 @@ uv run ks workspace query work "目前有哪些資料？" --writeback=no
 If OpenClaw says no persistent HKS knowledge base exists, run:
 
 ```bash
+sh skill/hks-knowledge-system/config/discover-runtime.sh
 . skill/hks-knowledge-system/config/shared-runtime.sh
 echo "$KS_ROOT"
 echo "$HKS_EMBEDDING_MODEL"
@@ -65,5 +67,7 @@ uv run ks source list
 ```
 
 If it points at `./ks`, it is using the fallback runtime, not the shared runtime.
+
+Do not infer the active knowledge base from tracked repo changes. Runtime data is intentionally ignored; `discover-runtime.sh` is the source of truth for local candidates.
 
 If query fails with an embedding dimension mismatch, keep `HKS_EMBEDDING_MODEL` aligned with the model used during ingest. For smoke-test or demo runtimes, this is usually `simple`.
