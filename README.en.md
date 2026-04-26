@@ -2,7 +2,7 @@
 
 [繁體中文](./readme.md)
 
-Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 2 and added Phase 3 image ingest, the lint system, multi-agent coordination, and local MCP / HTTP adapters: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, and high-confidence answers auto write back by default.
+Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 1-3: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, high-confidence answers auto write back by default, and the system ships image ingest, the lint system, multi-agent coordination, and local MCP / HTTP adapters.
 
 ## What Ships Today
 
@@ -146,6 +146,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 - `HKS_EMBEDDING_MODEL`: embedding backend; `simple` is best for offline smoke tests and CI
 - `HKS_ROUTING_MODEL`: routing backend label and extension point for future local models; default `simple`
 - `HKS_WRITEBACK_AUTO_THRESHOLD`: auto write-back threshold, default `0.75`
+- `HKS_MAX_FILE_MB`: max `txt / md / pdf` file size for ingest, default `200`; Office and image inputs use their own limits
 - `HKS_OFFICE_MAX_FILE_MB`: max Office file size for ingest, default `200`
 - `HKS_OFFICE_TIMEOUT_SEC`: Office parser timeout in seconds, default `60`
 - `HKS_IMAGE_MAX_FILE_MB`: max image file size for ingest, default `20`

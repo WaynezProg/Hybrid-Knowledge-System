@@ -2,7 +2,7 @@
 
 [English](./README.en.md)
 
-Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。現在的 runtime 已完成 Phase 2，並補上 Phase 3 的 image ingest、lint system、multi-agent coordination 與 local MCP / HTTP adapter：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 會在 `wiki / graph / vector` 三層間切換，relation 類問題優先走 graph，高 confidence 答案預設自動 write-back。
+Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。目前 runtime 已完成 Phase 1-3：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 會在 `wiki / graph / vector` 三層間切換，relation 類問題優先走 graph，高 confidence 答案預設自動 write-back，並提供 image ingest、lint system、multi-agent coordination 與 local MCP / HTTP adapter。
 
 ## 目前能做什麼
 
@@ -146,6 +146,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 - `HKS_EMBEDDING_MODEL`：embedding backend；`simple` 適合離線 smoke / CI
 - `HKS_ROUTING_MODEL`：routing backend 標記與未來接本機 model 的入口；預設 `simple`
 - `HKS_WRITEBACK_AUTO_THRESHOLD`：auto write-back 門檻，預設 `0.75`
+- `HKS_MAX_FILE_MB`：`txt / md / pdf` 單檔 ingest 上限，預設 `200`；Office 與 Image 使用各自上限
 - `HKS_OFFICE_MAX_FILE_MB`：Office 單檔 ingest 上限，預設 `200`
 - `HKS_OFFICE_TIMEOUT_SEC`：Office parser timeout，預設 `60`
 - `HKS_IMAGE_MAX_FILE_MB`：Image 單檔 ingest 上限，預設 `20`

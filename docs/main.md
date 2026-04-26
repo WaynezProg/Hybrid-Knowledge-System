@@ -112,7 +112,7 @@ stdout 契約統一：
 
 ## 6. Write-back
 
-### 現在的 Phase 2 行為
+### 目前行為
 
 * 預設模式：`auto`
 * `confidence >= HKS_WRITEBACK_AUTO_THRESHOLD`（預設 `0.75`）→ 自動回寫 wiki
@@ -219,7 +219,15 @@ MCP 暴露 `hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_
 
 ---
 
-## 11. 非目標
+## 11. Runtime configuration
+
+常用環境變數不在本文件重複列完整清單，避免 drift。請以 [readme.md#常用環境變數](../readme.md#常用環境變數) 與 [README.en.md#useful-environment-variables](../README.en.md#useful-environment-variables) 為準。
+
+檔案大小上限分三組：`HKS_MAX_FILE_MB` 管 `txt / md / pdf`，`HKS_OFFICE_MAX_FILE_MB` 管 Office，`HKS_IMAGE_MAX_FILE_MB` 管 image。
+
+---
+
+## 12. 非目標
 
 目前仍不做：
 
