@@ -90,6 +90,10 @@ async def wiki_synthesize_endpoint(request: Request) -> Response:
     return await _adapter_response(request, core.hks_wiki_synthesize)
 
 
+async def graphify_build_endpoint(request: Request) -> Response:
+    return await _adapter_response(request, core.hks_graphify_build)
+
+
 async def coord_session_endpoint(request: Request) -> Response:
     return await _adapter_response(request, core.hks_coord_session)
 
@@ -114,6 +118,7 @@ def create_app() -> Starlette:
             Route("/lint", lint_endpoint, methods=["POST"]),
             Route("/llm/classify", llm_classify_endpoint, methods=["POST"]),
             Route("/wiki/synthesize", wiki_synthesize_endpoint, methods=["POST"]),
+            Route("/graphify/build", graphify_build_endpoint, methods=["POST"]),
             Route("/coord/session", coord_session_endpoint, methods=["POST"]),
             Route("/coord/lease", coord_lease_endpoint, methods=["POST"]),
             Route("/coord/handoff", coord_handoff_endpoint, methods=["POST"]),

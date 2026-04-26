@@ -2,13 +2,13 @@
 
 [English](./README.en.md)
 
-Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。目前 runtime 已完成 Phase 1-3 與 009：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 會在 `wiki / graph / vector` 三層間切換，relation 類問題優先走 graph，高 confidence 答案預設自動 write-back，並提供 image ingest、lint system、multi-agent coordination、local MCP / HTTP adapter、LLM-assisted classification/extraction candidate artifact，以及 LLM-assisted wiki synthesis。
+Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。目前 runtime 已完成 Phase 1-3 與 008-010：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 會在 `wiki / graph / vector` 三層間切換，relation 類問題優先走 graph，高 confidence 答案預設自動 write-back，並提供 image ingest、lint system、multi-agent coordination、local MCP / HTTP adapter、LLM-assisted classification/extraction、LLM-assisted wiki synthesis，以及 derived Graphify artifacts。
 
 ## 這個專案怎麼運作
 
 HKS 預設不是常駐服務。一般使用方式是需要時執行 `uv run ks ...` 指令，指令完成後結束；資料會保存在 `$KS_ROOT`。
 
-- 一般使用者 / shell / Codex / Claude Code / OpenClaw：直接呼叫 `ks ingest`、`ks query`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`
+- 一般使用者 / shell / Codex / Claude Code / OpenClaw：直接呼叫 `ks ingest`、`ks query`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`、`ks graphify build`
 - MCP agent integration：啟動 `hks-mcp`；stdio 模式通常由 agent client 啟動並跟著 session 存活
 - HTTP client integration：啟動 `hks-api` 或 `hks-mcp --transport streamable-http`；有 client 要連線時才需要保持該 process running
 
@@ -20,8 +20,9 @@ HKS 預設不是常駐服務。一般使用方式是需要時執行 `uv run ks .
 - `ks coord session|lease|handoff|status|lint`：提供 agent presence、resource lease、handoff notes 與 coordination ledger lint
 - `ks llm classify <source-relpath> [--mode preview|store] [--provider fake]`：對已 ingest source 產生 LLM classification / summary / fact / entity / relation candidates；preview 預設不改 wiki / graph / vector，store 只寫 `$KS_ROOT/llm/extractions/`
 - `ks wiki synthesize --mode preview|store|apply`：consume 008 extraction artifact，產生 / 儲存 / 明確套用 wiki synthesis candidate；`apply` 只吃 stored candidate artifact
-- `hks-mcp --transport stdio|streamable-http`：以本機 MCP tools 暴露 query / ingest / lint / coordination / LLM extraction / wiki synthesis tools
-- `hks-api`：optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`、`/llm/classify`、`/wiki/synthesize`、`/coord/*`
+- `ks graphify build --mode preview|store`：從既有 wiki / graph / 008 / 009 lineage 產生 derived graphify JSON、communities、audit、static HTML、Markdown report；不改 authoritative graph
+- `hks-mcp --transport stdio|streamable-http`：以本機 MCP tools 暴露 query / ingest / lint / coordination / LLM extraction / wiki synthesis / graphify tools
+- `hks-api`：optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`、`/llm/classify`、`/wiki/synthesize`、`/graphify/build`、`/coord/*`
 - 獨立圖片檔 ingest 已支援 `png / jpg / jpeg`，以本機 `tesseract` OCR 處理；`.heic / .webp` 與 VLM 仍未納入
 
 ## 安裝
@@ -55,6 +56,7 @@ uv run ks query "A 專案延遲會影響哪些系統" --writeback=no | jq .
 uv run ks llm classify project-atlas.txt --provider fake --mode preview | jq .
 uv run ks llm classify project-atlas.txt --provider fake --mode store | jq .
 uv run ks wiki synthesize --source-relpath project-atlas.txt --target-slug project-atlas-synthesis --mode store --provider fake | jq .
+uv run ks graphify build --mode store --provider fake | jq .
 uv run ks coord session start agent-a | jq .
 uv run ks coord lease claim agent-a wiki:atlas | jq .
 uv run hks-mcp --help
@@ -140,6 +142,20 @@ uv run ks wiki synthesize --candidate-artifact-id <candidate-id> --mode apply --
 - 若 target slug 已有非 `origin=llm_wiki` 頁面，會 fail closed，exit `1` 且 stdout 仍是 HKS JSON
 - 成功 response 使用 `trace.steps[kind="wiki_synthesis_summary"]`
 
+### Graphify
+
+```bash
+uv run ks graphify build --mode preview --provider fake
+uv run ks graphify build --mode store --provider fake
+uv run ks graphify build --mode store --no-html --provider fake
+```
+
+- `preview` 只回傳 `graphify_summary`，不寫任何 runtime layer
+- `store` 只寫 `$KS_ROOT/graphify/runs/<run-id>/` 與 `$KS_ROOT/graphify/latest.json`
+- output 包含 `graphify.json`、`communities.json`、`audit.json`、`manifest.json`、`graph.html`、`GRAPH_REPORT.md`
+- Graphify 是 derived analysis layer，不會修改 authoritative `graph/graph.json`、`wiki/`、`vector/` 或 `manifest.json`
+- 成功 response 使用 `trace.route="graph"`、`trace.steps[kind="graphify_summary"]`，`source` 只列實際讀取的穩定 layer，例如 `["wiki","graph"]`
+
 ### Coordination
 
 ```bash
@@ -168,6 +184,7 @@ export KS_ROOT=/path/to/hks-runtime
 uv run ks query "Project Atlas 目前風險是什麼？" --writeback=no
 uv run ks llm classify project-atlas.txt --provider fake --mode preview
 uv run ks wiki synthesize --source-relpath project-atlas.txt --mode preview --provider fake
+uv run ks graphify build --mode preview --provider fake
 uv run ks lint --strict
 
 # 2. MCP stdio：讓支援 MCP 的 agent client 啟動這個 server
@@ -187,8 +204,8 @@ uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
-- MCP tools：`hks_query`、`hks_ingest`、`hks_lint`、`hks_llm_classify`、`hks_wiki_synthesize`、`hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_coord_status`
-- HTTP endpoints：`/query`、`/ingest`、`/lint`、`/llm/classify`、`/wiki/synthesize`、`/coord/session`、`/coord/lease`、`/coord/handoff`、`/coord/status`
+- MCP tools：`hks_query`、`hks_ingest`、`hks_lint`、`hks_llm_classify`、`hks_wiki_synthesize`、`hks_graphify_build`、`hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_coord_status`
+- HTTP endpoints：`/query`、`/ingest`、`/lint`、`/llm/classify`、`/wiki/synthesize`、`/graphify/build`、`/coord/session`、`/coord/lease`、`/coord/handoff`、`/coord/status`
 - 成功 payload 直接沿用 `ks` 的 top-level JSON shape，不包 adapter envelope
 - 錯誤 payload 使用 `{ok:false,error:{code,exit_code,message,details},response?}`
 - adapter 預設 local-first；Streamable HTTP 與 HTTP facade 預設只允許 loopback host
@@ -211,7 +228,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 }
 ```
 
-`ks ingest`、`ks query`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize` 共用同一 top-level JSON shape。`ks llm classify` 與 `ks wiki synthesize --mode preview|store` 使用 `source=[]`，語意由 trace step kind 區分；`ks wiki synthesize --mode apply` 成功後使用 `source=["wiki"]`。
+`ks ingest`、`ks query`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`、`ks graphify build` 共用同一 top-level JSON shape。`ks llm classify` 與 `ks wiki synthesize --mode preview|store` 使用 `source=[]`，語意由 trace step kind 區分；`ks wiki synthesize --mode apply` 成功後使用 `source=["wiki"]`。`ks graphify build` 使用 `trace.route="graph"`，`source` 表示實際讀取的穩定 HKS layer，不能出現 `"graphify"`。
 
 ## Exit Code
 
@@ -253,6 +270,8 @@ uv run hks-api --host 127.0.0.1 --port 8766
 - Phase 3 MCP / API adapter：[specs/006-mcp-api-adapter/spec.md](./specs/006-mcp-api-adapter/spec.md)
 - Phase 3 multi-agent support：[specs/007-multi-agent-support/spec.md](./specs/007-multi-agent-support/spec.md)
 - LLM-assisted classification / extraction：[specs/008-llm-classification-extraction/spec.md](./specs/008-llm-classification-extraction/spec.md)
+- LLM-assisted wiki synthesis：[specs/009-llm-wiki-synthesis/spec.md](./specs/009-llm-wiki-synthesis/spec.md)
+- Graphify pipeline：[specs/010-graphify-pipeline/spec.md](./specs/010-graphify-pipeline/spec.md)
 
 ## 開發檢查
 

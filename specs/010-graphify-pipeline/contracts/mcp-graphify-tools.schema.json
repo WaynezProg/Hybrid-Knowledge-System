@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/mcp-graphify-tools.schema.json",
+  "title": "HKS MCP Graphify tool input schemas",
+  "type": "object",
+  "required": ["tools"],
+  "additionalProperties": false,
+  "properties": {
+    "tools": {
+      "type": "object",
+      "required": ["hks_graphify_build"],
+      "additionalProperties": false,
+      "properties": {
+        "hks_graphify_build": { "$ref": "#/$defs/buildInput" }
+      }
+    }
+  },
+  "$defs": {
+    "buildInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": ["preview", "store"],
+          "default": "preview"
+        },
+        "provider": { "type": "string", "default": "fake" },
+        "model": { "type": ["string", "null"], "minLength": 1 },
+        "algorithm_version": { "type": ["string", "null"], "minLength": 1 },
+        "include_html": { "type": "boolean", "default": true },
+        "include_report": { "type": "boolean", "default": true },
+        "force_new_run": { "type": "boolean", "default": false },
+        "requested_by": { "type": ["string", "null"], "minLength": 1 },
+        "ks_root": { "type": ["string", "null"], "minLength": 1 }
+      }
+    }
+  }
+}

@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/graphify-graph.schema.json",
+  "title": "HKS Graphify graph artifact",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "input_layers", "nodes", "edges", "communities", "audit_findings"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "input_layers": {
+      "type": "array",
+      "items": { "type": "string", "enum": ["wiki", "graph", "llm_extraction", "llm_wiki"] },
+      "uniqueItems": true
+    },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    },
+    "communities": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/community" }
+    },
+    "audit_findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/auditFinding" }
+    }
+  },
+  "$defs": {
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source_relpath": { "type": ["string", "null"] },
+        "wiki_page": { "type": ["string", "null"] },
+        "artifact_id": { "type": ["string", "null"] },
+        "source_fingerprint": { "type": ["string", "null"] }
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "label", "kind", "source_layer", "source_ref", "provenance", "community_id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "enum": ["source", "wiki_page", "entity", "concept", "artifact", "community"] },
+        "source_layer": { "type": "string", "enum": ["wiki", "graph", "llm_extraction", "llm_wiki", "graphify"] },
+        "source_ref": { "type": "string", "minLength": 1 },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "community_id": { "type": ["string", "null"] }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["id", "source", "target", "relation", "evidence", "confidence_score", "weight", "source_layer", "source_ref", "rationale"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "source": { "type": "string", "minLength": 1 },
+        "target": { "type": "string", "minLength": 1 },
+        "relation": { "type": "string", "minLength": 1 },
+        "evidence": { "type": "string", "enum": ["EXTRACTED", "INFERRED", "AMBIGUOUS"] },
+        "confidence_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "weight": { "type": "number", "minimum": 0 },
+        "source_layer": { "type": "string", "enum": ["wiki", "graph", "llm_extraction", "llm_wiki", "graphify"] },
+        "source_ref": { "type": "string", "minLength": 1 },
+        "rationale": { "type": ["string", "null"] }
+      }
+    },
+    "community": {
+      "type": "object",
+      "required": ["community_id", "label", "summary", "node_ids", "representative_edge_ids", "classification_method", "confidence_score", "provenance"],
+      "additionalProperties": false,
+      "properties": {
+        "community_id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string" },
+        "node_ids": { "type": "array", "items": { "type": "string" } },
+        "representative_edge_ids": { "type": "array", "items": { "type": "string" } },
+        "classification_method": { "type": "string", "enum": ["deterministic", "llm"] },
+        "confidence_score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      }
+    },
+    "auditFinding": {
+      "type": "object",
+      "required": ["severity", "code", "message", "source_ref", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "severity": { "type": "string", "enum": ["info", "warning", "error"] },
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "source_ref": { "type": ["string", "null"] },
+        "evidence": { "type": ["string", "null"] }
+      }
+    }
+  }
+}

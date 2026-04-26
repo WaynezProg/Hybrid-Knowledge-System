@@ -6,7 +6,12 @@ from collections import Counter
 
 from jsonschema import ValidationError
 
-from hks.adapters.contracts import validate_llm_artifact, validate_wiki_artifact
+from hks.adapters.contracts import (
+    validate_graphify_graph,
+    validate_graphify_run,
+    validate_llm_artifact,
+    validate_wiki_artifact,
+)
 from hks.ingest.fingerprint import (
     ParserFlags,
     are_fingerprints_compatible,
@@ -24,6 +29,7 @@ def run_checks(snapshot: RuntimeSnapshot) -> list[Finding]:
     findings.extend(check_fingerprint(snapshot))
     findings.extend(check_llm_artifacts(snapshot))
     findings.extend(check_wiki_synthesis(snapshot))
+    findings.extend(check_graphify(snapshot))
     return sorted(
         findings,
         key=lambda finding: (finding.category, finding.target, finding.message),
@@ -335,6 +341,60 @@ def check_wiki_synthesis(snapshot: RuntimeSnapshot) -> list[Finding]:
                     record.file_slug,
                     f"llm_wiki page `{record.file_slug}` references missing candidate artifact",
                     details={"wiki_candidate_artifact_id": candidate_id},
+                )
+            )
+    return findings
+
+
+def check_graphify(snapshot: RuntimeSnapshot) -> list[Finding]:
+    findings: list[Finding] = []
+    for target in sorted(snapshot.graphify_partial_runs):
+        findings.append(
+            Finding.make(
+                "graphify_partial_run",
+                target,
+                f"graphify run `{target}` is missing required artifacts",
+            )
+        )
+    if snapshot.graphify_latest_error:
+        findings.append(
+            Finding.make(
+                "graphify_latest_mismatch",
+                "graphify/latest.json",
+                snapshot.graphify_latest_error,
+            )
+        )
+    for relpath, error in sorted(snapshot.graphify_artifact_errors.items()):
+        findings.append(
+            Finding.make(
+                "graphify_corrupt_upstream_artifact",
+                relpath,
+                f"graphify artifact `{relpath}` cannot be parsed",
+                details={"error": error},
+            )
+        )
+    for relpath, payload in sorted(snapshot.graphify_run_manifests.items()):
+        try:
+            validate_graphify_run(payload)
+        except ValidationError as exc:
+            findings.append(
+                Finding.make(
+                    "graphify_invalid_graph",
+                    relpath,
+                    f"graphify run manifest `{relpath}` does not match schema",
+                    details={"error": exc.message},
+                )
+            )
+    for relpath, payload in sorted(snapshot.graphify_graph_artifacts.items()):
+        try:
+            validate_graphify_graph(payload)
+        except ValidationError as exc:
+            findings.append(
+                Finding.make(
+                    "graphify_invalid_graph",
+                    relpath,
+                    f"graphify graph artifact `{relpath}` does not match schema",
+                    details={"error": exc.message},
                 )
             )
     return findings

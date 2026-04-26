@@ -52,7 +52,11 @@
           "wiki_candidate_artifact_invalid",
           "wiki_candidate_artifact_corrupt",
           "wiki_synthesis_frontmatter_invalid",
-          "wiki_synthesis_partial_apply"
+          "wiki_synthesis_partial_apply",
+          "graphify_invalid_graph",
+          "graphify_corrupt_upstream_artifact",
+          "graphify_partial_run",
+          "graphify_latest_mismatch"
         ]
       }
     },
@@ -89,7 +93,11 @@
         "wiki_candidate_artifact_invalid",
         "wiki_candidate_artifact_corrupt",
         "wiki_synthesis_frontmatter_invalid",
-        "wiki_synthesis_partial_apply"
+        "wiki_synthesis_partial_apply",
+        "graphify_invalid_graph",
+        "graphify_corrupt_upstream_artifact",
+        "graphify_partial_run",
+        "graphify_latest_mismatch"
       ]
     },
     "severity": {

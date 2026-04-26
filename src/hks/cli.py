@@ -12,6 +12,7 @@ import typer
 
 from hks import __version__
 from hks.commands import coord as coord_command
+from hks.commands import graphify as graphify_command
 from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
 from hks.commands import llm as llm_command
@@ -29,6 +30,7 @@ app = typer.Typer(
 coord_app = typer.Typer(add_completion=False, no_args_is_help=True)
 llm_app = typer.Typer(add_completion=False, no_args_is_help=True)
 wiki_app = typer.Typer(add_completion=False, no_args_is_help=True)
+graphify_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_session_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_lease_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_handoff_app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -38,6 +40,7 @@ coord_app.add_typer(coord_handoff_app, name="handoff")
 app.add_typer(coord_app, name="coord")
 app.add_typer(llm_app, name="llm")
 app.add_typer(wiki_app, name="wiki")
+app.add_typer(graphify_app, name="graphify")
 
 
 class WritebackMode(StrEnum):
@@ -61,6 +64,11 @@ class WikiSynthesisMode(StrEnum):
     preview = "preview"
     store = "store"
     apply = "apply"
+
+
+class GraphifyMode(StrEnum):
+    preview = "preview"
+    store = "store"
 
 
 def version_callback(value: bool) -> None:
@@ -87,6 +95,8 @@ def emit_error(command: str, error: KSError) -> NoReturn:
     route: Route = "wiki"
     if error.route == "vector":
         route = "vector"
+    if error.route == "graph":
+        route = "graph"
     typer.echo(error.stderr_message(command), err=True)
     if error.response is not None:
         emit_response(error.response)
@@ -273,6 +283,49 @@ def wiki_synthesize(
         provider=provider,
         model=model,
         prompt_version=prompt_version,
+        force_new_run=force_new_run,
+        requested_by=requested_by,
+    )
+
+
+@graphify_app.command("build")
+def graphify_build(
+    mode: Annotated[
+        GraphifyMode,
+        typer.Option("--mode", case_sensitive=False, help="Graphify build mode."),
+    ] = GraphifyMode.preview,
+    provider: Annotated[str, typer.Option("--provider", help="Classifier provider id.")] = "fake",
+    model: Annotated[str | None, typer.Option("--model", help="Provider model id.")] = None,
+    algorithm_version: Annotated[
+        str | None,
+        typer.Option("--algorithm-version", help="Graphify algorithm version."),
+    ] = None,
+    include_html: Annotated[
+        bool,
+        typer.Option("--html/--no-html", help="Write static HTML in store mode."),
+    ] = True,
+    include_report: Annotated[
+        bool,
+        typer.Option("--report/--no-report", help="Write Markdown report in store mode."),
+    ] = True,
+    force_new_run: Annotated[
+        bool,
+        typer.Option("--force-new-run", help="Do not reuse an existing graphify run."),
+    ] = False,
+    requested_by: Annotated[
+        str | None,
+        typer.Option("--requested-by", help="Agent or user label for audit."),
+    ] = None,
+) -> None:
+    run_command(
+        "graphify build",
+        graphify_command.run_build,
+        mode=mode.value,
+        provider=provider,
+        model=model,
+        algorithm_version=algorithm_version,
+        include_html=include_html,
+        include_report=include_report,
         force_new_run=force_new_run,
         requested_by=requested_by,
     )
