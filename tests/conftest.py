@@ -53,6 +53,8 @@ def tmp_ks_root(tmp_path: Path) -> Path:
 def _test_env(monkeypatch: pytest.MonkeyPatch, tmp_ks_root: Path) -> None:
     monkeypatch.setenv("HKS_EMBEDDING_MODEL", "simple")
     monkeypatch.setenv("KS_ROOT", str(tmp_ks_root))
+    monkeypatch.setenv("HKS_CONFIG_ENV", str(tmp_ks_root / "missing.env"))
+    monkeypatch.setenv("HKS_CONFIG_FILE", str(tmp_ks_root / "missing.yaml"))
 
 
 @pytest.fixture()

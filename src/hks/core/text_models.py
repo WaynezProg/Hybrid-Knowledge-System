@@ -4,15 +4,13 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import re
-import shlex
 from functools import cached_property
-from pathlib import Path
 from typing import cast
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from hks.core.config import config_value
 from hks.errors import ExitCode, KSError
 
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
@@ -25,7 +23,7 @@ TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]+|[\u4e00-\u9fff]|[^\s]")
 
 
 def resolve_embedding_model() -> str:
-    return os.environ.get("HKS_EMBEDDING_MODEL", DEFAULT_EMBEDDING_MODEL)
+    return config_value("HKS_EMBEDDING_MODEL") or DEFAULT_EMBEDDING_MODEL
 
 
 def simple_tokenize(text: str, *, lowercase: bool = False) -> list[str]:
@@ -79,52 +77,6 @@ def _normalize_embedding(vector: list[float]) -> list[float]:
 
 def _is_openai_embedding_model(model_name: str) -> bool:
     return model_name.startswith(OPENAI_EMBEDDING_PREFIX)
-
-
-def _default_config_env_path() -> Path:
-    configured = os.environ.get("HKS_CONFIG_ENV")
-    if configured:
-        return Path(configured).expanduser()
-
-    repo_root = os.environ.get("HKS_REPO_ROOT")
-    if repo_root:
-        return Path(repo_root).expanduser() / "config" / "hks.env"
-
-    cwd = Path.cwd()
-    for root in (cwd, *cwd.parents):
-        if (root / "pyproject.toml").exists() and (root / "config").is_dir():
-            return root / "config" / "hks.env"
-    return cwd / "config" / "hks.env"
-
-
-def _read_env_file(path: Path) -> dict[str, str]:
-    if not path.exists():
-        return {}
-
-    values: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        try:
-            parts = shlex.split(line, comments=True, posix=True)
-        except ValueError:
-            continue
-        if not parts:
-            continue
-        if parts[0] == "export":
-            parts = parts[1:]
-        for part in parts:
-            if "=" not in part:
-                continue
-            key, value = part.split("=", 1)
-            if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
-                values[key] = value
-    return values
-
-
-def _config_value(name: str) -> str | None:
-    value = os.environ.get(name)
-    if value:
-        return value
-    return _read_env_file(_default_config_env_path()).get(name)
 
 
 class TextModelBackend:
@@ -257,7 +209,7 @@ class TextModelBackend:
         if not texts:
             return []
 
-        api_key = _config_value("HKS_OPENAI_API_KEY") or _config_value("OPENAI_API_KEY")
+        api_key = config_value("HKS_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
         if not api_key:
             raise KSError(
                 "缺少 OpenAI embedding API key",
@@ -271,7 +223,7 @@ class TextModelBackend:
             "input": texts,
             "encoding_format": "float",
         }
-        dimensions = _config_value("HKS_OPENAI_EMBEDDING_DIMENSIONS")
+        dimensions = config_value("HKS_OPENAI_EMBEDDING_DIMENSIONS")
         if dimensions:
             try:
                 payload["dimensions"] = int(dimensions)
@@ -282,9 +234,9 @@ class TextModelBackend:
                     code="OPENAI_EMBEDDING_INVALID_DIMENSIONS",
                 ) from exc
 
-        endpoint = _config_value("HKS_OPENAI_EMBEDDING_ENDPOINT") or os.environ.get(
-            "HKS_OPENAI_EMBEDDING_ENDPOINT",
-            DEFAULT_OPENAI_EMBEDDING_ENDPOINT,
+        endpoint = (
+            config_value("HKS_OPENAI_EMBEDDING_ENDPOINT")
+            or DEFAULT_OPENAI_EMBEDDING_ENDPOINT
         )
         request = Request(
             endpoint,
@@ -295,7 +247,7 @@ class TextModelBackend:
             },
             method="POST",
         )
-        timeout = float(_config_value("HKS_OPENAI_TIMEOUT_SECONDS") or "60")
+        timeout = float(config_value("HKS_OPENAI_TIMEOUT_SECONDS") or "60")
 
         try:
             with urlopen(request, timeout=timeout) as response:

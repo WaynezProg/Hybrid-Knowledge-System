@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
 import typer
 
+from hks.core.config import config_value
 from hks.storage.wiki import EventStatus
 
 type WritebackFlag = Literal["auto", "yes", "no", "ask"]
@@ -26,7 +26,7 @@ def prompt_user() -> bool:
 
 
 def auto_threshold() -> float:
-    return float(os.environ.get("HKS_WRITEBACK_AUTO_THRESHOLD", "0.75"))
+    return float(config_value("HKS_WRITEBACK_AUTO_THRESHOLD") or "0.75")
 
 
 def decide(

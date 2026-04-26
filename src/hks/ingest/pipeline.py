@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import shutil
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from hks.core.config import config_value
 from hks.core.lock import file_lock
 from hks.core.manifest import (
     DerivedArtifacts,
@@ -90,7 +90,7 @@ PARSERS: dict[SourceFormat, Callable[..., ParsedDocument]] = {
 
 
 def max_file_mb() -> int:
-    return int(os.environ.get("HKS_MAX_FILE_MB", "200"))
+    return int(config_value("HKS_MAX_FILE_MB") or "200")
 
 
 def discover_files(path: Path) -> list[Path]:

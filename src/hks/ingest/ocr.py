@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import csv
-import os
 import re
 import shutil
 import subprocess
@@ -14,6 +13,7 @@ from pathlib import Path
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
+from hks.core.config import config_value
 from hks.errors import ExitCode, KSError
 
 _DEFAULT_LANGS = "eng+chi_tra"
@@ -160,7 +160,7 @@ def _available_languages(binary: str) -> tuple[str, ...]:
 
 
 def _requested_languages() -> tuple[str, ...]:
-    raw = os.environ.get("HKS_OCR_LANGS", _DEFAULT_LANGS)
+    raw = config_value("HKS_OCR_LANGS") or _DEFAULT_LANGS
     parts: list[str] = []
     seen: set[str] = set()
     for chunk in raw.replace(",", "+").split("+"):

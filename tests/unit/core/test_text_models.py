@@ -78,6 +78,7 @@ def test_openai_embedding_backend_requires_api_key(
     monkeypatch.delenv("HKS_OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("HKS_CONFIG_ENV", raising=False)
+    monkeypatch.setenv("HKS_CONFIG_FILE", "/missing/hks.yaml")
 
     with pytest.raises(KSError) as exc_info:
         TextModelBackend("openai:text-embedding-3-small").embed_texts(["alpha"])
@@ -116,6 +117,7 @@ def test_openai_embedding_backend_reads_api_key_from_config_file(
     monkeypatch.delenv("HKS_OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("HKS_CONFIG_ENV", str(config_path))
+    monkeypatch.setenv("HKS_CONFIG_FILE", str(tmp_path / "missing.yaml"))
     monkeypatch.setattr(text_models, "urlopen", fake_urlopen)
 
     embeddings = TextModelBackend("openai:text-embedding-3-small").embed_texts(["alpha"])

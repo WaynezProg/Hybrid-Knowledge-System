@@ -27,7 +27,7 @@ description: Operate the Hybrid Knowledge System through its main `ks` CLI. Use 
 - 實驗一律顯式設定 `KS_ROOT`。
 - 查詢預設用 `--writeback=no`，除非使用者要寫回 wiki。
 - smoke test 用 `HKS_EMBEDDING_MODEL=simple`。
-- OpenAI embedding 用 `HKS_EMBEDDING_MODEL=openai:text-embedding-3-small`，並設定 `HKS_OPENAI_API_KEY` 或 `OPENAI_API_KEY`。
+- OpenAI embedding 用 `config/hks.yaml` 設 `embedding.model=openai:text-embedding-3-small` 與 `embedding.openai.api_key`。
 - 修改 code、contract 或 agent-facing docs 後，至少跑 `ks --help`、`ruff`、`mypy`；行為變更要跑 pytest。
 
 ## 最小安全流程

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import os
 from typing import cast
 
+from hks.core.config import config_value
 from hks.errors import ExitCode, KSError
 from hks.llm.models import (
     DEFAULT_FAKE_MODEL,
@@ -19,7 +19,7 @@ SUPPORTED_PROVIDERS: frozenset[str] = frozenset(("fake", "fake-malformed", "fake
 
 
 def normalize_provider_id(value: str | None) -> str:
-    provider_id = (value or os.environ.get("HKS_LLM_PROVIDER") or "fake").strip()
+    provider_id = (value or config_value("HKS_LLM_PROVIDER") or "fake").strip()
     if not provider_id:
         raise KSError(
             "LLM provider 不可為空",
@@ -47,7 +47,7 @@ def build_provider_config(
     timeout_seconds: int = 30,
 ) -> LlmProviderConfig:
     provider = normalize_provider_id(provider_id)
-    model = model_id or os.environ.get("HKS_LLM_MODEL") or DEFAULT_FAKE_MODEL
+    model = model_id or config_value("HKS_LLM_MODEL") or DEFAULT_FAKE_MODEL
     if provider in SUPPORTED_PROVIDERS:
         return LlmProviderConfig(
             provider_id=provider,
@@ -56,9 +56,9 @@ def build_provider_config(
         )
 
     env_prefix = f"HKS_LLM_PROVIDER_{provider.upper().replace('-', '_')}"
-    network_opt_in = os.environ.get("HKS_LLM_NETWORK_OPT_IN") == "1"
-    api_key = os.environ.get(f"{env_prefix}_API_KEY")
-    endpoint = os.environ.get(f"{env_prefix}_ENDPOINT")
+    network_opt_in = config_value("HKS_LLM_NETWORK_OPT_IN") == "1"
+    api_key = config_value(f"{env_prefix}_API_KEY")
+    endpoint = config_value(f"{env_prefix}_ENDPOINT")
     if not network_opt_in:
         raise KSError(
             f"hosted/network LLM provider `{provider}` requires HKS_LLM_NETWORK_OPT_IN=1",

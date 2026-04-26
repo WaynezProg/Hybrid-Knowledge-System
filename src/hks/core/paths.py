@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
+
+from hks.core.config import config_value
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,7 +27,7 @@ def resolve_ks_root(root: Path | str | None = None) -> Path:
     if root is not None:
         return Path(root).expanduser().resolve(strict=False)
 
-    env_root = os.environ.get("KS_ROOT")
+    env_root = config_value("KS_ROOT")
     if env_root:
         return Path(env_root).expanduser().resolve(strict=False)
 

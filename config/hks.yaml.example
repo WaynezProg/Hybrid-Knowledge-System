@@ -1,0 +1,44 @@
+# Copy this file to config/hks.yaml and keep the real file out of git.
+# Environment variables override this file. config/hks.env also overrides this file.
+
+runtime:
+  ks_root: "${HKS_REPO_ROOT}/.hks-runs/openai/ks"
+  workspace_registry: "${HKS_REPO_ROOT}/.hks-runs/workspaces.json"
+
+embedding:
+  model: "openai:text-embedding-3-small"
+  openai:
+    api_key: "sk-REPLACE_ME"
+    endpoint: "https://api.openai.com/v1/embeddings"
+    dimensions: 1536
+    timeout_seconds: 60
+
+routing:
+  model: "simple"
+  rules_path: null
+
+writeback:
+  auto_threshold: 0.75
+
+ingest:
+  max_file_mb: 200
+  office:
+    timeout_sec: 60
+    max_file_mb: 200
+  image:
+    timeout_sec: 30
+    max_file_mb: 20
+    max_pixels: 100000000
+  ocr:
+    langs:
+      - eng
+      - chi_tra
+
+llm:
+  provider: "fake"
+  model: "fake-llm-extractor-v1"
+  network_opt_in: false
+  providers:
+    openai:
+      api_key: "sk-REPLACE_ME"
+      endpoint: null

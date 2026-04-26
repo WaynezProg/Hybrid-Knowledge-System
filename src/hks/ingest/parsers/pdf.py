@@ -3,19 +3,19 @@
 from __future__ import annotations
 
 import io
-import os
 from contextlib import redirect_stderr
 from pathlib import Path
 
 from pypdf import PdfReader
 from pypdf.errors import PdfReadError
 
+from hks.core.config import config_value
 from hks.errors import ExitCode, KSError
 from hks.ingest.models import ParsedDocument
 
 
 def max_file_mb() -> int:
-    return int(os.environ.get("HKS_MAX_FILE_MB", "200"))
+    return int(config_value("HKS_MAX_FILE_MB") or "200")
 
 
 def parse(path: Path) -> ParsedDocument:

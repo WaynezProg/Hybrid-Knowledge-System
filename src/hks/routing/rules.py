@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
 from ruamel.yaml import YAML
 
+from hks.core.config import config_value
 from hks.core.paths import resolve_ks_root
 from hks.core.schema import Route
 from hks.errors import ExitCode, KSError
@@ -35,7 +35,7 @@ def default_rules_path() -> Path:
 
 
 def resolve_rules_path(ks_root: Path | str | None = None) -> Path:
-    env_path = os.environ.get("HKS_ROUTING_RULES")
+    env_path = config_value("HKS_ROUTING_RULES")
     if env_path:
         return Path(env_path).expanduser().resolve(strict=False)
 

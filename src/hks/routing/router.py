@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 from typing import cast
 
+from hks.core.config import config_value
 from hks.core.schema import Route, TraceStep
 from hks.core.text_models import TextModelBackend
 from hks.routing.rules import RoutingRuleSet
@@ -19,7 +19,7 @@ class RouteDecision:
 
 
 def route(query: str, rules: RoutingRuleSet) -> RouteDecision:
-    backend_name = os.environ.get("HKS_ROUTING_MODEL", "simple")
+    backend_name = config_value("HKS_ROUTING_MODEL") or "simple"
     backend = TextModelBackend()
     prototype_texts = [
         " ".join((*rule.keywords_zh, *rule.keywords_en)).strip() or rule.id for rule in rules.rules

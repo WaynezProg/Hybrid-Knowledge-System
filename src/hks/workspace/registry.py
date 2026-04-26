@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 
+from hks.core.config import config_value
 from hks.core.manifest import atomic_write, utc_now_iso
 from hks.errors import ExitCode, KSError
 from hks.workspace.models import WorkspaceRegistry
@@ -17,7 +18,7 @@ SCHEMA_VERSION = 1
 def registry_path(path: str | Path | None = None) -> Path:
     if path:
         return Path(path).expanduser().resolve(strict=False)
-    env_path = os.environ.get(ENV_REGISTRY)
+    env_path = config_value(ENV_REGISTRY)
     if env_path:
         return Path(env_path).expanduser().resolve(strict=False)
     xdg_config = os.environ.get("XDG_CONFIG_HOME")

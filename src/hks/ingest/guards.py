@@ -9,12 +9,13 @@
 
 from __future__ import annotations
 
-import os
 import signal
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+
+from hks.core.config import config_value
 
 
 class OversizeError(Exception):
@@ -58,7 +59,7 @@ def _read_int_env(
     lo: int,
     hi: int,
 ) -> int:
-    raw = os.environ.get(name)
+    raw = config_value(name)
     if raw is None or raw == "":
         return default
     try:

@@ -282,11 +282,28 @@ uv run hks-api --host 127.0.0.1 --port 8766
 - `65`：ingest data error
 - `66`：輸入不存在，或 `KS_ROOT` 尚未初始化
 
-## 常用環境變數
+## 常用設定
+
+結構化設定檔建議使用 `config/hks.yaml`。從範本建立後填入本機值：
+
+```bash
+cp config/hks.yaml.example config/hks.yaml
+$EDITOR config/hks.yaml
+```
+
+也可以用 JSON：
+
+```bash
+cp config/hks.json.example config/hks.json
+$EDITOR config/hks.json
+```
+
+`config/hks.yaml`、`config/hks.json`、`config/hks.env` 都不應提交。程式讀取優先序是：process env > `config/hks.env` > `config/hks.yaml` / `config/hks.json` > default。`config/hks.env` 保留給 shell-style override；一般情境用 YAML。
 
 - `KS_ROOT`：runtime 資料根，預設 `./ks`
 - `HKS_EMBEDDING_MODEL`：embedding backend；`simple` 適合離線 smoke / CI；`openai:text-embedding-3-small` 使用 OpenAI Embeddings API
-- `HKS_CONFIG_ENV`：local env config file；預設讀 `config/hks.env`，可由 `config/hks.env.example` 複製建立
+- `HKS_CONFIG_FILE`：local structured config file；未設定時依序讀 `config/hks.yaml`、`config/hks.json`
+- `HKS_CONFIG_ENV`：local env config file；預設讀 `config/hks.env`
 - `HKS_OPENAI_API_KEY` / `OPENAI_API_KEY`：OpenAI embedding credential；`HKS_OPENAI_API_KEY` 優先
 - `HKS_OPENAI_EMBEDDING_DIMENSIONS`：OpenAI embedding dimensions override；只適用支援 dimensions 的 OpenAI embedding model
 - `HKS_OPENAI_EMBEDDING_ENDPOINT`：OpenAI-compatible embeddings endpoint；預設 `https://api.openai.com/v1/embeddings`

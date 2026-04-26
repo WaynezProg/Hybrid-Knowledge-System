@@ -95,9 +95,8 @@ export HKS_EMBEDDING_MODEL=simple
 如果要改用 OpenAI embedding，請改用新的 `KS_ROOT` 重新 ingest：
 
 ```bash
-cp config/hks.env.example config/hks.env
-$EDITOR config/hks.env
+cp config/hks.yaml.example config/hks.yaml
+$EDITOR config/hks.yaml
 
 export KS_ROOT="$HKS_REPO_ROOT/.hks-runs/openai/ks"
-export HKS_EMBEDDING_MODEL=openai:text-embedding-3-small
 ```
