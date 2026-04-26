@@ -5,7 +5,7 @@
 ## Prepare a knowledge base
 
 ```bash
-export KS_ROOT=$(mktemp -d /tmp/hks-010.XXXXXX)
+export KS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/hks-010.XXXXXX")
 export HKS_EMBEDDING_MODEL=simple
 
 uv run ks ingest tests/fixtures/valid
@@ -94,7 +94,7 @@ Expected behavior:
 ## Missing runtime failure path
 
 ```bash
-export KS_ROOT=$(mktemp -d /tmp/hks-010-empty.XXXXXX)
+export KS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/hks-010-empty.XXXXXX")
 uv run ks graphify build --mode preview
 ```
 

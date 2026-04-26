@@ -162,7 +162,7 @@ Result: `ruff` passed, `mypy` passed, `compileall` passed, `335 passed`.
 Quickstart smoke:
 
 ```bash
-export KS_ROOT=$(mktemp -d /tmp/hks-010-smoke.XXXXXX)
+export KS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/hks-010-smoke.XXXXXX")
 export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
 uv run ks llm classify project-atlas.txt --provider fake --mode store

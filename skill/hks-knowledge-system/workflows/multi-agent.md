@@ -3,7 +3,7 @@
 用途：多個 local agents 共用同一個 `KS_ROOT` 時，避免互相踩 shared resources。
 
 ```bash
-export KS_ROOT="/path/to/hks-runtime"
+export KS_ROOT="${KS_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/hks-runtime.XXXXXX")}"
 uv run ks coord session start agent-a
 uv run ks coord lease claim agent-a wiki:project-atlas --ttl-seconds 1800
 uv run ks coord status --agent-id agent-a

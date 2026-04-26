@@ -8,7 +8,7 @@
         "--transport",
         "stdio"
       ],
-      "cwd": "/Users/waynetu/claw_prog/projects/09-HKS",
+      "cwd": ".",
       "env": {
         "HKS_EMBEDDING_MODEL": "simple"
       }

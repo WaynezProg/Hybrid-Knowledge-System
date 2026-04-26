@@ -19,7 +19,7 @@ description: Operate the Hybrid Knowledge System through its main `ks` CLI. Use 
 
 ## 核心規則
 
-- 在 repo root `/Users/waynetu/claw_prog/projects/09-HKS` 操作。
+- 從目前 clone 的 repo root 操作；不要寫死任何使用者本機絕對路徑。
 - 使用 `uv run ...`；不要自行安裝 Python / Node runtime。
 - 實驗一律顯式設定 `KS_ROOT`。
 - 查詢預設用 `--writeback=no`，除非使用者要寫回 wiki。
@@ -29,8 +29,8 @@ description: Operate the Hybrid Knowledge System through its main `ks` CLI. Use 
 ## 最小安全流程
 
 ```bash
-cd /Users/waynetu/claw_prog/projects/09-HKS
-export KS_ROOT="$(mktemp -d /tmp/hks-agent.XXXXXX)"
+cd "$(git rev-parse --show-toplevel)"
+export KS_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/hks-agent.XXXXXX")"
 export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
 uv run ks query "這批資料的重點是什麼？" --writeback=no

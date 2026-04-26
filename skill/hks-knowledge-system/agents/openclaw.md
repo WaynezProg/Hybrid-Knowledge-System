@@ -36,7 +36,7 @@ Adapter usage is documented separately in `../../../mcp/README.md`; do not treat
 ## Smoke Test
 
 ```bash
-export KS_ROOT="$(mktemp -d /tmp/hks-openclaw.XXXXXX)"
+export KS_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/hks-openclaw.XXXXXX")"
 export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
 uv run ks query "這批資料的重點是什麼？" --writeback=no

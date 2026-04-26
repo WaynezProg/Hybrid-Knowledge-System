@@ -28,7 +28,7 @@ uv run python tests/fixtures/build_images.py
 ## 3. Ingest image fixtures
 
 ```bash
-export KS_ROOT=/tmp/hks-image
+export KS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/hks-image.XXXXXX")
 uv run ks ingest tests/fixtures/valid/image
 ```
 

@@ -3,8 +3,8 @@
 用途：確認 HKS CLI runtime 可用，且不碰使用者真實知識庫。
 
 ```bash
-cd /Users/waynetu/claw_prog/projects/09-HKS
-export KS_ROOT="$(mktemp -d /tmp/hks-smoke.XXXXXX)"
+cd "$(git rev-parse --show-toplevel)"
+export KS_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/hks-smoke.XXXXXX")"
 export HKS_EMBEDDING_MODEL=simple
 uv run ks --help
 uv run ks ingest tests/fixtures/valid

@@ -52,7 +52,7 @@ uv run mypy src/hks
 
 ```bash
 # 複製一份工作語料，避免後續 idempotency 節直接修改 repo fixture
-DOCS_DIR=$(mktemp -d /tmp/hks-phase1-docs.XXXXXX)
+DOCS_DIR=$(mktemp -d "${TMPDIR:-/tmp}/hks-phase1-docs.XXXXXX")
 cp -R tests/fixtures/valid/. "$DOCS_DIR"
 
 # 若當前環境無外網，先看 §7 設定 HKS_EMBEDDING_MODEL，再回來執行
@@ -157,7 +157,7 @@ uv run ks query "..." --unknown-flag; echo $?            # 2
 uv run python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2')"
 
 # 指向本機快取或 bundle 好的模型目錄
-export HKS_EMBEDDING_MODEL=/path/to/local/model
+export HKS_EMBEDDING_MODEL=<local-model-dir>
 uv run ks ingest ...
 ```
 

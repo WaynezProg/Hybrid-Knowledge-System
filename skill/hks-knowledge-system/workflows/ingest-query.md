@@ -3,8 +3,9 @@
 用途：把資料放進 HKS，然後查詢。
 
 ```bash
-export KS_ROOT="/path/to/hks-runtime"
-uv run ks ingest /path/to/source-dir
+export KS_ROOT="${KS_ROOT:-$(mktemp -d "${TMPDIR:-/tmp}/hks-runtime.XXXXXX")}"
+export SOURCE_DIR="${SOURCE_DIR:-tests/fixtures/valid}"
+uv run ks ingest "$SOURCE_DIR"
 uv run ks source list
 uv run ks query "這批資料有哪些重點？" --writeback=no
 uv run ks query "哪些項目互相依賴？" --writeback=no

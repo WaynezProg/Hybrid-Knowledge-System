@@ -5,7 +5,7 @@
 ```bash
 uv sync
 make fixtures
-export KS_ROOT=$(mktemp -d /tmp/hks-mcp.XXXXXX)
+export KS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/hks-mcp.XXXXXX")
 export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
 ```
@@ -107,7 +107,7 @@ curl -s http://127.0.0.1:8766/lint \
 未初始化 `KS_ROOT`：
 
 ```bash
-export KS_ROOT=$(mktemp -d /tmp/hks-mcp-empty.XXXXXX)
+export KS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/hks-mcp-empty.XXXXXX")
 ```
 
 呼叫 `hks_query` 應回 adapter error envelope：

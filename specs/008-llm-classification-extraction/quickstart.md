@@ -5,7 +5,7 @@
 ## Preview one ingested source
 
 ```bash
-export KS_ROOT=$(mktemp -d /tmp/hks-008.XXXXXX)
+export KS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/hks-008.XXXXXX")
 export HKS_EMBEDDING_MODEL=simple
 
 uv run ks ingest tests/fixtures/valid

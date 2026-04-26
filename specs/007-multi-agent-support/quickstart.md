@@ -5,7 +5,7 @@
 ```bash
 uv sync
 make fixtures
-export KS_ROOT=$(mktemp -d /tmp/hks-agents.XXXXXX)
+export KS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/hks-agents.XXXXXX")
 export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid/project-atlas.txt
 ```

@@ -5,15 +5,16 @@
 Read-only planning：
 
 ```bash
-uv run ks watch scan --source-root /path/to/source-dir
-uv run ks watch run --source-root /path/to/source-dir --mode dry-run --profile ingest-only
+export SOURCE_DIR="${SOURCE_DIR:-tests/fixtures/valid}"
+uv run ks watch scan --source-root "$SOURCE_DIR"
+uv run ks watch run --source-root "$SOURCE_DIR" --mode dry-run --profile ingest-only
 uv run ks watch status
 ```
 
 Execute refresh，只有使用者明確要求才做：
 
 ```bash
-uv run ks watch run --source-root /path/to/source-dir --mode execute --profile ingest-only
+uv run ks watch run --source-root "$SOURCE_DIR" --mode execute --profile ingest-only
 uv run ks lint --strict
 ```
 

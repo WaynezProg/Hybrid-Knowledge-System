@@ -3,7 +3,7 @@
 ## 1. Source catalog for one HKS runtime
 
 ```bash
-export KS_ROOT=$(mktemp -d /tmp/hks-012-catalog.XXXXXX)
+export KS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/hks-012-catalog.XXXXXX")
 export HKS_EMBEDDING_MODEL=simple
 
 uv run ks ingest tests/fixtures/valid
@@ -21,11 +21,11 @@ Expected:
 ## 2. Register two workspaces
 
 ```bash
-export HKS_WORKSPACE_REGISTRY="/tmp/hks-012-registry-$RANDOM.json"
+export HKS_WORKSPACE_REGISTRY="${TMPDIR:-/tmp}/hks-012-registry-$RANDOM.json"
 rm -f "$HKS_WORKSPACE_REGISTRY"
 
-KS_A=$(mktemp -d /tmp/hks-012-a.XXXXXX)
-KS_B=$(mktemp -d /tmp/hks-012-b.XXXXXX)
+KS_A=$(mktemp -d "${TMPDIR:-/tmp}/hks-012-a.XXXXXX")
+KS_B=$(mktemp -d "${TMPDIR:-/tmp}/hks-012-b.XXXXXX")
 
 KS_ROOT="$KS_A" HKS_EMBEDDING_MODEL=simple uv run ks ingest tests/fixtures/valid
 KS_ROOT="$KS_B" HKS_EMBEDDING_MODEL=simple uv run ks ingest tests/fixtures/office

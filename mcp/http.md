@@ -15,19 +15,19 @@ uv run hks-api --host 127.0.0.1 --port 8766
 ```bash
 curl -sS http://127.0.0.1:8766/query \
   -H 'content-type: application/json' \
-  -d '{"question":"Project Atlas summary","writeback":"no","ks_root":"/path/to/ks"}'
+  -d '{"question":"Project Atlas summary","writeback":"no","ks_root":null}'
 ```
 
 ```bash
 curl -sS http://127.0.0.1:8766/ingest \
   -H 'content-type: application/json' \
-  -d '{"path":"/path/to/source","ks_root":"/path/to/ks"}'
+  -d '{"path":"tests/fixtures/valid","ks_root":null}'
 ```
 
 ```bash
 curl -sS http://127.0.0.1:8766/watch/scan \
   -H 'content-type: application/json' \
-  -d '{"source_roots":["/path/to/source"],"ks_root":"/path/to/ks"}'
+  -d '{"source_roots":["tests/fixtures/valid"],"ks_root":null}'
 ```
 
 ## Notes

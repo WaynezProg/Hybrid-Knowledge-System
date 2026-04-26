@@ -10,7 +10,7 @@ mise install
 uv sync
 make fixtures
 
-export KS_ROOT=$(mktemp -d /tmp/hks.XXXXXX)
+export KS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/hks.XXXXXX")
 export HKS_EMBEDDING_MODEL=simple
 
 uv run ks ingest tests/fixtures/valid

@@ -7,7 +7,7 @@
 ## 1. 安裝依賴（新增三個 parser）
 
 ```bash
-cd /path/to/09-HKS
+cd "$(git rev-parse --show-toplevel)"
 uv sync   # 會依 pyproject.toml 的新 dep 下載 python-docx / openpyxl / python-pptx
 ```
 

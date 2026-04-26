@@ -7,7 +7,7 @@ mise install
 uv sync
 make fixtures
 export HKS_EMBEDDING_MODEL=simple
-export KS_ROOT=$(mktemp -d /tmp/hks-lint.XXXXXX)
+export KS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/hks-lint.XXXXXX")
 ```
 
 ## 1. 建立乾淨 runtime
@@ -83,10 +83,10 @@ echo $?
 
 ```bash
 uv run ks lint --fix | jq '.trace.steps[0].detail | {planned: .fixes_planned, applied: .fixes_applied, skipped: .fixes_skipped}'
-find "$KS_ROOT" -type f -print0 | sort -z | xargs -0 shasum -a 256 > /tmp/hks-lint-before.sha
+find "$KS_ROOT" -type f -print0 | sort -z | xargs -0 shasum -a 256 > "${TMPDIR:-/tmp}/hks-lint-before.sha"
 uv run ks lint --fix | jq -e '.trace.steps[0].detail.fixes_applied == []'
-find "$KS_ROOT" -type f -print0 | sort -z | xargs -0 shasum -a 256 > /tmp/hks-lint-after.sha
-diff -u /tmp/hks-lint-before.sha /tmp/hks-lint-after.sha
+find "$KS_ROOT" -type f -print0 | sort -z | xargs -0 shasum -a 256 > "${TMPDIR:-/tmp}/hks-lint-after.sha"
+diff -u "${TMPDIR:-/tmp}/hks-lint-before.sha" "${TMPDIR:-/tmp}/hks-lint-after.sha"
 
 uv run ks lint --fix=apply | jq '.trace.steps[0].detail | {applied: .fixes_applied, skipped: .fixes_skipped}'
 tail -n 20 "$KS_ROOT/wiki/log.md"
@@ -102,7 +102,7 @@ tail -n 20 "$KS_ROOT/wiki/log.md"
 ## 6. Error paths
 
 ```bash
-KS_ROOT=$(mktemp -d /tmp/hks-lint-empty.XXXXXX) uv run ks lint
+KS_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/hks-lint-empty.XXXXXX") uv run ks lint
 echo $?
 
 uv run ks lint --severity-threshold=garbage

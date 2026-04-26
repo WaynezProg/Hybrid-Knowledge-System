@@ -1,5 +1,5 @@
 {
   "mode": "preview",
   "provider": "fake",
-  "ks_root": "/path/to/ks"
+  "ks_root": null
 }

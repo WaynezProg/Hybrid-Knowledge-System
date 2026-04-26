@@ -109,7 +109,7 @@ uv run ks source list
 uv run ks source show project-atlas.txt
 
 export HKS_WORKSPACE_REGISTRY="$PWD/.hks-runs/workspaces.json"
-uv run ks workspace register atlas --ks-root /path/to/atlas/ks --label "Atlas"
+uv run ks workspace register atlas --ks-root "$PWD/.hks-runs/atlas/ks" --label "Atlas"
 uv run ks workspace list
 uv run ks workspace use atlas
 uv run ks workspace query atlas "What risks does this project have?" --writeback=no
@@ -224,7 +224,7 @@ Codex, Claude Code, OpenClaw, or any other local agent can use HKS in three ways
 
 ```bash
 # 1. Simplest path: the agent runs CLI commands directly
-export KS_ROOT=/path/to/hks-runtime
+export KS_ROOT="$PWD/.hks-runs/my-runtime/ks"
 uv run ks query "What are the current Project Atlas risks?" --writeback=no
 uv run ks llm classify project-atlas.txt --provider fake --mode preview
 uv run ks wiki synthesize --source-relpath project-atlas.txt --mode preview --provider fake

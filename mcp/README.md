@@ -48,7 +48,7 @@ Start only while a client needs adapter access.
 Start the loopback HTTP facade:
 
 ```bash
-cd /Users/waynetu/claw_prog/projects/09-HKS
+cd "$(git rev-parse --show-toplevel)"
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
@@ -84,7 +84,7 @@ Query without write-back:
 ```bash
 curl -sS http://127.0.0.1:8766/query \
   -H 'content-type: application/json' \
-  -d '{"question":"這批資料的重點是什麼？","writeback":"no","ks_root":"/path/to/ks"}' | jq .
+  -d '{"question":"這批資料的重點是什麼？","writeback":"no","ks_root":null}' | jq .
 ```
 
 List sources:
@@ -92,7 +92,7 @@ List sources:
 ```bash
 curl -sS http://127.0.0.1:8766/catalog/sources \
   -H 'content-type: application/json' \
-  -d '{"ks_root":"/path/to/ks"}' | jq .
+  -d '{"ks_root":null}' | jq .
 ```
 
 Run lint:
@@ -100,7 +100,7 @@ Run lint:
 ```bash
 curl -sS http://127.0.0.1:8766/lint \
   -H 'content-type: application/json' \
-  -d '{"strict":true,"ks_root":"/path/to/ks"}' | jq .
+  -d '{"strict":true,"ks_root":null}' | jq .
 ```
 
 Preview LLM extraction:
@@ -108,7 +108,7 @@ Preview LLM extraction:
 ```bash
 curl -sS http://127.0.0.1:8766/llm/classify \
   -H 'content-type: application/json' \
-  -d '{"source_relpath":"project-atlas.txt","mode":"preview","provider":"fake","ks_root":"/path/to/ks"}' | jq .
+  -d '{"source_relpath":"project-atlas.txt","mode":"preview","provider":"fake","ks_root":null}' | jq .
 ```
 
 Build Graphify preview:
@@ -116,7 +116,7 @@ Build Graphify preview:
 ```bash
 curl -sS http://127.0.0.1:8766/graphify/build \
   -H 'content-type: application/json' \
-  -d '{"mode":"preview","provider":"fake","ks_root":"/path/to/ks"}' | jq .
+  -d '{"mode":"preview","provider":"fake","ks_root":null}' | jq .
 ```
 
 ## Response Contract

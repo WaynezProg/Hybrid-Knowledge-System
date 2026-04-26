@@ -109,7 +109,7 @@ uv run ks source list
 uv run ks source show project-atlas.txt
 
 export HKS_WORKSPACE_REGISTRY="$PWD/.hks-runs/workspaces.json"
-uv run ks workspace register atlas --ks-root /path/to/atlas/ks --label "Atlas"
+uv run ks workspace register atlas --ks-root "$PWD/.hks-runs/atlas/ks" --label "Atlas"
 uv run ks workspace list
 uv run ks workspace use atlas
 uv run ks workspace query atlas "這個專案有哪些風險？" --writeback=no
@@ -224,7 +224,7 @@ Codex、Claude Code、OpenClaw 或其他 local agent 可以用三種方式接 HK
 
 ```bash
 # 1. 最簡單：agent 直接執行 CLI
-export KS_ROOT=/path/to/hks-runtime
+export KS_ROOT="$PWD/.hks-runs/my-runtime/ks"
 uv run ks query "Project Atlas 目前風險是什麼？" --writeback=no
 uv run ks llm classify project-atlas.txt --provider fake --mode preview
 uv run ks wiki synthesize --source-relpath project-atlas.txt --mode preview --provider fake
