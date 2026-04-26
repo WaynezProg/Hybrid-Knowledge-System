@@ -49,7 +49,9 @@ Thumbs.db
 CLAUDE.md
 AGENTS.md
 .agents/
-.codex/
+.codex/*
+!.codex/skills/
+!.codex/skills/**
 .qwen/
 .gemini/
 .cursor/
