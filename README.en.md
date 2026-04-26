@@ -2,13 +2,13 @@
 
 [繁體中文](./README.md)
 
-Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 1-3 and 009: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, high-confidence answers auto write back by default, and the system ships image ingest, the lint system, multi-agent coordination, local MCP / HTTP adapters, LLM-assisted classification/extraction candidate artifacts, and LLM-assisted wiki synthesis.
+Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 1-3 and 008-010: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, high-confidence answers auto write back by default, and the system ships image ingest, the lint system, multi-agent coordination, local MCP / HTTP adapters, LLM-assisted classification/extraction, LLM-assisted wiki synthesis, and derived Graphify artifacts.
 
 ## How This Project Runs
 
 HKS is not a daemon by default. The normal workflow is to run `uv run ks ...` only when you need it; each command exits after it finishes, and runtime data is stored under `$KS_ROOT`.
 
-- Humans / shell scripts / Codex / Claude Code / OpenClaw: call `ks ingest`, `ks query`, `ks lint`, `ks coord`, `ks llm classify`, and `ks wiki synthesize` directly
+- Humans / shell scripts / Codex / Claude Code / OpenClaw: call `ks ingest`, `ks query`, `ks lint`, `ks coord`, `ks llm classify`, `ks wiki synthesize`, and `ks graphify build` directly
 - MCP agent integration: start `hks-mcp`; stdio mode is usually launched by the agent client and lives for that session
 - HTTP client integration: start `hks-api` or `hks-mcp --transport streamable-http`; keep that process running only while clients need to call it
 
@@ -20,8 +20,9 @@ HKS is not a daemon by default. The normal workflow is to run `uv run ks ...` on
 - `ks coord session|lease|handoff|status|lint`: provides agent presence, resource leases, handoff notes, and coordination ledger lint
 - `ks llm classify <source-relpath> [--mode preview|store] [--provider fake]`: creates LLM classification / summary / fact / entity / relation candidates for an already-ingested source; preview does not mutate wiki / graph / vector, and store only writes `$KS_ROOT/llm/extractions/`
 - `ks wiki synthesize --mode preview|store|apply`: consumes 008 extraction artifacts, creates / stores / explicitly applies wiki synthesis candidates; `apply` only accepts stored candidate artifacts
-- `hks-mcp --transport stdio|streamable-http`: exposes query / ingest / lint / coordination / LLM extraction / wiki synthesis tools as local MCP tools
-- `hks-api`: optional loopback HTTP facade for `/query`, `/ingest`, `/lint`, `/llm/classify`, `/wiki/synthesize`, and `/coord/*`
+- `ks graphify build --mode preview|store`: creates derived Graphify JSON, communities, audit, static HTML, and Markdown report from existing wiki / graph / 008 / 009 lineage without mutating the authoritative graph
+- `hks-mcp --transport stdio|streamable-http`: exposes query / ingest / lint / coordination / LLM extraction / wiki synthesis / graphify tools as local MCP tools
+- `hks-api`: optional loopback HTTP facade for `/query`, `/ingest`, `/lint`, `/llm/classify`, `/wiki/synthesize`, `/graphify/build`, and `/coord/*`
 - Standalone image ingest now supports `png / jpg / jpeg` via local `tesseract`; `.heic / .webp` and VLM are still out of scope
 
 ## Installation
@@ -55,6 +56,7 @@ uv run ks query "Which systems are impacted if Project A slips?" --writeback=no 
 uv run ks llm classify project-atlas.txt --provider fake --mode preview | jq .
 uv run ks llm classify project-atlas.txt --provider fake --mode store | jq .
 uv run ks wiki synthesize --source-relpath project-atlas.txt --target-slug project-atlas-synthesis --mode store --provider fake | jq .
+uv run ks graphify build --mode store --provider fake | jq .
 uv run ks coord session start agent-a | jq .
 uv run ks coord lease claim agent-a wiki:atlas | jq .
 uv run hks-mcp --help
@@ -140,6 +142,20 @@ uv run ks wiki synthesize --candidate-artifact-id <candidate-id> --mode apply --
 - If the target slug already has a non-`origin=llm_wiki` page, it fails closed with exit `1` while stdout remains HKS JSON
 - Successful responses use `trace.steps[kind="wiki_synthesis_summary"]`
 
+### Graphify
+
+```bash
+uv run ks graphify build --mode preview --provider fake
+uv run ks graphify build --mode store --provider fake
+uv run ks graphify build --mode store --no-html --provider fake
+```
+
+- `preview` returns `graphify_summary` and writes no runtime layer
+- `store` only writes `$KS_ROOT/graphify/runs/<run-id>/` and `$KS_ROOT/graphify/latest.json`
+- outputs include `graphify.json`, `communities.json`, `audit.json`, `manifest.json`, `graph.html`, and `GRAPH_REPORT.md`
+- Graphify is a derived analysis layer; it does not mutate authoritative `graph/graph.json`, `wiki/`, `vector/`, or `manifest.json`
+- Successful responses use `trace.route="graph"` and `trace.steps[kind="graphify_summary"]`; `source` lists stable layers actually read, such as `["wiki","graph"]`
+
 ### Coordination
 
 ```bash
@@ -168,6 +184,7 @@ export KS_ROOT=/path/to/hks-runtime
 uv run ks query "What are the current Project Atlas risks?" --writeback=no
 uv run ks llm classify project-atlas.txt --provider fake --mode preview
 uv run ks wiki synthesize --source-relpath project-atlas.txt --mode preview --provider fake
+uv run ks graphify build --mode preview --provider fake
 uv run ks lint --strict
 
 # 2. MCP stdio: let an MCP-capable agent client launch this server
@@ -187,8 +204,8 @@ uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
-- MCP tools: `hks_query`, `hks_ingest`, `hks_lint`, `hks_llm_classify`, `hks_wiki_synthesize`, `hks_coord_session`, `hks_coord_lease`, `hks_coord_handoff`, `hks_coord_status`
-- HTTP endpoints: `/query`, `/ingest`, `/lint`, `/llm/classify`, `/wiki/synthesize`, `/coord/session`, `/coord/lease`, `/coord/handoff`, `/coord/status`
+- MCP tools: `hks_query`, `hks_ingest`, `hks_lint`, `hks_llm_classify`, `hks_wiki_synthesize`, `hks_graphify_build`, `hks_coord_session`, `hks_coord_lease`, `hks_coord_handoff`, `hks_coord_status`
+- HTTP endpoints: `/query`, `/ingest`, `/lint`, `/llm/classify`, `/wiki/synthesize`, `/graphify/build`, `/coord/session`, `/coord/lease`, `/coord/handoff`, `/coord/status`
 - Successful payloads directly use the existing `ks` top-level JSON shape, with no adapter envelope
 - Error payloads use `{ok:false,error:{code,exit_code,message,details},response?}`
 - The adapter is local-first; Streamable HTTP and the HTTP facade bind to loopback by default
@@ -211,7 +228,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 }
 ```
 
-`ks ingest`, `ks query`, `ks lint`, `ks coord`, `ks llm classify`, and `ks wiki synthesize` all share the same top-level JSON shape. `ks llm classify` and `ks wiki synthesize --mode preview|store` use `source=[]`; distinguish them from query no-hit by the trace step kind. Successful `ks wiki synthesize --mode apply` uses `source=["wiki"]`.
+`ks ingest`, `ks query`, `ks lint`, `ks coord`, `ks llm classify`, `ks wiki synthesize`, and `ks graphify build` all share the same top-level JSON shape. `ks llm classify` and `ks wiki synthesize --mode preview|store` use `source=[]`; distinguish them from query no-hit by the trace step kind. Successful `ks wiki synthesize --mode apply` uses `source=["wiki"]`. `ks graphify build` uses `trace.route="graph"` and `source` means the stable HKS layers actually read; it never returns `"graphify"` as a top-level source.
 
 ## Exit Codes
 
@@ -253,6 +270,8 @@ uv run hks-api --host 127.0.0.1 --port 8766
 - Phase 3 MCP / API adapter: [specs/006-mcp-api-adapter/spec.md](./specs/006-mcp-api-adapter/spec.md)
 - Phase 3 multi-agent support: [specs/007-multi-agent-support/spec.md](./specs/007-multi-agent-support/spec.md)
 - LLM-assisted classification / extraction: [specs/008-llm-classification-extraction/spec.md](./specs/008-llm-classification-extraction/spec.md)
+- LLM-assisted wiki synthesis: [specs/009-llm-wiki-synthesis/spec.md](./specs/009-llm-wiki-synthesis/spec.md)
+- Graphify pipeline: [specs/010-graphify-pipeline/spec.md](./specs/010-graphify-pipeline/spec.md)
 
 ## Development Checks
 

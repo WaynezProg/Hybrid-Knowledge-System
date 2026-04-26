@@ -58,3 +58,8 @@
   - Archived on: 2026-04-26
   - Merged into: `main`
   - Canonical artifacts: [spec.md](./009-llm-wiki-synthesis/spec.md), [plan.md](./009-llm-wiki-synthesis/plan.md), [tasks.md](./009-llm-wiki-synthesis/tasks.md)
+- `010-graphify-pipeline`
+  - Status: Complete
+  - Archived on: 2026-04-26
+  - Merged into: pending
+  - Canonical artifacts: [spec.md](./010-graphify-pipeline/spec.md), [plan.md](./010-graphify-pipeline/plan.md), [tasks.md](./010-graphify-pipeline/tasks.md)

@@ -1,0 +1,108 @@
+openapi: 3.1.0
+info:
+  title: HKS Graphify API
+  version: 0.1.0
+paths:
+  /graphify/build:
+    post:
+      summary: Build derived Graphify artifacts
+      operationId: graphifyBuild
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                mode:
+                  type: string
+                  enum: [preview, store]
+                  default: preview
+                provider:
+                  type: string
+                  default: fake
+                include_html:
+                  type: boolean
+                  default: true
+                include_report:
+                  type: boolean
+                  default: true
+                force_new_run:
+                  type: boolean
+                  default: false
+                requested_by:
+                  type:
+                    - string
+                    - "null"
+      responses:
+        "200":
+          description: HKS top-level response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResponse"
+        "400":
+          description: Adapter error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdapterError"
+        "500":
+          description: Adapter error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdapterError"
+components:
+  schemas:
+    QueryResponse:
+      type: object
+      required: [answer, source, confidence, trace]
+      additionalProperties: false
+      properties:
+        answer:
+          type: string
+        source:
+          type: array
+          items:
+            type: string
+            enum: [wiki, graph, vector]
+        confidence:
+          type: number
+        trace:
+          type: object
+          required: [route, steps]
+          additionalProperties: false
+          properties:
+            route:
+              type: string
+              enum: [wiki, graph, vector]
+            steps:
+              type: array
+              items:
+                type: object
+    AdapterError:
+      type: object
+      required: [ok, error, response]
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: object
+          required: [code, exit_code, message, details]
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+            exit_code:
+              type: integer
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: false
+        response:
+          type: object

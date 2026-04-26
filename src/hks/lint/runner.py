@@ -99,6 +99,11 @@ def _build_snapshot(paths: RuntimePaths) -> RuntimeSnapshot:
         llm_artifact_errors=_load_llm_artifact_errors(paths),
         wiki_candidate_artifacts=_load_wiki_candidate_artifacts(paths),
         wiki_candidate_artifact_errors=_load_wiki_candidate_artifact_errors(paths),
+        graphify_run_manifests=_load_graphify_run_manifests(paths),
+        graphify_graph_artifacts=_load_graphify_graph_artifacts(paths),
+        graphify_artifact_errors=_load_graphify_artifact_errors(paths),
+        graphify_partial_runs=_load_graphify_partial_runs(paths),
+        graphify_latest_error=_load_graphify_latest_error(paths),
     )
 
 
@@ -240,3 +245,86 @@ def _load_wiki_candidate_artifact_errors(paths: RuntimePaths) -> dict[str, str]:
         if not isinstance(payload, dict):
             errors[path.name] = "artifact root must be an object"
     return errors
+
+
+def _graphify_runs_dir(paths: RuntimePaths) -> Path:
+    return paths.root / "graphify" / "runs"
+
+
+def _load_graphify_run_manifests(paths: RuntimePaths) -> dict[str, dict[str, object]]:
+    base = _graphify_runs_dir(paths)
+    if not base.exists():
+        return {}
+    artifacts: dict[str, dict[str, object]] = {}
+    for path in sorted(base.glob("*/manifest.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            artifacts[path.relative_to(paths.root).as_posix()] = payload
+    return artifacts
+
+
+def _load_graphify_graph_artifacts(paths: RuntimePaths) -> dict[str, dict[str, object]]:
+    base = _graphify_runs_dir(paths)
+    if not base.exists():
+        return {}
+    artifacts: dict[str, dict[str, object]] = {}
+    for path in sorted(base.glob("*/graphify.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            artifacts[path.relative_to(paths.root).as_posix()] = payload
+    return artifacts
+
+
+def _load_graphify_artifact_errors(paths: RuntimePaths) -> dict[str, str]:
+    base = _graphify_runs_dir(paths)
+    if not base.exists():
+        return {}
+    errors: dict[str, str] = {}
+    for path in sorted(base.glob("*/*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            errors[path.relative_to(paths.root).as_posix()] = str(exc)
+            continue
+        if not isinstance(payload, (dict, list)):
+            errors[path.relative_to(paths.root).as_posix()] = (
+                "artifact root must be an object or array"
+            )
+    return errors
+
+
+def _load_graphify_partial_runs(paths: RuntimePaths) -> set[str]:
+    base = _graphify_runs_dir(paths)
+    if not base.exists():
+        return set()
+    required = {"graphify.json", "communities.json", "audit.json", "manifest.json"}
+    partial: set[str] = set()
+    for path in sorted(item for item in base.iterdir() if item.is_dir()):
+        existing = {child.name for child in path.iterdir() if child.is_file()}
+        if not required.issubset(existing):
+            partial.add(path.relative_to(paths.root).as_posix())
+    return partial
+
+
+def _load_graphify_latest_error(paths: RuntimePaths) -> str | None:
+    latest = paths.root / "graphify" / "latest.json"
+    if not latest.exists():
+        return None
+    try:
+        payload = json.loads(latest.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return f"graphify latest pointer cannot be parsed: {exc}"
+    if not isinstance(payload, dict):
+        return "graphify latest pointer root must be an object"
+    run_manifest = payload.get("run_manifest_path")
+    if not isinstance(run_manifest, str) or not run_manifest:
+        return "graphify latest pointer is missing run_manifest_path"
+    if not Path(run_manifest).exists():
+        return "graphify latest pointer references missing run manifest"
+    return None

@@ -10,6 +10,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * Phase 3：完成（`004` image ingest、`005` lint system、`006` MCP / API adapter、`007` multi-agent support）
 * 008：完成（LLM-assisted classification / extraction candidate artifacts）
 * 009：完成（LLM-assisted wiki synthesis candidate preview / store / explicit apply）
+* 010：完成（derived Graphify artifacts、community clustering、static HTML、audit report）
 
 ---
 
@@ -30,6 +31,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
   * `ks coord`
   * `ks llm classify`
   * `ks wiki synthesize`
+  * `ks graphify build`
   * `hks-mcp`
   * `hks-api`（optional loopback facade）
 
@@ -49,7 +51,8 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * 已完成：query 會依問題類型走 wiki、graph 或 vector；高 confidence 結果可 write-back 成 wiki page。
 * 已完成：008 可對已 ingest source 產生 schema-validated LLM classification / summary / fact / entity / relation candidates，並可 explicit store 到 `$KS_ROOT/llm/extractions/`。
 * 已完成：009 可從 008 stored artifact 產生 wiki synthesis candidate，preview / store 預設不改 authoritative layers，只有 caller-explicit `apply` 會寫入 `wiki/` page、index 與 log。
-* 尚未完成：Graphify community clustering、HTML visualization、audit report、資料夾 watch / daemon 式持續 ingest。
+* 已完成：010 可從既有 wiki / graph / 008 / 009 lineage 產生 derived Graphify artifacts、community clustering、static HTML 與 audit report。
+* 尚未完成：資料夾 watch / daemon 式持續 ingest。
 
 換句話說，HKS 現在是 agent 可調用的 local knowledge runtime；完整 LLM Wiki + Graphify 應以後續 feature 擴充，而不是視為 Phase 1-3 已交付內容。
 
@@ -64,6 +67,7 @@ ks lint
 ks coord session|lease|handoff|status|lint
 ks llm classify <source-relpath> [--mode preview|store] [--provider fake]
 ks wiki synthesize --mode preview|store|apply [--source-relpath <relpath>|--candidate-artifact-id <id>]
+ks graphify build [--mode preview|store] [--provider fake]
 hks-mcp --transport stdio|streamable-http
 hks-api
 ```
@@ -82,12 +86,14 @@ stdout 契約統一：
 }
 ```
 
-`ks ingest`、`ks query`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize` 共用同一 top-level JSON shape。
+`ks ingest`、`ks query`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`、`ks graphify build` 共用同一 top-level JSON shape。
 `hks-mcp` 與 `hks-api` 的成功 payload 也共用此 shape；adapter 錯誤才使用 `{ok:false,error:{code,exit_code,message,details},response?}` envelope。
 
 `ks llm classify` 的 successful extraction 使用 `trace.route="wiki"`、`source=[]`、`trace.steps[kind="llm_extraction_summary"]`。這是 008 為避免擴 route/source enum 做出的 contract choice；consumer 不得把它解讀成 `ks query` no-hit。
 
 Source / route 語意對照：
+
+`source` 不是跨 feature 單一動詞；consumer 必須依 command/mode 解讀。`ks query` 的 `source` 表示讀取層；008/009 preview/store 使用 `source=[]` 表示產生 candidate artifact、不是 no-hit；009 apply success 的 `source=["wiki"]` 表示 caller-explicit mutation 成功寫入 wiki；010 Graphify 使用 `source` 表示 Graphify build 實際讀取到的穩定 HKS layer，且不得新增 `"graphify"` enum。
 
 | Command / mode | `trace.route` | `source` | 語意 |
 |---|---|---|---|
@@ -99,6 +105,7 @@ Source / route 語意對照：
 | `ks wiki synthesize --mode preview\|store` | `wiki` | `[]` | 產生或儲存 wiki synthesis candidate；不修改 authoritative wiki |
 | `ks wiki synthesize --mode apply` success | `wiki` | `["wiki"]` | caller-explicit wiki mutation 成功後，response 指向被寫入的 wiki layer |
 | `ks wiki synthesize --mode apply` conflict/error | `wiki` | `[]` | apply 未成功寫入 wiki；若走 adapter error envelope，錯誤語意由 `error` 承擔 |
+| `ks graphify build --mode preview\|store` | `graph` | `["wiki","graph"]` 或實際讀取到的穩定 source layer | 產生 derived Graphify artifacts；不得把 `"graphify"` 放入 top-level `source` |
 
 ---
 
@@ -203,6 +210,16 @@ graph persistence 位於 `/ks/graph/graph.json`。
       <artifact-id>.json
     /wiki-candidates
       <candidate-artifact-id>.json
+  /graphify
+    latest.json
+    /runs
+      <run-id>/
+        graphify.json
+        communities.json
+        audit.json
+        manifest.json
+        graph.html
+        GRAPH_REPORT.md
   /manifest.json
 ```
 
@@ -243,7 +260,7 @@ MCP 暴露 `hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_
 
 MCP 暴露 `hks_llm_classify`；HTTP facade 暴露 `/llm/classify`。
 
-008 不做 wiki synthesis、Graphify clustering / visualization / audit report，也不做 watch / daemon。wiki synthesis 由 009 提供；Graphify 與 watch / daemon 分別留給 010、011。
+008 不做 wiki synthesis、Graphify clustering / visualization / audit report，也不做 watch / daemon。wiki synthesis 由 009 提供；Graphify 由 010 提供；watch / daemon 留給 011。
 
 ---
 
@@ -261,7 +278,19 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 
 ---
 
-## 12. Phase Status
+## 12. Graphify
+
+010 提供 `ks graphify build --mode preview|store`，產生 derived Graphify artifacts，而不是修改 authoritative `graph/graph.json`。
+
+* `--mode=preview`：read-only，回傳 `graphify_summary`；不寫任何 runtime layer
+* `--mode=store`：只寫 `$KS_ROOT/graphify/runs/<run-id>/` 與 `$KS_ROOT/graphify/latest.json`
+* output 包含 graph JSON、communities JSON、audit JSON、static HTML、Markdown report
+* `trace.route="graph"`；top-level `source` 只使用既有 `wiki / graph / vector` enum，不能新增 `"graphify"`
+* 010 不做 watch / daemon；011 才處理 continuous update orchestration
+
+---
+
+## 13. Phase Status
 
 ### Phase 1
 
@@ -293,12 +322,12 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 
 * [x] 008 LLM-assisted classification / extraction candidate artifacts
 * [x] 009 LLM Wiki synthesis
-* [ ] 010 Graphify clustering / visualization / audit report
+* [x] 010 Graphify clustering / visualization / audit report
 * [ ] 011 continuous update / watch workflow
 
 ---
 
-## 13. Runtime configuration
+## 14. Runtime configuration
 
 常用環境變數不在本文件重複列完整清單，避免 drift。請以 [README.md#常用環境變數](../README.md#常用環境變數) 與 [README.en.md#useful-environment-variables](../README.en.md#useful-environment-variables) 為準。
 
@@ -306,7 +335,7 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 
 ---
 
-## 14. 非目標
+## 15. 非目標
 
 目前仍不做：
 

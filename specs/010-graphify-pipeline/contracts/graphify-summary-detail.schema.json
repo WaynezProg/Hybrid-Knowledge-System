@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/graphify-summary-detail.schema.json",
+  "title": "HKS Graphify summary trace detail",
+  "type": "object",
+  "required": ["operation", "mode", "input_fingerprint", "node_count", "edge_count", "community_count", "audit_summary", "artifacts", "idempotent_reuse", "confidence"],
+  "additionalProperties": false,
+  "properties": {
+    "operation": { "type": "string", "const": "graphify_build" },
+    "mode": { "type": "string", "enum": ["preview", "store"] },
+    "input_fingerprint": { "type": "string", "minLength": 1 },
+    "node_count": { "type": "integer", "minimum": 0 },
+    "edge_count": { "type": "integer", "minimum": 0 },
+    "community_count": { "type": "integer", "minimum": 0 },
+    "audit_summary": {
+      "type": "object",
+      "required": ["info", "warning", "error"],
+      "additionalProperties": false,
+      "properties": {
+        "info": { "type": "integer", "minimum": 0 },
+        "warning": { "type": "integer", "minimum": 0 },
+        "error": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["run_id", "run_path", "graph", "communities", "audit", "manifest", "html", "report"],
+      "additionalProperties": false,
+      "properties": {
+        "run_id": { "type": ["string", "null"], "minLength": 1 },
+        "run_path": { "type": ["string", "null"], "minLength": 1 },
+        "graph": { "type": ["string", "null"], "minLength": 1 },
+        "communities": { "type": ["string", "null"], "minLength": 1 },
+        "audit": { "type": ["string", "null"], "minLength": 1 },
+        "manifest": { "type": ["string", "null"], "minLength": 1 },
+        "html": { "type": ["string", "null"], "minLength": 1 },
+        "report": { "type": ["string", "null"], "minLength": 1 }
+      }
+    },
+    "idempotent_reuse": { "type": "boolean" },
+    "confidence": { "type": "number", "enum": [0.0, 1.0] }
+  }
+}

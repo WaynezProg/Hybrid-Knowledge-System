@@ -28,6 +28,10 @@ type FindingCategory = Literal[
     "wiki_candidate_artifact_corrupt",
     "wiki_synthesis_frontmatter_invalid",
     "wiki_synthesis_partial_apply",
+    "graphify_invalid_graph",
+    "graphify_corrupt_upstream_artifact",
+    "graphify_partial_run",
+    "graphify_latest_mismatch",
 ]
 type FixActionKind = Literal[
     "rebuild_index",
@@ -63,6 +67,10 @@ FINDING_SEVERITY: dict[FindingCategory, Severity] = {
     "wiki_candidate_artifact_corrupt": "error",
     "wiki_synthesis_frontmatter_invalid": "error",
     "wiki_synthesis_partial_apply": "error",
+    "graphify_invalid_graph": "warning",
+    "graphify_corrupt_upstream_artifact": "warning",
+    "graphify_partial_run": "error",
+    "graphify_latest_mismatch": "error",
 }
 
 SEVERITY_RANK: dict[Severity, int] = {"info": 0, "warning": 1, "error": 2}
@@ -159,6 +167,11 @@ class RuntimeSnapshot:
     llm_artifact_errors: dict[str, str] = field(default_factory=dict)
     wiki_candidate_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
     wiki_candidate_artifact_errors: dict[str, str] = field(default_factory=dict)
+    graphify_run_manifests: dict[str, dict[str, Any]] = field(default_factory=dict)
+    graphify_graph_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    graphify_artifact_errors: dict[str, str] = field(default_factory=dict)
+    graphify_partial_runs: set[str] = field(default_factory=set)
+    graphify_latest_error: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

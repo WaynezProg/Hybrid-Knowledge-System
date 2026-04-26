@@ -10,12 +10,14 @@ from typing import Any, cast
 
 from hks.adapters.contracts import (
     validate_coordination_tool_input,
+    validate_graphify_tool_input,
     validate_llm_tool_input,
     validate_tool_input,
     validate_wiki_tool_input,
 )
 from hks.adapters.models import (
     FIX_MODES,
+    GRAPHIFY_MODES,
     LLM_MODES,
     PPTX_NOTES_MODES,
     SEVERITY_THRESHOLDS,
@@ -24,6 +26,7 @@ from hks.adapters.models import (
     AdapterError,
     AdapterToolError,
     FixMode,
+    GraphifyMode,
     LlmMode,
     PptxNotesMode,
     SeverityThreshold,
@@ -31,6 +34,7 @@ from hks.adapters.models import (
     WritebackMode,
 )
 from hks.commands import coord as coord_command
+from hks.commands import graphify as graphify_command
 from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
 from hks.commands import llm as llm_command
@@ -477,6 +481,56 @@ def hks_wiki_synthesize(
         provider=provider,
         model=model,
         prompt_version=prompt_version,
+        force_new_run=force_new_run,
+        requested_by=requested_by,
+        ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_graphify_build(
+    *,
+    mode: str = "preview",
+    provider: str = "fake",
+    model: str | None = None,
+    algorithm_version: str | None = None,
+    include_html: bool = True,
+    include_report: bool = True,
+    force_new_run: bool = False,
+    requested_by: str | None = None,
+    ks_root: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "mode": mode,
+        "provider": provider,
+        "model": model,
+        "algorithm_version": algorithm_version,
+        "include_html": include_html,
+        "include_report": include_report,
+        "force_new_run": force_new_run,
+        "requested_by": requested_by,
+        "ks_root": ks_root,
+    }
+    try:
+        validate_graphify_tool_input(
+            "hks_graphify_build",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    normalized_mode = cast(
+        GraphifyMode,
+        _require_choice(mode, GRAPHIFY_MODES, field="mode", request_id=request_id),
+    )
+    return _run_command(
+        graphify_command.run_build,
+        mode=normalized_mode,
+        provider=provider,
+        model=model,
+        algorithm_version=algorithm_version,
+        include_html=include_html,
+        include_report=include_report,
         force_new_run=force_new_run,
         requested_by=requested_by,
         ks_root=ks_root,

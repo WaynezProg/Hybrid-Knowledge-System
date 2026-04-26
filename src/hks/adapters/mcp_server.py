@@ -134,6 +134,34 @@ def create_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
+    def hks_graphify_build(
+        mode: str = "preview",
+        provider: str = "fake",
+        model: str | None = None,
+        algorithm_version: str | None = None,
+        include_html: bool = True,
+        include_report: bool = True,
+        force_new_run: bool = False,
+        requested_by: str | None = None,
+        ks_root: str | None = None,
+    ) -> Any:
+        """Build derived Graphify artifacts from existing HKS layers."""
+        try:
+            return core.hks_graphify_build(
+                mode=mode,
+                provider=provider,
+                model=model,
+                algorithm_version=algorithm_version,
+                include_html=include_html,
+                include_report=include_report,
+                force_new_run=force_new_run,
+                requested_by=requested_by,
+                ks_root=ks_root,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
     def hks_coord_session(
         action: str,
         agent_id: str,
