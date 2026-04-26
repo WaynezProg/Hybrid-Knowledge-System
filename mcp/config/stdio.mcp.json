@@ -10,7 +10,8 @@
       ],
       "cwd": ".",
       "env": {
-        "HKS_EMBEDDING_MODEL": "simple"
+        "KS_ROOT": ".hks-runs/work/ks",
+        "HKS_WORKSPACE_REGISTRY": ".hks-runs/workspaces.json"
       }
     }
   }

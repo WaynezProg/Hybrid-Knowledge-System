@@ -12,6 +12,27 @@ uv run ks --help
 
 這不代表功能沒實作。Adapters 是 on-demand entrypoints，不是常駐服務。Adapter 文件在 `mcp/`。
 
+## Agent 說沒有持久化知識庫
+
+通常不是 HKS 沒有持久化能力，而是 agent 沒有指到已初始化的 `KS_ROOT`。
+
+檢查：
+
+```bash
+echo "$KS_ROOT"
+uv run ks source list
+```
+
+建立可重用 runtime：
+
+```bash
+. skill/hks-knowledge-system/config/shared-runtime.sh
+uv run ks ingest <source-dir>
+uv run ks workspace register work --ks-root "$KS_ROOT" --label "Work"
+```
+
+注意：`.hks-runs/` 和 `testhks/` 被 `.gitignore` 忽略，不會跟著 repo clone 或 skill install 給其他 agent。
+
 ## Query 產生 wiki page
 
 你沒有關掉 write-back。探索查詢請用：

@@ -10,6 +10,8 @@ Use `../SKILL.md` first, then `../README.md` for the full framework. This file i
 - Keep `KS_ROOT` explicit for tests and user workflows.
 - Use `--writeback=no` unless the user explicitly wants wiki mutation.
 - For HTTP or MCP adapter work, switch to `../../../mcp/README.md`.
+- For reusable knowledge across sessions, read `../workflows/persistent-workspace.md`.
+- To share the same runtime with other agents, source `../config/shared-runtime.sh` from the repo root.
 
 ## Main Commands
 
@@ -30,6 +32,7 @@ uv run ks watch scan --source-root <source-dir>
 
 - Full command map: `../commands/cli.md`
 - Safe workflows: `../workflows/`
+- Persistent runtime setup: `../workflows/persistent-workspace.md`
 - Mutation policy: `../policies/safety.md`
 - Response contract: `../contracts/response-contract.md`
 - Troubleshooting: `../troubleshooting.md`

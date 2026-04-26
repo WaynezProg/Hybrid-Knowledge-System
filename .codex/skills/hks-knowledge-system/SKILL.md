@@ -13,9 +13,11 @@ description: Operate the Hybrid Knowledge System through its main `ks` CLI. Use 
 
 1. `README.md`：skill 框架與檔案地圖
 2. `commands/cli.md`：完整 `ks` command surface
-3. `workflows/smoke-test.md`：最小驗證流程
-4. `policies/safety.md`：mutation boundary 與環境規則
-5. `contracts/response-contract.md`：JSON response contract
+3. `workflows/persistent-workspace.md`：建立可重用的持久化 knowledge runtime
+4. `config/shared-runtime.sh`：多 agent 共用同一個 repo-local runtime
+5. `workflows/smoke-test.md`：最小驗證流程
+6. `policies/safety.md`：mutation boundary 與環境規則
+7. `contracts/response-contract.md`：JSON response contract
 
 ## 核心規則
 
@@ -36,6 +38,17 @@ uv run ks ingest tests/fixtures/valid
 uv run ks query "這批資料的重點是什麼？" --writeback=no
 uv run ks source list
 uv run ks lint --strict
+```
+
+## 持久化 knowledge runtime
+
+如果 agent 要跨 session 重用知識庫，不要只用 temporary `KS_ROOT`。先建立 repo-local runtime 並註冊 workspace：
+
+```bash
+. skill/hks-knowledge-system/config/shared-runtime.sh
+uv run ks ingest <source-dir>
+uv run ks workspace register work --ks-root "$KS_ROOT" --label "Work"
+uv run ks workspace query work "目前有哪些資料？" --writeback=no
 ```
 
 ## 權威來源

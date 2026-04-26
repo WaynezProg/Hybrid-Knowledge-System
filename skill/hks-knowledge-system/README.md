@@ -11,6 +11,8 @@ skill/hks-knowledge-system/
 ├── agents/
 │   ├── claude.md
 │   └── openclaw.md
+├── config/
+│   └── shared-runtime.sh
 ├── commands/
 │   └── cli.md
 ├── contracts/
@@ -22,6 +24,7 @@ skill/hks-knowledge-system/
     ├── ingest-query.md
     ├── llm-wiki-graphify.md
     ├── multi-agent.md
+    ├── persistent-workspace.md
     ├── smoke-test.md
     └── watch-refresh.md
 ```
@@ -30,6 +33,7 @@ skill/hks-knowledge-system/
 
 - `SKILL.md`：最小入口，告訴 agent 何時用、先讀什麼、不可違反什麼。
 - `commands/cli.md`：完整 `ks` CLI command map。
+- `config/shared-runtime.sh`：讓多個 local agents 共用同一個 repo-local `KS_ROOT` 與 workspace registry。
 - `workflows/`：可直接執行的任務流程。
 - `contracts/`：response shape 與 semantic rules。
 - `policies/`：環境、mutation、adapter 分界。
