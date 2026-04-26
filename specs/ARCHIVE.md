@@ -66,5 +66,5 @@
 - `011-continuous-watch`
   - Status: Complete
   - Archived on: 2026-04-26
-  - Merged into: pending
+  - Merged into: `main`
   - Canonical artifacts: [spec.md](./011-continuous-watch/spec.md), [plan.md](./011-continuous-watch/plan.md), [tasks.md](./011-continuous-watch/tasks.md)

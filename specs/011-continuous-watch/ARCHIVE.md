@@ -3,7 +3,7 @@
 Status: Complete
 Archived on: 2026-04-26
 Branch: `011-continuous-watch`
-Merged into: pending
+Merged into: `main`
 
 ## Scope Delivered
 
