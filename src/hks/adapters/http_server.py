@@ -106,6 +106,57 @@ async def watch_status_endpoint(request: Request) -> Response:
     return await _adapter_response(request, core.hks_watch_status)
 
 
+async def source_list_endpoint(request: Request) -> Response:
+    return await _adapter_response(request, core.hks_source_list)
+
+
+async def source_show_endpoint(request: Request) -> Response:
+    try:
+        payload = await _json(request)
+    except Exception as error:
+        return _usage_response(str(error))
+    payload["relpath"] = request.path_params["relpath"]
+    return _response(core.hks_source_show, **payload)
+
+
+async def workspaces_endpoint(request: Request) -> Response:
+    try:
+        payload = await _json(request)
+    except Exception as error:
+        return _usage_response(str(error))
+    action = payload.pop("action", "list")
+    if action == "list":
+        return _response(core.hks_workspace_list, **payload)
+    if action == "register":
+        return _response(core.hks_workspace_register, **payload)
+    return _usage_response(f"unsupported workspace action: {action}")
+
+
+async def workspace_endpoint(request: Request) -> Response:
+    try:
+        payload = await _json(request)
+    except Exception as error:
+        return _usage_response(str(error))
+    action = payload.pop("action", "show")
+    payload["workspace_id"] = request.path_params["workspace_id"]
+    if action == "show":
+        return _response(core.hks_workspace_show, **payload)
+    if action == "remove":
+        return _response(core.hks_workspace_remove, **payload)
+    if action == "use":
+        return _response(core.hks_workspace_use, **payload)
+    return _usage_response(f"unsupported workspace action: {action}")
+
+
+async def workspace_query_endpoint(request: Request) -> Response:
+    try:
+        payload = await _json(request)
+    except Exception as error:
+        return _usage_response(str(error))
+    payload["workspace_id"] = request.path_params["workspace_id"]
+    return _response(core.hks_workspace_query, **payload)
+
+
 async def coord_session_endpoint(request: Request) -> Response:
     return await _adapter_response(request, core.hks_coord_session)
 
@@ -134,6 +185,11 @@ def create_app() -> Starlette:
             Route("/watch/scan", watch_scan_endpoint, methods=["POST"]),
             Route("/watch/run", watch_run_endpoint, methods=["POST"]),
             Route("/watch/status", watch_status_endpoint, methods=["POST"]),
+            Route("/catalog/sources", source_list_endpoint, methods=["POST"]),
+            Route("/catalog/sources/{relpath:path}", source_show_endpoint, methods=["POST"]),
+            Route("/workspaces", workspaces_endpoint, methods=["POST"]),
+            Route("/workspaces/{workspace_id}", workspace_endpoint, methods=["POST"]),
+            Route("/workspaces/{workspace_id}/query", workspace_query_endpoint, methods=["POST"]),
             Route("/coord/session", coord_session_endpoint, methods=["POST"]),
             Route("/coord/lease", coord_lease_endpoint, methods=["POST"]),
             Route("/coord/handoff", coord_handoff_endpoint, methods=["POST"]),

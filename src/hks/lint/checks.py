@@ -20,7 +20,7 @@ from hks.ingest.fingerprint import (
     are_fingerprints_compatible,
     compute_parser_fingerprint,
 )
-from hks.lint.models import Finding, RuntimeSnapshot
+from hks.lint.models import Finding, FindingCategory, RuntimeSnapshot
 
 
 def run_checks(snapshot: RuntimeSnapshot) -> list[Finding]:
@@ -34,6 +34,7 @@ def run_checks(snapshot: RuntimeSnapshot) -> list[Finding]:
     findings.extend(check_wiki_synthesis(snapshot))
     findings.extend(check_graphify(snapshot))
     findings.extend(check_watch(snapshot))
+    findings.extend(check_workspace_registry(snapshot))
     return sorted(
         findings,
         key=lambda finding: (finding.category, finding.target, finding.message),
@@ -448,4 +449,41 @@ def check_watch(snapshot: RuntimeSnapshot) -> list[Finding]:
                     details={"error": exc.message},
                 )
             )
+    return findings
+
+
+def check_workspace_registry(snapshot: RuntimeSnapshot) -> list[Finding]:
+    findings: list[Finding] = []
+    for target, error in sorted(snapshot.workspace_registry_errors.items()):
+        category: FindingCategory = (
+            "workspace_registry_invalid"
+            if "schema" in error or "invalid" in error.lower()
+            else "workspace_registry_corrupt"
+        )
+        findings.append(
+            Finding.make(
+                category,
+                target,
+                f"workspace registry `{target}` is invalid",
+                details={"error": error},
+            )
+        )
+    for workspace_id, issue in sorted(snapshot.workspace_root_issues.items()):
+        findings.append(
+            Finding.make(
+                "workspace_root_missing",
+                workspace_id,
+                f"workspace `{workspace_id}` is not ready",
+                details={"issue": issue},
+            )
+        )
+    for root, workspace_ids in sorted(snapshot.workspace_duplicate_roots.items()):
+        findings.append(
+            Finding.make(
+                "workspace_duplicate_root",
+                root,
+                "multiple workspaces point to the same KS_ROOT",
+                details={"workspace_ids": workspace_ids},
+            )
+        )
     return findings

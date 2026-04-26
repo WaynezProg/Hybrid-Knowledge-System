@@ -36,6 +36,10 @@ type FindingCategory = Literal[
     "watch_artifact_corrupt",
     "watch_partial_run",
     "watch_latest_mismatch",
+    "workspace_registry_corrupt",
+    "workspace_registry_invalid",
+    "workspace_root_missing",
+    "workspace_duplicate_root",
 ]
 type FixActionKind = Literal[
     "rebuild_index",
@@ -79,6 +83,10 @@ FINDING_SEVERITY: dict[FindingCategory, Severity] = {
     "watch_artifact_corrupt": "error",
     "watch_partial_run": "error",
     "watch_latest_mismatch": "error",
+    "workspace_registry_corrupt": "error",
+    "workspace_registry_invalid": "error",
+    "workspace_root_missing": "warning",
+    "workspace_duplicate_root": "warning",
 }
 
 SEVERITY_RANK: dict[Severity, int] = {"info": 0, "warning": 1, "error": 2}
@@ -184,6 +192,10 @@ class RuntimeSnapshot:
     watch_artifact_errors: dict[str, str] = field(default_factory=dict)
     watch_partial_runs: set[str] = field(default_factory=set)
     watch_latest_error: str | None = None
+    workspace_registry_path: str | None = None
+    workspace_registry_errors: dict[str, str] = field(default_factory=dict)
+    workspace_root_issues: dict[str, str] = field(default_factory=dict)
+    workspace_duplicate_roots: dict[str, list[str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

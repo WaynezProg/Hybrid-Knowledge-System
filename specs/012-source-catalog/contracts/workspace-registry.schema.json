@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/workspace-registry.schema.json",
+  "title": "HKS workspace registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "updated_at", "workspaces"],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "updated_at": { "type": "string", "minLength": 1 },
+    "workspaces": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/workspaceRecord" }
+    }
+  },
+  "$defs": {
+    "workspaceId": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_-]{0,63}$"
+    },
+    "workspaceRecord": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "ks_root", "created_at", "updated_at", "tags", "metadata"],
+      "properties": {
+        "id": { "$ref": "#/$defs/workspaceId" },
+        "label": { "type": "string", "minLength": 1 },
+        "ks_root": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "minLength": 1 },
+        "updated_at": { "type": "string", "minLength": 1 },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "number", "integer", "boolean", "null"]
+          }
+        }
+      }
+    },
+    "workspaceStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "ks_root",
+        "status",
+        "source_count",
+        "formats",
+        "last_ingested_at",
+        "issues"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/workspaceId" },
+        "label": { "type": "string", "minLength": 1 },
+        "ks_root": { "type": "string", "minLength": 1 },
+        "status": {
+          "type": "string",
+          "enum": ["ready", "missing", "uninitialized", "corrupt", "duplicate_root"]
+        },
+        "source_count": { "type": "integer", "minimum": 0 },
+        "formats": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "last_ingested_at": { "type": ["string", "null"], "minLength": 1 },
+        "issues": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    }
+  }
+}

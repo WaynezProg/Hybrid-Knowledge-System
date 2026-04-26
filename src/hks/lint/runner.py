@@ -24,6 +24,8 @@ from hks.lint.models import (
 )
 from hks.storage.vector import VectorStore
 from hks.storage.wiki import WikiPage
+from hks.workspace.registry import load_registry, registry_path
+from hks.workspace.service import _workspace_status
 
 
 def run_lint(*, fix_mode: FixMode = "none") -> LintResult:
@@ -108,6 +110,10 @@ def _build_snapshot(paths: RuntimePaths) -> RuntimeSnapshot:
         watch_artifact_errors=_load_watch_artifact_errors(paths),
         watch_partial_runs=_load_watch_partial_runs(paths),
         watch_latest_error=_load_watch_latest_error(paths),
+        workspace_registry_path=_workspace_registry_path(),
+        workspace_registry_errors=_load_workspace_registry_errors(),
+        workspace_root_issues=_load_workspace_root_issues(),
+        workspace_duplicate_roots=_load_workspace_duplicate_roots(),
     )
 
 
@@ -413,3 +419,42 @@ def _load_watch_latest_error(paths: RuntimePaths) -> str | None:
     if run_id and not (_watch_dir(paths) / "runs" / f"{run_id}.json").exists():
         return "watch latest pointer references missing run"
     return None
+
+
+def _workspace_registry_path() -> str:
+    return registry_path().as_posix()
+
+
+def _load_workspace_registry_errors() -> dict[str, str]:
+    path = registry_path()
+    if not path.exists():
+        return {}
+    try:
+        load_registry(path)
+    except Exception as exc:
+        return {path.as_posix(): str(exc)}
+    return {}
+
+
+def _load_workspace_root_issues() -> dict[str, str]:
+    try:
+        registry = load_registry()
+    except Exception:
+        return {}
+    issues: dict[str, str] = {}
+    for record in registry.workspaces.values():
+        status = _workspace_status(record)
+        if status.status not in {"ready", "duplicate_root"}:
+            issues[record.id] = "; ".join(status.issues) or status.status
+    return issues
+
+
+def _load_workspace_duplicate_roots() -> dict[str, list[str]]:
+    try:
+        registry = load_registry()
+    except Exception:
+        return {}
+    by_root: dict[str, list[str]] = {}
+    for record in registry.workspaces.values():
+        by_root.setdefault(record.ks_root, []).append(record.id)
+    return {root: sorted(ids) for root, ids in sorted(by_root.items()) if len(ids) > 1}

@@ -29,6 +29,7 @@ type TraceKind = Literal[
     "wiki_synthesis_summary",
     "graphify_summary",
     "watch_summary",
+    "catalog_summary",
 ]
 
 

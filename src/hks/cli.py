@@ -17,8 +17,10 @@ from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
 from hks.commands import llm as llm_command
 from hks.commands import query as query_command
+from hks.commands import source as source_command
 from hks.commands import watch as watch_command
 from hks.commands import wiki as wiki_command
+from hks.commands import workspace as workspace_command
 from hks.core.schema import QueryResponse, Route, build_error_response
 from hks.errors import ExitCode, KSError
 from hks.lint.models import FixMode, SeverityThreshold
@@ -33,6 +35,8 @@ llm_app = typer.Typer(add_completion=False, no_args_is_help=True)
 wiki_app = typer.Typer(add_completion=False, no_args_is_help=True)
 graphify_app = typer.Typer(add_completion=False, no_args_is_help=True)
 watch_app = typer.Typer(add_completion=False, no_args_is_help=True)
+source_app = typer.Typer(add_completion=False, no_args_is_help=True)
+workspace_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_session_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_lease_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_handoff_app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -44,6 +48,8 @@ app.add_typer(llm_app, name="llm")
 app.add_typer(wiki_app, name="wiki")
 app.add_typer(graphify_app, name="graphify")
 app.add_typer(watch_app, name="watch")
+app.add_typer(source_app, name="source")
+app.add_typer(workspace_app, name="workspace")
 
 
 class WritebackMode(StrEnum):
@@ -214,6 +220,170 @@ def query(
     ] = WritebackMode.auto,
 ) -> None:
     run_command("query", query_command.run, question, writeback=writeback.value)
+
+
+@source_app.command("list")
+def source_list(
+    ks_root: Annotated[
+        Path | None,
+        typer.Option("--ks-root", help="Explicit HKS runtime root."),
+    ] = None,
+    format: Annotated[
+        str | None,
+        typer.Option("--format", help="Filter by source format."),
+    ] = None,
+    relpath_query: Annotated[
+        str | None,
+        typer.Option("--relpath-query", help="Filter by relpath substring."),
+    ] = None,
+    limit: Annotated[int | None, typer.Option("--limit", help="Maximum rows.")] = None,
+    offset: Annotated[int | None, typer.Option("--offset", help="Rows to skip.")] = None,
+) -> None:
+    run_command(
+        "source list",
+        source_command.run_list,
+        ks_root=ks_root,
+        format=format,
+        relpath_query=relpath_query,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@source_app.command("show")
+def source_show(
+    relpath: Annotated[str, typer.Argument(help="Manifest source relpath.")],
+    ks_root: Annotated[
+        Path | None,
+        typer.Option("--ks-root", help="Explicit HKS runtime root."),
+    ] = None,
+) -> None:
+    run_command("source show", source_command.run_show, relpath, ks_root=ks_root)
+
+
+@workspace_app.command("list")
+def workspace_list(
+    registry_path: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
+) -> None:
+    run_command("workspace list", workspace_command.run_list, registry_path=registry_path)
+
+
+@workspace_app.command("show")
+def workspace_show(
+    workspace_id: Annotated[str, typer.Argument(help="Workspace id.")],
+    registry_path: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
+) -> None:
+    run_command(
+        "workspace show",
+        workspace_command.run_show,
+        workspace_id,
+        registry_path=registry_path,
+    )
+
+
+@workspace_app.command("register")
+def workspace_register(
+    workspace_id: Annotated[str, typer.Argument(help="Workspace id.")],
+    ks_root: Annotated[Path, typer.Option("--ks-root", help="HKS runtime root.")],
+    label: Annotated[str | None, typer.Option("--label", help="Workspace label.")] = None,
+    tags: Annotated[
+        list[str] | None,
+        typer.Option("--tag", help="Workspace tag."),
+    ] = None,
+    metadata: Annotated[
+        str | None,
+        typer.Option("--metadata", help="Workspace metadata JSON object."),
+    ] = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Replace an existing workspace root."),
+    ] = False,
+    registry_path: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
+) -> None:
+    try:
+        parsed_metadata = _parse_json_object(metadata, field="metadata")
+    except (json.JSONDecodeError, ValueError) as error:
+        raise typer.Exit(code=_emit_usage_error("workspace register", str(error))) from error
+    run_command(
+        "workspace register",
+        workspace_command.run_register,
+        workspace_id,
+        ks_root=ks_root,
+        label=label,
+        tags=tags or [],
+        metadata=parsed_metadata,
+        force=force,
+        registry_path=registry_path,
+    )
+
+
+@workspace_app.command("remove")
+def workspace_remove(
+    workspace_id: Annotated[str, typer.Argument(help="Workspace id.")],
+    registry_path: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
+) -> None:
+    run_command(
+        "workspace remove",
+        workspace_command.run_remove,
+        workspace_id,
+        registry_path=registry_path,
+    )
+
+
+@workspace_app.command("use")
+def workspace_use(
+    workspace_id: Annotated[str, typer.Argument(help="Workspace id.")],
+    registry_path: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
+) -> None:
+    run_command(
+        "workspace use",
+        workspace_command.run_use,
+        workspace_id,
+        registry_path=registry_path,
+    )
+
+
+@workspace_app.command("query")
+def workspace_query(
+    workspace_id: Annotated[str, typer.Argument(help="Workspace id.")],
+    question: Annotated[str, typer.Argument(help="Question to ask the selected workspace.")],
+    writeback: Annotated[
+        WritebackMode,
+        typer.Option("--writeback", case_sensitive=False, help="Override write-back behavior."),
+    ] = WritebackMode.no,
+    registry_path: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
+    ks_root: Annotated[
+        Path | None,
+        typer.Option("--ks-root", help="Optional explicit root; must match workspace."),
+    ] = None,
+) -> None:
+    run_command(
+        "workspace query",
+        workspace_command.run_query,
+        workspace_id,
+        question,
+        writeback=writeback.value,
+        registry_path=registry_path,
+        ks_root=ks_root,
+    )
 
 
 @llm_app.command("classify")

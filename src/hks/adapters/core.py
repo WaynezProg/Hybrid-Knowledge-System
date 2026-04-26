@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from hks.adapters.contracts import (
+    validate_catalog_tool_input,
     validate_coordination_tool_input,
     validate_graphify_tool_input,
     validate_llm_tool_input,
@@ -22,6 +23,7 @@ from hks.adapters.models import (
     LLM_MODES,
     PPTX_NOTES_MODES,
     SEVERITY_THRESHOLDS,
+    SOURCE_FORMATS,
     WATCH_MODES,
     WATCH_PROFILES,
     WIKI_SYNTHESIS_MODES,
@@ -44,8 +46,10 @@ from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
 from hks.commands import llm as llm_command
 from hks.commands import query as query_command
+from hks.commands import source as source_command
 from hks.commands import watch as watch_command
 from hks.commands import wiki as wiki_command
+from hks.commands import workspace as workspace_command
 from hks.core.schema import QueryResponse, Route, build_error_response, validate
 from hks.errors import ExitCode, KSError
 
@@ -236,6 +240,221 @@ def hks_lint(
         severity_threshold=threshold,
         fix_mode=fix_mode,
         ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_source_list(
+    *,
+    ks_root: str | None = None,
+    format: str | None = None,
+    relpath_query: str | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "ks_root": ks_root,
+        "format": format,
+        "relpath_query": relpath_query,
+        "limit": limit,
+        "offset": offset,
+    }
+    try:
+        validate_catalog_tool_input(
+            "hks_source_list",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    if format is not None:
+        _require_choice(format, SOURCE_FORMATS, field="format", request_id=request_id)
+    return _run_command(
+        source_command.run_list,
+        ks_root=ks_root,
+        format=format,
+        relpath_query=relpath_query,
+        limit=limit,
+        offset=offset,
+        request_id=request_id,
+    )
+
+
+def hks_source_show(
+    *,
+    relpath: str,
+    ks_root: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {"relpath": relpath, "ks_root": ks_root}
+    try:
+        validate_catalog_tool_input(
+            "hks_source_show",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    return _run_command(
+        source_command.run_show,
+        relpath,
+        ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_workspace_list(
+    *,
+    registry_path: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {"registry_path": registry_path}
+    try:
+        validate_catalog_tool_input(
+            "hks_workspace_list",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    return _run_command(
+        workspace_command.run_list,
+        registry_path=registry_path,
+        request_id=request_id,
+    )
+
+
+def hks_workspace_register(
+    *,
+    workspace_id: str,
+    ks_root: str,
+    label: str | None = None,
+    tags: list[str] | None = None,
+    metadata: dict[str, Any] | None = None,
+    force: bool = False,
+    registry_path: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "workspace_id": workspace_id,
+        "ks_root": ks_root,
+        "label": label,
+        "tags": tags or [],
+        "force": force,
+        "registry_path": registry_path,
+    }
+    try:
+        validate_catalog_tool_input(
+            "hks_workspace_register",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    return _run_command(
+        workspace_command.run_register,
+        workspace_id,
+        ks_root,
+        label=label,
+        tags=tags or [],
+        metadata=metadata or {},
+        force=force,
+        registry_path=registry_path,
+        request_id=request_id,
+    )
+
+
+def hks_workspace_show(
+    *,
+    workspace_id: str,
+    registry_path: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {"workspace_id": workspace_id, "registry_path": registry_path}
+    try:
+        validate_catalog_tool_input(
+            "hks_workspace_show",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    return _run_command(
+        workspace_command.run_show,
+        workspace_id,
+        registry_path=registry_path,
+        request_id=request_id,
+    )
+
+
+def hks_workspace_remove(
+    *,
+    workspace_id: str,
+    registry_path: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {"workspace_id": workspace_id, "registry_path": registry_path}
+    try:
+        validate_catalog_tool_input(
+            "hks_workspace_remove",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    return _run_command(
+        workspace_command.run_remove,
+        workspace_id,
+        registry_path=registry_path,
+        request_id=request_id,
+    )
+
+
+def hks_workspace_use(
+    *,
+    workspace_id: str,
+    registry_path: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {"workspace_id": workspace_id, "registry_path": registry_path}
+    try:
+        validate_catalog_tool_input(
+            "hks_workspace_use",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    return _run_command(
+        workspace_command.run_use,
+        workspace_id,
+        registry_path=registry_path,
+        request_id=request_id,
+    )
+
+
+def hks_workspace_query(
+    *,
+    workspace_id: str,
+    question: str,
+    writeback: str = "no",
+    registry_path: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "workspace_id": workspace_id,
+        "question": question,
+        "writeback": writeback,
+        "registry_path": registry_path,
+    }
+    try:
+        validate_catalog_tool_input(
+            "hks_workspace_query",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    mode = cast(WritebackMode, _require_choice(writeback, WRITEBACK_MODES, field="writeback"))
+    return _run_command(
+        workspace_command.run_query,
+        workspace_id,
+        question,
+        writeback=mode,
+        registry_path=registry_path,
         request_id=request_id,
     )
 

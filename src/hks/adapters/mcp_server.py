@@ -211,6 +211,108 @@ def create_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
+    def hks_source_list(
+        ks_root: str | None = None,
+        format: str | None = None,
+        relpath_query: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+    ) -> Any:
+        """List manifest-derived sources for one HKS runtime."""
+        try:
+            return core.hks_source_list(
+                ks_root=ks_root,
+                format=format,
+                relpath_query=relpath_query,
+                limit=limit,
+                offset=offset,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_source_show(relpath: str, ks_root: str | None = None) -> Any:
+        """Show one manifest source and its derived artifact references."""
+        try:
+            return core.hks_source_show(relpath=relpath, ks_root=ks_root)
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_workspace_list(registry_path: str | None = None) -> Any:
+        """List registered HKS workspaces."""
+        try:
+            return core.hks_workspace_list(registry_path=registry_path)
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_workspace_register(
+        workspace_id: str,
+        ks_root: str,
+        label: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+        force: bool = False,
+        registry_path: str | None = None,
+    ) -> Any:
+        """Register or update one named HKS workspace."""
+        try:
+            return core.hks_workspace_register(
+                workspace_id=workspace_id,
+                ks_root=ks_root,
+                label=label,
+                tags=tags or [],
+                metadata=metadata or {},
+                force=force,
+                registry_path=registry_path,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_workspace_show(workspace_id: str, registry_path: str | None = None) -> Any:
+        """Show one registered HKS workspace."""
+        try:
+            return core.hks_workspace_show(workspace_id=workspace_id, registry_path=registry_path)
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_workspace_remove(workspace_id: str, registry_path: str | None = None) -> Any:
+        """Remove one registered HKS workspace."""
+        try:
+            return core.hks_workspace_remove(workspace_id=workspace_id, registry_path=registry_path)
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_workspace_use(workspace_id: str, registry_path: str | None = None) -> Any:
+        """Return the shell export command for one ready workspace."""
+        try:
+            return core.hks_workspace_use(workspace_id=workspace_id, registry_path=registry_path)
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_workspace_query(
+        workspace_id: str,
+        question: str,
+        writeback: str = "no",
+        registry_path: str | None = None,
+    ) -> Any:
+        """Query one registered HKS workspace."""
+        try:
+            return core.hks_workspace_query(
+                workspace_id=workspace_id,
+                question=question,
+                writeback=writeback,
+                registry_path=registry_path,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
     def hks_coord_session(
         action: str,
         agent_id: str,

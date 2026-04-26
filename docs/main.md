@@ -12,6 +12,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * 009：完成（LLM-assisted wiki synthesis candidate preview / store / explicit apply）
 * 010：完成（derived Graphify artifacts、community clustering、static HTML、audit report）
 * 011：完成（bounded watch scan / run / status；非 daemon）
+* 012：完成（source catalog / workspace selection）
 
 ---
 
@@ -28,6 +29,8 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * Tool Layer
   * `ks ingest`
   * `ks query`
+  * `ks source`
+  * `ks workspace`
   * `ks lint`
   * `ks coord`
   * `ks llm classify`
@@ -55,6 +58,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * 已完成：009 可從 008 stored artifact 產生 wiki synthesis candidate，preview / store 預設不改 authoritative layers，只有 caller-explicit `apply` 會寫入 `wiki/` page、index 與 log。
 * 已完成：010 可從既有 wiki / graph / 008 / 009 lineage 產生 derived Graphify artifacts、community clustering、static HTML 與 audit report。
 * 已完成：011 提供 bounded watch scan / run / status，處理明確 source roots 或 saved watch config 的 refresh plan 與 re-ingest。
+* 已完成：012 提供 read-only source catalog 與 named workspace registry，讓使用者或 agent 可以查看已 ingest sources、選擇 `KS_ROOT`，並對指定 workspace query。
 * 尚未完成：常駐 daemon / OS filesystem watcher。
 
 換句話說，HKS 現在是 agent 可調用的 local knowledge runtime；完整 LLM Wiki + Graphify 應以後續 feature 擴充，而不是視為 Phase 1-3 已交付內容。
@@ -66,6 +70,8 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 ```bash
 ks ingest <file|dir>
 ks query "<question>" [--writeback auto|yes|no|ask]
+ks source list|show
+ks workspace register|list|show|remove|use|query
 ks lint
 ks coord session|lease|handoff|status|lint
 ks llm classify <source-relpath> [--mode preview|store] [--provider fake]
@@ -89,14 +95,14 @@ stdout 契約統一：
 }
 ```
 
-`ks ingest`、`ks query`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`、`ks graphify build`、`ks watch scan|run|status` 共用同一 top-level JSON shape。
+`ks ingest`、`ks query`、`ks source`、`ks workspace`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`、`ks graphify build`、`ks watch scan|run|status` 共用同一 top-level JSON shape。
 `hks-mcp` 與 `hks-api` 的成功 payload 也共用此 shape；adapter 錯誤才使用 `{ok:false,error:{code,exit_code,message,details},response?}` envelope。
 
 `ks llm classify` 的 successful extraction 使用 `trace.route="wiki"`、`source=[]`、`trace.steps[kind="llm_extraction_summary"]`。這是 008 為避免擴 route/source enum 做出的 contract choice；consumer 不得把它解讀成 `ks query` no-hit。
 
 Source / route 語意對照：
 
-`source` 不是跨 feature 單一動詞；consumer 必須依 command/mode 解讀。`ks query` 的 `source` 表示讀取層；008/009 preview/store 使用 `source=[]` 表示產生 candidate artifact、不是 no-hit；009 apply success 的 `source=["wiki"]` 表示 caller-explicit mutation 成功寫入 wiki；010 Graphify 使用 `source` 表示 Graphify build 實際讀取到的穩定 HKS layer；011 watch 的 scan/dry-run/status 使用 `source=[]` 表示 operational plan/status，不是 query no-hit。不得新增 `"graphify"` 或 `"watch"` enum。
+`source` 不是跨 feature 單一動詞；consumer 必須依 command/mode 解讀。`ks query` 的 `source` 表示讀取層；008/009 preview/store 使用 `source=[]` 表示產生 candidate artifact、不是 no-hit；009 apply success 的 `source=["wiki"]` 表示 caller-explicit mutation 成功寫入 wiki；010 Graphify 使用 `source` 表示 Graphify build 實際讀取到的穩定 HKS layer；011 watch 的 scan/dry-run/status 使用 `source=[]` 表示 operational plan/status；012 catalog/workspace management 使用 `source=[]` 表示 operational catalog response。不得新增 `"graphify"`、`"watch"`、`"catalog"` 或 `"workspace"` enum。
 
 | Command / mode | `trace.route` | `source` | 語意 |
 |---|---|---|---|
@@ -111,6 +117,9 @@ Source / route 語意對照：
 | `ks graphify build --mode preview\|store` | `graph` | `["wiki","graph"]` 或實際讀取到的穩定 source layer | 產生 derived Graphify artifacts；不得把 `"graphify"` 放入 top-level `source` |
 | `ks watch scan` / `ks watch run --mode dry-run` / `ks watch status` | `wiki` | `[]` | 產生或讀取 `$KS_ROOT/watch/` operational state；不代表 query no-hit |
 | `ks watch run --mode execute --profile ingest-only` | `wiki` | `["wiki","graph","vector"]` | caller-explicit refresh 透過既有 ingest 更新穩定 runtime layers |
+| `ks source list|show` | `wiki` | `[]` | 讀取 manifest-derived catalog；不代表 query no-hit |
+| `ks workspace register|list|show|remove|use` | `wiki` | `[]` | 管理 local workspace registry；不讀取 knowledge layer 作答 |
+| `ks workspace query` | `wiki\|graph\|vector` | `ks query` semantics | 先解析 workspace id 到 `KS_ROOT`，再委派既有 query |
 
 ---
 
@@ -238,6 +247,8 @@ graph persistence 位於 `/ks/graph/graph.json`。
 `coordination/state.json` 存 agent sessions、resource leases、handoff notes；`events.jsonl` 是 append-only coordination event log。
 `llm/extractions/*.json` 存 008 extraction candidate artifact；`llm/wiki-candidates/*.json` 存 009 wiki synthesis candidate artifact。兩者都不是 authoritative wiki / graph / vector state；只有 `ks wiki synthesize --mode apply` 成功後寫入的 `origin=llm_wiki` page 才是 applied wiki state。
 
+Workspace registry 不屬於任何單一 `$KS_ROOT`，預設位於使用者 config path，可用 `HKS_WORKSPACE_REGISTRY` 指向 explicit JSON。Registry 只保存 workspace id 到 `KS_ROOT` 的 mapping；不修改任何 registered runtime 的 `wiki / graph / vector / manifest`。
+
 ---
 
 ## 9. Multi-agent Coordination
@@ -308,7 +319,19 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 
 ---
 
-## 14. Phase Status
+## 14. Source Catalog / Workspace Selection
+
+012 提供 `ks source list|show` 與 `ks workspace register|list|show|remove|use|query`。
+
+* `source list|show`：read-only 讀取 `manifest.json`、`raw_sources/` 與 manifest 的 derived artifact references，回傳 `trace.steps[kind="catalog_summary"]`
+* `workspace register|list|show|remove|use`：只寫 workspace registry JSON，不寫 registered `KS_ROOT`
+* `workspace use`：回傳 shell-safe `export KS_ROOT=...`，不假裝修改 parent shell
+* `workspace query`：解析 workspace id 後委派既有 `ks query`
+* MCP 暴露 `hks_source_list`、`hks_source_show`、`hks_workspace_*`；HTTP facade 暴露 `/catalog/*` 與 `/workspaces/*`
+
+---
+
+## 15. Phase Status
 
 ### Phase 1
 
@@ -342,10 +365,11 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 * [x] 009 LLM Wiki synthesis
 * [x] 010 Graphify clustering / visualization / audit report
 * [x] 011 continuous update / watch workflow
+* [x] 012 source catalog / workspace selection
 
 ---
 
-## 15. Runtime configuration
+## 16. Runtime configuration
 
 常用環境變數不在本文件重複列完整清單，避免 drift。請以 [README.md#常用環境變數](../README.md#常用環境變數) 與 [README.en.md#useful-environment-variables](../README.en.md#useful-environment-variables) 為準。
 
@@ -353,7 +377,7 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 
 ---
 
-## 16. 非目標
+## 17. 非目標
 
 目前仍不做：
 

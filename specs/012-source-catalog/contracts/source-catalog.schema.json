@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/source-catalog.schema.json",
+  "title": "HKS source catalog",
+  "$defs": {
+    "sourceFormat": {
+      "type": "string",
+      "enum": ["txt", "md", "pdf", "docx", "xlsx", "pptx", "png", "jpg", "jpeg"]
+    },
+    "derivedCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["wiki_pages", "graph_nodes", "graph_edges", "vector_ids"],
+      "properties": {
+        "wiki_pages": { "type": "integer", "minimum": 0 },
+        "graph_nodes": { "type": "integer", "minimum": 0 },
+        "graph_edges": { "type": "integer", "minimum": 0 },
+        "vector_ids": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "integrityIssue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["severity", "code", "message"],
+      "properties": {
+        "severity": { "type": "string", "enum": ["info", "warning", "error"] },
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sourceCatalogEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relpath",
+        "format",
+        "size_bytes",
+        "ingested_at",
+        "sha256",
+        "sha256_prefix",
+        "parser_fingerprint",
+        "derived_counts",
+        "integrity_status",
+        "issues",
+        "query_hint"
+      ],
+      "properties": {
+        "relpath": { "type": "string", "minLength": 1 },
+        "format": { "$ref": "#/$defs/sourceFormat" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "ingested_at": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "sha256_prefix": { "type": "string", "minLength": 8, "maxLength": 16 },
+        "parser_fingerprint": { "type": "string", "minLength": 1 },
+        "derived_counts": { "$ref": "#/$defs/derivedCounts" },
+        "integrity_status": { "type": "string", "enum": ["ok", "warning", "error", "unknown"] },
+        "issues": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/integrityIssue" }
+        },
+        "query_hint": { "type": "string", "minLength": 1 }
+      }
+    },
+    "sourceDetail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "relpath",
+        "format",
+        "size_bytes",
+        "ingested_at",
+        "sha256",
+        "sha256_prefix",
+        "parser_fingerprint",
+        "derived_counts",
+        "integrity_status",
+        "issues",
+        "query_hint",
+        "raw_source_path",
+        "derived",
+        "integrity_checks"
+      ],
+      "properties": {
+        "relpath": { "type": "string", "minLength": 1 },
+        "format": { "$ref": "#/$defs/sourceFormat" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "ingested_at": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "minLength": 64, "maxLength": 64 },
+        "sha256_prefix": { "type": "string", "minLength": 8, "maxLength": 16 },
+        "parser_fingerprint": { "type": "string", "minLength": 1 },
+        "derived_counts": { "$ref": "#/$defs/derivedCounts" },
+        "integrity_status": { "type": "string", "enum": ["ok", "warning", "error", "unknown"] },
+        "issues": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/integrityIssue" }
+        },
+        "query_hint": { "type": "string", "minLength": 1 },
+        "raw_source_path": { "type": "string", "minLength": 1 },
+        "derived": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["wiki_pages", "graph_nodes", "graph_edges", "vector_ids"],
+          "properties": {
+            "wiki_pages": { "type": "array", "items": { "type": "string" } },
+            "graph_nodes": { "type": "array", "items": { "type": "string" } },
+            "graph_edges": { "type": "array", "items": { "type": "string" } },
+            "vector_ids": { "type": "array", "items": { "type": "string" } }
+          }
+        },
+        "integrity_checks": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/integrityIssue" }
+        }
+      }
+    }
+  }
+}
