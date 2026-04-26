@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -34,6 +35,12 @@ type EventStatus = Literal[
 ]
 
 FRONTMATTER_BOUNDARY = "\n---\n"
+MAX_SLUG_CHARS = 96
+SLUG_HASH_CHARS = 8
+
+
+def _frontmatter_scalar(value: str) -> str:
+    return " ".join(value.split())
 
 
 @dataclass(slots=True)
@@ -54,16 +61,16 @@ class WikiPage:
             source = f"raw_sources/{self.source_relpath}"
         header_lines = [
             "---",
-            f"slug: {self.slug}",
-            f"title: {self.title}",
-            f"summary: {self.summary}",
-            f"source: {source}",
+            f"slug: {_frontmatter_scalar(self.slug)}",
+            f"title: {_frontmatter_scalar(self.title)}",
+            f"summary: {_frontmatter_scalar(self.summary)}",
+            f"source: {_frontmatter_scalar(source)}",
             f"origin: {self.origin}",
             f"updated_at: {self.updated_at}",
         ]
         for key, value in sorted(self.metadata.items()):
             if key not in {"slug", "title", "summary", "source", "origin", "updated_at"}:
-                header_lines.append(f"{key}: {value}")
+                header_lines.append(f"{key}: {_frontmatter_scalar(value)}")
         header_lines.extend(["---", ""])
         header = "\n".join(header_lines)
         return f"{header}\n{self.body.strip()}\n"
@@ -181,17 +188,35 @@ class WikiStore:
     def slug_base(self, value: str, *, fallback: str = "untitled") -> str:
         slug = slugify(value, separator="-")
         slug = re.sub(r"-{2,}", "-", slug).strip("-")
-        return slug or fallback
+        return self._fit_slug(slug or fallback, digest_source=value or fallback)
+
+    def _fit_slug(self, slug: str, *, digest_source: str | None = None) -> str:
+        slug = re.sub(r"-{2,}", "-", slug).strip("-") or "untitled"
+        if len(slug) <= MAX_SLUG_CHARS:
+            return slug
+        digest = hashlib.sha1(
+            (digest_source or slug).encode("utf-8"),
+            usedforsecurity=False,
+        ).hexdigest()[:SLUG_HASH_CHARS]
+        prefix_limit = MAX_SLUG_CHARS - SLUG_HASH_CHARS - 1
+        prefix = slug[:prefix_limit].rstrip("-") or "untitled"
+        return f"{prefix}-{digest}"
+
+    def _slug_with_suffix(self, base: str, suffix: str) -> str:
+        suffix_part = f"-{suffix}"
+        prefix_limit = MAX_SLUG_CHARS - len(suffix_part)
+        prefix = base[:prefix_limit].rstrip("-") or "untitled"
+        return f"{prefix}{suffix_part}"
 
     def next_slug(self, base: str, *, preferred_slug: str | None = None) -> str:
         self.ensure()
         if preferred_slug:
-            return preferred_slug
+            return self._fit_slug(preferred_slug, digest_source=preferred_slug)
 
-        slug = base
+        slug = self._fit_slug(base, digest_source=base)
         index = 2
         while (self.paths.wiki_pages / f"{slug}.md").exists():
-            slug = f"{base}-{index}"
+            slug = self._slug_with_suffix(base, str(index))
             index += 1
         return slug
 

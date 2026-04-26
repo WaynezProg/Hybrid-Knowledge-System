@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from openpyxl import Workbook
 
 from hks.ingest.fingerprint import ParserFlags
 from hks.ingest.parsers import xlsx as xlsx_parser
@@ -50,3 +51,22 @@ def test_xlsx_formula_rows_use_cached_value_and_formula_only_metadata(fixtures_r
         ("chart", 1),
         ("macros", 1),
     ]
+
+
+@pytest.mark.unit
+def test_xlsx_sparse_rows_do_not_require_first_cell_coordinate(tmp_path) -> None:
+    path = tmp_path / "sparse.xlsx"
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Sparse"
+    sheet["B1"] = "project"
+    sheet["C1"] = "risk"
+    sheet["B2"] = "Atlas"
+    sheet["C2"] = "delay"
+    workbook.save(path)
+
+    parsed = xlsx_parser.parse(path, ParserFlags())
+
+    rows = [segment for segment in parsed.segments if segment.kind == "table_row"]
+    assert rows[0].metadata["row_index"] == 2
+    assert "Atlas" in rows[0].text

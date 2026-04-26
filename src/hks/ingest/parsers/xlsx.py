@@ -87,15 +87,15 @@ def parse(path: Path, flags: ParserFlags) -> ParsedDocument:
         )
 
         header: list[str] | None = None
-        for formula_row, value_row in zip(
-            formula_sheet.iter_rows(), value_sheet.iter_rows(), strict=False
+        for row_index, (formula_row, value_row) in enumerate(
+            zip(formula_sheet.iter_rows(), value_sheet.iter_rows(), strict=False),
+            start=1,
         ):
-            row_index = formula_row[0].row if formula_row else 0
             cell_pairs = list(zip(formula_row, value_row, strict=False))
             row_values: list[str] = []
             formula_only = False
             for formula_cell, value_cell in cell_pairs:
-                if formula_cell.data_type == "f":
+                if getattr(formula_cell, "data_type", None) == "f":
                     if value_cell.value is None:
                         row_values.append(_stringify(formula_cell.value))
                         formula_only = True
