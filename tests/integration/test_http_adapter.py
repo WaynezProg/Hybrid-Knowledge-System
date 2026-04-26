@@ -56,7 +56,7 @@ def test_http_adapter_rejects_non_object_json_with_usage_envelope() -> None:
 
 @pytest.mark.integration
 def test_http_adapter_rejects_non_loopback_host_by_default() -> None:
-    result = CliRunner().invoke(http_cli, ["--host", "0.0.0.0"], env={"COLUMNS": "200"})
+    result = CliRunner().invoke(http_cli, ["--host", "0.0.0.0"])
 
     assert result.exit_code != 0
     assert "non-loopback host requires --allow-non-loopback" in result.output

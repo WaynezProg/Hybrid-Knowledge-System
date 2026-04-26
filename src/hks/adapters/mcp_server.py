@@ -307,10 +307,11 @@ def _validate_host(host: str, *, allow_non_loopback: bool) -> None:
     if allow_non_loopback:
         return
     if host not in {"127.0.0.1", "localhost", "::1"}:
-        raise typer.BadParameter(
-            "non-loopback host requires --allow-non-loopback",
-            param_hint="--host",
+        typer.echo(
+            "Error: --host: non-loopback host requires --allow-non-loopback",
+            err=True,
         )
+        raise typer.Exit(code=2)
 
 
 @app.callback(invoke_without_command=True)

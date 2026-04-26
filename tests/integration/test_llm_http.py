@@ -43,7 +43,7 @@ def test_http_llm_classify_error_uses_adapter_envelope(working_docs) -> None:
 
 @pytest.mark.integration
 def test_http_llm_rejects_non_loopback_host_by_default() -> None:
-    result = CliRunner().invoke(http_cli, ["--host", "0.0.0.0"], env={"COLUMNS": "200"})
+    result = CliRunner().invoke(http_cli, ["--host", "0.0.0.0"])
 
     assert result.exit_code != 0
     assert "non-loopback host requires --allow-non-loopback" in result.output
