@@ -1,0 +1,260 @@
+{
+  "server": {
+    "name": "hks",
+    "display_name": "Hybrid Knowledge System",
+    "command": "uv run hks-mcp --transport stdio",
+    "streamable_http": "uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765",
+    "default_transport": "stdio"
+  },
+  "tools": [
+    {
+      "name": "hks_query",
+      "description": "Query the local HKS knowledge base. Default writeback is no.",
+      "required": ["question"],
+      "properties": {
+        "question": "string",
+        "writeback": "no|auto|yes|ask",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_ingest",
+      "description": "Ingest a local file or directory into HKS.",
+      "required": ["path"],
+      "properties": {
+        "path": "string",
+        "prune": "boolean",
+        "pptx_notes": "include|exclude",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_lint",
+      "description": "Check HKS runtime consistency.",
+      "required": [],
+      "properties": {
+        "strict": "boolean",
+        "severity_threshold": "error|warning|info",
+        "fix": "none|plan|apply",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_source_list",
+      "description": "List manifest-derived sources for one HKS runtime.",
+      "required": [],
+      "properties": {
+        "ks_root": "string|null",
+        "format": "string|null",
+        "relpath_query": "string|null",
+        "limit": "integer|null",
+        "offset": "integer|null"
+      }
+    },
+    {
+      "name": "hks_source_show",
+      "description": "Show one manifest source and its derived artifact references.",
+      "required": ["relpath"],
+      "properties": {
+        "relpath": "string",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_workspace_list",
+      "description": "List registered HKS workspaces.",
+      "required": [],
+      "properties": {
+        "registry_path": "string|null"
+      }
+    },
+    {
+      "name": "hks_workspace_register",
+      "description": "Register or update one named HKS workspace.",
+      "required": ["workspace_id", "ks_root"],
+      "properties": {
+        "workspace_id": "string",
+        "ks_root": "string",
+        "label": "string|null",
+        "tags": "array<string>|null",
+        "metadata": "object|null",
+        "force": "boolean",
+        "registry_path": "string|null"
+      }
+    },
+    {
+      "name": "hks_workspace_show",
+      "description": "Show one registered HKS workspace.",
+      "required": ["workspace_id"],
+      "properties": {
+        "workspace_id": "string",
+        "registry_path": "string|null"
+      }
+    },
+    {
+      "name": "hks_workspace_remove",
+      "description": "Remove one registered HKS workspace.",
+      "required": ["workspace_id"],
+      "properties": {
+        "workspace_id": "string",
+        "registry_path": "string|null"
+      }
+    },
+    {
+      "name": "hks_workspace_use",
+      "description": "Return the shell export command for one ready workspace.",
+      "required": ["workspace_id"],
+      "properties": {
+        "workspace_id": "string",
+        "registry_path": "string|null"
+      }
+    },
+    {
+      "name": "hks_workspace_query",
+      "description": "Query one registered HKS workspace.",
+      "required": ["workspace_id", "question"],
+      "properties": {
+        "workspace_id": "string",
+        "question": "string",
+        "writeback": "no|auto|yes|ask",
+        "registry_path": "string|null"
+      }
+    },
+    {
+      "name": "hks_llm_classify",
+      "description": "Run LLM-assisted classification/extraction for one ingested source.",
+      "required": ["source_relpath"],
+      "properties": {
+        "source_relpath": "string",
+        "mode": "preview|store",
+        "provider": "fake|string",
+        "model": "string|null",
+        "prompt_version": "string|null",
+        "force_new_run": "boolean",
+        "requested_by": "string|null",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_wiki_synthesize",
+      "description": "Synthesize or apply a wiki page candidate from stored LLM artifacts.",
+      "required": [],
+      "properties": {
+        "mode": "preview|store|apply",
+        "source_relpath": "string|null",
+        "extraction_artifact_id": "string|null",
+        "candidate_artifact_id": "string|null",
+        "target_slug": "string|null",
+        "provider": "fake|string",
+        "model": "string|null",
+        "prompt_version": "string|null",
+        "force_new_run": "boolean",
+        "requested_by": "string|null",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_graphify_build",
+      "description": "Build derived Graphify artifacts from existing HKS layers.",
+      "required": [],
+      "properties": {
+        "mode": "preview|store",
+        "provider": "fake|string",
+        "model": "string|null",
+        "algorithm_version": "string|null",
+        "include_html": "boolean",
+        "include_report": "boolean",
+        "force_new_run": "boolean",
+        "requested_by": "string|null",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_watch_scan",
+      "description": "Scan sources and derived lineage for refresh needs.",
+      "required": [],
+      "properties": {
+        "source_roots": "array<string>|null",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_watch_run",
+      "description": "Execute a bounded watch refresh.",
+      "required": [],
+      "properties": {
+        "mode": "dry-run|execute",
+        "profile": "scan-only|ingest-only|full",
+        "source_roots": "array<string>|null",
+        "prune": "boolean",
+        "include_llm": "boolean",
+        "include_wiki_apply": "boolean",
+        "include_graphify": "boolean",
+        "force": "boolean",
+        "requested_by": "string|null",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_watch_status",
+      "description": "Return latest watch plan/run status.",
+      "required": [],
+      "properties": {
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_coord_session",
+      "description": "Start, heartbeat, or close a coordination session.",
+      "required": ["action", "agent_id"],
+      "properties": {
+        "action": "start|heartbeat|close",
+        "agent_id": "string",
+        "session_id": "string|null",
+        "metadata": "object|null",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_coord_lease",
+      "description": "Claim, renew, or release a coordination lease.",
+      "required": ["action", "agent_id", "resource_key"],
+      "properties": {
+        "action": "claim|renew|release",
+        "agent_id": "string",
+        "resource_key": "string",
+        "session_id": "string|null",
+        "lease_id": "string|null",
+        "ttl_seconds": "integer",
+        "reason": "string|null",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_coord_handoff",
+      "description": "Add or list coordination handoff notes.",
+      "required": ["action", "agent_id"],
+      "properties": {
+        "action": "add|list",
+        "agent_id": "string",
+        "resource_key": "string|null",
+        "summary": "string|null",
+        "next_action": "string|null",
+        "references": "array<object>|null",
+        "blocked_by": "array<string>|null",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_coord_status",
+      "description": "Return coordination sessions, leases, and handoffs.",
+      "required": [],
+      "properties": {
+        "agent_id": "string|null",
+        "resource_key": "string|null",
+        "include_stale": "boolean",
+        "ks_root": "string|null"
+      }
+    }
+  ]
+}

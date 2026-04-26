@@ -1,7 +1,7 @@
 # Speckit Flow: 007 multi-agent support
 
 **Branch**: `007-multi-agent-support`
-**Status**: Complete through `/speckit.analyze`; intentionally stopped before `/speckit.implement`.
+**Status**: Complete; implemented, archived, and merged to `main`.
 **Last verified**: 2026-04-26
 
 ## Command Flow
@@ -82,7 +82,7 @@ Completed checks:
 - Whitespace check: passed with `git diff --check`.
 - Static checks: `uv run ruff check .` and `uv run mypy src/hks` passed.
 - Cross-artifact drift repair:
-  - `spec.md` status was aligned for the pre-implementation checkpoint.
+  - `spec.md` status is now aligned with the implemented, archived runtime.
   - `specs/ARCHIVE.md` Active section updated to 007.
   - Temporary FR suffix renumbered to stable FR sequence.
   - Lease conflict exit/error semantics clarified.

@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "hks": {
+      "command": "uv",
+      "args": [
+        "run",
+        "hks-mcp",
+        "--transport",
+        "stdio"
+      ],
+      "cwd": "/Users/waynetu/claw_prog/projects/09-HKS",
+      "env": {
+        "HKS_EMBEDDING_MODEL": "simple"
+      }
+    }
+  }
+}

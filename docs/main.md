@@ -50,7 +50,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 
 原始產品願景是 **LLM Wiki + Graphify + Vector**：由 agent / LLM 協助整理個人資料庫，產生可讀 wiki、可分析 graph、可檢索 vector，並讓後續 query 持續沉澱回知識庫。
 
-目前 runtime 已完成可執行的本地骨架，但不是完整 Graphify pipeline：
+目前 runtime 已完成可執行的本地知識系統與 derived Graphify pipeline：
 
 * 已完成：來源 ingest 後同步更新 `wiki / graph / vector / manifest`；修改來源後重跑 `ks ingest` 可依 hash / parser fingerprint 更新資料庫。
 * 已完成：query 會依問題類型走 wiki、graph 或 vector；高 confidence 結果可 write-back 成 wiki page。
@@ -61,7 +61,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * 已完成：012 提供 read-only source catalog 與 named workspace registry，讓使用者或 agent 可以查看已 ingest sources、選擇 `KS_ROOT`，並對指定 workspace query。
 * 尚未完成：常駐 daemon / OS filesystem watcher。
 
-換句話說，HKS 現在是 agent 可調用的 local knowledge runtime；完整 LLM Wiki + Graphify 應以後續 feature 擴充，而不是視為 Phase 1-3 已交付內容。
+換句話說，HKS 現在是 agent 可調用的 local knowledge runtime；LLM-assisted extraction、wiki synthesis、Graphify、watch 與 source catalog 已由 008-012 交付，剩餘產品願景主要是常駐 daemon / OS watcher 與更高階操作體驗。
 
 ---
 

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `009-llm-wiki-synthesis`  
 **Created**: 2026-04-26  
-**Status**: Draft  
+**Status**: Complete
 **Input**: User description: "現在可以開始 009，觀察目前專案狀態，做最好的 Speckit；一樣做到 implementation 前。"
 
 ## Clarifications

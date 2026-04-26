@@ -2,7 +2,7 @@
 
 **Status**: Complete  
 **Archived on**: 2026-04-26  
-**Merged into**: pending merge to `main`
+**Merged into**: `main`
 
 ## Runtime Surface
 

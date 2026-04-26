@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "hks": {
+      "type": "streamable-http",
+      "url": "http://127.0.0.1:8765/mcp",
+      "note": "Start with: uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765"
+    }
+  }
+}

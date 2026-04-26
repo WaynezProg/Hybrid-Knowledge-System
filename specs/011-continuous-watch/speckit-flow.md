@@ -2,7 +2,7 @@
 
 **Branch**: `011-continuous-watch`  
 **Started**: 2026-04-26  
-**Status**: Implemented and archived; merge pending
+**Status**: Complete; archived and merged to `main`
 
 ## 010 pre-check
 

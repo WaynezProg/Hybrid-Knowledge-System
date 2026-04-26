@@ -2,7 +2,7 @@
 
 **Branch**: `008-llm-classification-extraction`  
 **Date**: 2026-04-26  
-**Status**: Implementation complete; pending merge to `main`
+**Status**: Complete; archived and merged to `main`
 
 ## Commands / Gates
 

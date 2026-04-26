@@ -2,7 +2,7 @@
 
 **Feature Branch**: `011-continuous-watch`  
 **Created**: 2026-04-26  
-**Status**: Draft  
+**Status**: Complete
 **Input**: User description: "Add 011 continuous update and watch workflow for HKS. The feature adds a local-first CLI-first watch/re-ingest orchestration layer that detects changed source inputs, schedules deterministic refresh jobs, reuses existing ingest, LLM extraction, wiki synthesis, and graphify build capabilities, records auditable refresh state, exposes adapter-compatible status/trigger controls, preserves stable HKS output contracts, avoids UI/cloud/multi-user scope, and does not silently mutate authoritative layers without explicit configured mode."
 
 ## Clarifications

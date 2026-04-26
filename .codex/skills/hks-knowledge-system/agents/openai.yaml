@@ -1,4 +1,4 @@
 interface:
   display_name: "HKS Knowledge System"
-  short_description: "Operate HKS ingest, query, LLM synthesis safely"
-  default_prompt: "Use $hks-knowledge-system to ingest, query, and organize knowledge with HKS."
+  short_description: "Operate HKS through the main `ks` CLI safely"
+  default_prompt: "Use $hks-knowledge-system for CLI-first HKS work. Prefer `ks`, not `hsk`; keep `KS_ROOT` explicit; use preview/read-only modes unless mutation is requested. For HTTP/MCP adapter work, read mcp/README.md."

@@ -2,7 +2,7 @@
 
 **Feature Branch**: `010-graphify-pipeline`  
 **Created**: 2026-04-26  
-**Status**: Draft  
+**Status**: Complete
 **Input**: User description: "009 完成，整體確認一下，使用 speckit 腳本開始做 010；/speckit.clarify /speckit.analyze 也要做。"
 
 ## Clarifications
