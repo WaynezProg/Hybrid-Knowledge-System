@@ -9,6 +9,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * Phase 2：完成
 * Phase 3：完成（`004` image ingest、`005` lint system、`006` MCP / API adapter、`007` multi-agent support）
 * 008：完成（LLM-assisted classification / extraction candidate artifacts）
+* 009：完成（LLM-assisted wiki synthesis candidate preview / store / explicit apply）
 
 ---
 
@@ -28,14 +29,15 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
   * `ks lint`
   * `ks coord`
   * `ks llm classify`
+  * `ks wiki synthesize`
   * `hks-mcp`
   * `hks-api`（optional loopback facade）
 
 ![LLM Wiki 概念示意](LLM%20wiki.png)
 
-![LLM Wiki + Graphify 結合](LLM%20wiki%20Graphify.png)
-
 ![Graphify 流程](graphify.png)
+
+![LLM Wiki + Graphify 結合](LLM%20wiki%20Graphify.png)
 
 ### 2.1 Vision vs current runtime
 
@@ -46,7 +48,8 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * 已完成：來源 ingest 後同步更新 `wiki / graph / vector / manifest`；修改來源後重跑 `ks ingest` 可依 hash / parser fingerprint 更新資料庫。
 * 已完成：query 會依問題類型走 wiki、graph 或 vector；高 confidence 結果可 write-back 成 wiki page。
 * 已完成：008 可對已 ingest source 產生 schema-validated LLM classification / summary / fact / entity / relation candidates，並可 explicit store 到 `$KS_ROOT/llm/extractions/`。
-* 尚未完成：LLM-based wiki rewriting、Graphify community clustering、HTML visualization、audit report、資料夾 watch / daemon 式持續 ingest。
+* 已完成：009 可從 008 stored artifact 產生 wiki synthesis candidate，preview / store 預設不改 authoritative layers，只有 caller-explicit `apply` 會寫入 `wiki/` page、index 與 log。
+* 尚未完成：Graphify community clustering、HTML visualization、audit report、資料夾 watch / daemon 式持續 ingest。
 
 換句話說，HKS 現在是 agent 可調用的 local knowledge runtime；完整 LLM Wiki + Graphify 應以後續 feature 擴充，而不是視為 Phase 1-3 已交付內容。
 
@@ -60,6 +63,7 @@ ks query "<question>" [--writeback auto|yes|no|ask]
 ks lint
 ks coord session|lease|handoff|status|lint
 ks llm classify <source-relpath> [--mode preview|store] [--provider fake]
+ks wiki synthesize --mode preview|store|apply [--source-relpath <relpath>|--candidate-artifact-id <id>]
 hks-mcp --transport stdio|streamable-http
 hks-api
 ```
@@ -78,10 +82,23 @@ stdout 契約統一：
 }
 ```
 
-`ks ingest`、`ks query`、`ks lint`、`ks coord`、`ks llm classify` 共用同一 top-level JSON shape。
+`ks ingest`、`ks query`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize` 共用同一 top-level JSON shape。
 `hks-mcp` 與 `hks-api` 的成功 payload 也共用此 shape；adapter 錯誤才使用 `{ok:false,error:{code,exit_code,message,details},response?}` envelope。
 
 `ks llm classify` 的 successful extraction 使用 `trace.route="wiki"`、`source=[]`、`trace.steps[kind="llm_extraction_summary"]`。這是 008 為避免擴 route/source enum 做出的 contract choice；consumer 不得把它解讀成 `ks query` no-hit。
+
+Source / route 語意對照：
+
+| Command / mode | `trace.route` | `source` | 語意 |
+|---|---|---|---|
+| `ks query` 命中 wiki | `wiki` | `["wiki"]` | 讀取既有 wiki 作答 |
+| `ks query` 命中 graph | `graph` | `["graph"]` 或含 fallback source | 讀取 graph，必要時可 fallback / merge |
+| `ks query` 命中 vector | `vector` | `["vector"]` | 讀取 vector 作答 |
+| `ks query` no-hit | `wiki\|graph\|vector` | `[]` | 查詢流程正常但沒有可用命中；exit code 仍為 `0` |
+| `ks llm classify --mode preview\|store` | `wiki` | `[]` | 產生或儲存 LLM extraction artifact；不代表查詢 no-hit，也未讀取 runtime knowledge layer 作答 |
+| `ks wiki synthesize --mode preview\|store` | `wiki` | `[]` | 產生或儲存 wiki synthesis candidate；不修改 authoritative wiki |
+| `ks wiki synthesize --mode apply` success | `wiki` | `["wiki"]` | caller-explicit wiki mutation 成功後，response 指向被寫入的 wiki layer |
+| `ks wiki synthesize --mode apply` conflict/error | `wiki` | `[]` | apply 未成功寫入 wiki；若走 adapter error envelope，錯誤語意由 `error` 承擔 |
 
 ---
 
@@ -184,6 +201,8 @@ graph persistence 位於 `/ks/graph/graph.json`。
   /llm
     /extractions
       <artifact-id>.json
+    /wiki-candidates
+      <candidate-artifact-id>.json
   /manifest.json
 ```
 
@@ -195,7 +214,7 @@ graph persistence 位於 `/ks/graph/graph.json`。
 * `vector_ids`
 
 `coordination/state.json` 存 agent sessions、resource leases、handoff notes；`events.jsonl` 是 append-only coordination event log。
-`llm/extractions/*.json` 存 008 candidate artifact；它不是 authoritative wiki / graph / vector state，後續 009/010/011 可讀取但不得把它視為已 apply 的知識。
+`llm/extractions/*.json` 存 008 extraction candidate artifact；`llm/wiki-candidates/*.json` 存 009 wiki synthesis candidate artifact。兩者都不是 authoritative wiki / graph / vector state；只有 `ks wiki synthesize --mode apply` 成功後寫入的 `origin=llm_wiki` page 才是 applied wiki state。
 
 ---
 
@@ -224,11 +243,25 @@ MCP 暴露 `hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_
 
 MCP 暴露 `hks_llm_classify`；HTTP facade 暴露 `/llm/classify`。
 
-008 不做 wiki synthesis、Graphify clustering / visualization / audit report，也不做 watch / daemon。這些分別留給 009、010、011。
+008 不做 wiki synthesis、Graphify clustering / visualization / audit report，也不做 watch / daemon。wiki synthesis 由 009 提供；Graphify 與 watch / daemon 分別留給 010、011。
 
 ---
 
-## 11. Phase Status
+## 11. LLM Wiki Synthesis
+
+009 提供 `ks wiki synthesize --mode preview|store|apply`，只消費 008 stored extraction artifact，不重新做 extraction。
+
+* `--mode=preview`：read-only，回傳 wiki page candidate；`source=[]`
+* `--mode=store`：只寫 `$KS_ROOT/llm/wiki-candidates/<candidate-artifact-id>.json`；`source=[]`
+* `--mode=apply`：只接受 stored candidate artifact，成功時寫入 `wiki/pages/<slug>.md`、重建 `wiki/index.md`、append `wiki/log.md`；`source=["wiki"]`
+* apply 是 caller-explicit mutation，不是 query write-back auto mode；它不得修改 graph、vector、manifest 或 008 extraction artifact
+* `origin=llm_wiki` page 必須保留 lineage frontmatter，lint 會檢查 candidate artifact 與 applied page provenance
+
+MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
+
+---
+
+## 12. Phase Status
 
 ### Phase 1
 
@@ -259,13 +292,13 @@ MCP 暴露 `hks_llm_classify`；HTTP facade 暴露 `/llm/classify`。
 ### Post-Phase Specs
 
 * [x] 008 LLM-assisted classification / extraction candidate artifacts
-* [ ] 009 LLM Wiki synthesis
+* [x] 009 LLM Wiki synthesis
 * [ ] 010 Graphify clustering / visualization / audit report
 * [ ] 011 continuous update / watch workflow
 
 ---
 
-## 12. Runtime configuration
+## 13. Runtime configuration
 
 常用環境變數不在本文件重複列完整清單，避免 drift。請以 [README.md#常用環境變數](../README.md#常用環境變數) 與 [README.en.md#useful-environment-variables](../README.en.md#useful-environment-variables) 為準。
 
@@ -273,7 +306,7 @@ MCP 暴露 `hks_llm_classify`；HTTP facade 暴露 `/llm/classify`。
 
 ---
 
-## 13. 非目標
+## 14. 非目標
 
 目前仍不做：
 

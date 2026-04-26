@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://hks.local/schemas/query-response.phase3-lint.schema.json",
   "title": "HKS CLI Response (Phase 3 lint)",
-  "description": "CLI `ks query` / `ks ingest` / `ks lint` / `ks coord` / `ks llm classify` 對外 stdout JSON 契約。007 新增 trace step kind `coordination_summary`；008 新增 `llm_extraction_summary`，不擴 source / route enum。",
+  "description": "CLI `ks query` / `ks ingest` / `ks lint` / `ks coord` / `ks llm classify` / `ks wiki synthesize` 對外 stdout JSON 契約。007 新增 trace step kind `coordination_summary`；008 新增 `llm_extraction_summary`；009 新增 `wiki_synthesis_summary`，不擴 source / route enum。",
   "type": "object",
   "required": ["answer", "source", "confidence", "trace"],
   "additionalProperties": false,
@@ -60,7 +60,8 @@
             "ingest_summary",
             "lint_summary",
             "coordination_summary",
-            "llm_extraction_summary"
+            "llm_extraction_summary",
+            "wiki_synthesis_summary"
           ]
         },
         "detail": {
