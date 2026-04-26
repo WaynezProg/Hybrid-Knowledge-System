@@ -25,6 +25,12 @@ _KNOWN_ENV_PATHS: dict[str, tuple[str, ...]] = {
     "HKS_OPENAI_EMBEDDING_ENDPOINT": ("embedding", "openai", "endpoint"),
     "HKS_OPENAI_EMBEDDING_DIMENSIONS": ("embedding", "openai", "dimensions"),
     "HKS_OPENAI_TIMEOUT_SECONDS": ("embedding", "openai", "timeout_seconds"),
+    "HKS_OPENAI_EMBEDDING_BATCH_SIZE": ("embedding", "openai", "batch_size"),
+    "HKS_OPENAI_EMBEDDING_MAX_BATCH_TOKENS": (
+        "embedding",
+        "openai",
+        "max_batch_tokens",
+    ),
     "HKS_ROUTING_MODEL": ("routing", "model"),
     "HKS_ROUTING_RULES": ("routing", "rules_path"),
     "HKS_WRITEBACK_AUTO_THRESHOLD": ("writeback", "auto_threshold"),

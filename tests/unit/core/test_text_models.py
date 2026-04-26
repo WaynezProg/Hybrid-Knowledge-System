@@ -138,3 +138,34 @@ def test_openai_embedding_backend_reads_api_key_from_config_file(
             },
         }
     ]
+
+
+@pytest.mark.unit
+def test_openai_embedding_backend_batches_large_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requests: list[dict[str, Any]] = []
+
+    def fake_urlopen(request: Any, *, timeout: float) -> _FakeOpenAIResponse:
+        payload = json.loads(request.data.decode("utf-8"))
+        requests.append(payload)
+        return _FakeOpenAIResponse(
+            {
+                "data": [
+                    {"index": index, "embedding": [1.0, 0.0]}
+                    for index, _ in enumerate(payload["input"])
+                ]
+            }
+        )
+
+    monkeypatch.setenv("HKS_OPENAI_API_KEY", "test-key")
+    monkeypatch.setenv("HKS_OPENAI_EMBEDDING_BATCH_SIZE", "2")
+    monkeypatch.setenv("HKS_OPENAI_EMBEDDING_MAX_BATCH_TOKENS", "999999")
+    monkeypatch.setattr(text_models, "urlopen", fake_urlopen)
+
+    embeddings = TextModelBackend("openai:text-embedding-3-small").embed_texts(
+        ["alpha", "beta", "gamma"]
+    )
+
+    assert embeddings == [[1.0, 0.0], [1.0, 0.0], [1.0, 0.0]]
+    assert [request["input"] for request in requests] == [["alpha", "beta"], ["gamma"]]

@@ -44,6 +44,8 @@ embedding:
     endpoint: "https://api.openai.com/v1/embeddings"
     dimensions: 1536
     timeout_seconds: 60
+    batch_size: 128
+    max_batch_tokens: 250000
 ```
 
 OpenAI embedding 會建立新的 vector DB。不要把已用 `simple` 或 sentence-transformers 建好的 `$KS_ROOT/vector/db` 直接改成 OpenAI 查，會發生 embedding dimension mismatch。
@@ -87,6 +89,8 @@ llm:
 - `simple`：本機 deterministic backend，無 API cost，適合 smoke test / CI。
 - `openai:text-embedding-3-small`：使用 OpenAI Embeddings API 做 routing scoring。
 - sentence-transformers model id 或本機模型路徑：使用本機 sentence-transformers backend。
+
+`embedding.openai.batch_size` 與 `embedding.openai.max_batch_tokens` 控制單次 OpenAI embeddings request 的上限；大型資料夾 ingest 時會自動分批，避免超過 OpenAI per-request token limit。
 
 這些欄位會對應到既有 env contract，例如 `HKS_MAX_FILE_MB`、`HKS_IMAGE_TIMEOUT_SEC`、`HKS_WRITEBACK_AUTO_THRESHOLD`、`HKS_LLM_PROVIDER_OPENAI_API_KEY`。
 

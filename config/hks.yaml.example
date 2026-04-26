@@ -12,6 +12,8 @@ embedding:
     endpoint: "https://api.openai.com/v1/embeddings"
     dimensions: 1536
     timeout_seconds: 60
+    batch_size: 128
+    max_batch_tokens: 250000
 
 routing:
   # Use simple for no-cost local routing, or openai:text-embedding-3-small for OpenAI routing.

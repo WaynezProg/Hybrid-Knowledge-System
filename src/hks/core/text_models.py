@@ -18,6 +18,8 @@ SIMPLE_EMBEDDING_MODEL = "simple"
 OPENAI_EMBEDDING_PREFIX = "openai:"
 DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
 DEFAULT_OPENAI_EMBEDDING_ENDPOINT = "https://api.openai.com/v1/embeddings"
+DEFAULT_OPENAI_EMBEDDING_BATCH_SIZE = 128
+DEFAULT_OPENAI_EMBEDDING_MAX_BATCH_TOKENS = 250_000
 
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]+|[\u4e00-\u9fff]|[^\s]")
 
@@ -209,6 +211,35 @@ class TextModelBackend:
         if not texts:
             return []
 
+        batch_size = int(
+            config_value("HKS_OPENAI_EMBEDDING_BATCH_SIZE")
+            or str(DEFAULT_OPENAI_EMBEDDING_BATCH_SIZE)
+        )
+        max_batch_tokens = int(
+            config_value("HKS_OPENAI_EMBEDDING_MAX_BATCH_TOKENS")
+            or str(DEFAULT_OPENAI_EMBEDDING_MAX_BATCH_TOKENS)
+        )
+        batch_size = max(1, batch_size)
+        max_batch_tokens = max(1, max_batch_tokens)
+
+        embeddings: list[list[float]] = []
+        batch: list[str] = []
+        batch_tokens = 0
+        for text in texts:
+            text_tokens = max(1, self.count_tokens(text))
+            if batch and (
+                len(batch) >= batch_size or batch_tokens + text_tokens > max_batch_tokens
+            ):
+                embeddings.extend(self._request_openai_embeddings(batch))
+                batch = []
+                batch_tokens = 0
+            batch.append(text)
+            batch_tokens += text_tokens
+        if batch:
+            embeddings.extend(self._request_openai_embeddings(batch))
+        return embeddings
+
+    def _request_openai_embeddings(self, texts: list[str]) -> list[list[float]]:
         api_key = config_value("HKS_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
         if not api_key:
             raise KSError(
