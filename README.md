@@ -284,6 +284,8 @@ uv run hks-api --host 127.0.0.1 --port 8766
 
 ## 常用設定
 
+完整設定教學見 [docs/configuration.md](./docs/configuration.md)。
+
 結構化設定檔建議使用 `config/hks.yaml`。從範本建立後填入本機值：
 
 ```bash

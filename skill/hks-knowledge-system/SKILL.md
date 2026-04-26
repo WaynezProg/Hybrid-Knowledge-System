@@ -16,9 +16,10 @@ description: Operate the Hybrid Knowledge System through its main `ks` CLI. Use 
 3. `config/discover-runtime.sh`：先找出目前 workspace 內的 ignored local runtime
 4. `workflows/persistent-workspace.md`：建立可重用的持久化 knowledge runtime
 5. `config/shared-runtime.sh`：多 agent 共用同一個 repo-local runtime
-6. `workflows/smoke-test.md`：最小驗證流程
-7. `policies/safety.md`：mutation boundary 與環境規則
-8. `contracts/response-contract.md`：JSON response contract
+6. `../../docs/configuration.md`：設定檔建立、欄位意義與驗證
+7. `workflows/smoke-test.md`：最小驗證流程
+8. `policies/safety.md`：mutation boundary 與環境規則
+9. `contracts/response-contract.md`：JSON response contract
 
 ## 核心規則
 

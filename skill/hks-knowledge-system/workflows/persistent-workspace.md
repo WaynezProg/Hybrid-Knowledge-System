@@ -87,6 +87,8 @@ find "$KS_ROOT/wiki/pages" -maxdepth 1 -type f -name '*.md' | wc -l
 
 OpenAI embedding 需要新的 vector DB；不要直接拿 `simple` 或 sentence-transformers 建好的 `$KS_ROOT/vector/db` 查。
 
+完整設定教學見 `docs/configuration.md`。
+
 ```bash
 cp config/hks.yaml.example config/hks.yaml
 $EDITOR config/hks.yaml

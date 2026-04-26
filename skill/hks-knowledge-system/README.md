@@ -37,6 +37,7 @@ skill/hks-knowledge-system/
 - `config/discover-runtime.sh`：列出目前 workspace 內的 ignored local runtime candidates，避免 agent 只看 tracked repo 或 `./ks`。
 - `config/shared-runtime.sh`：讓多個 local agents 共用同一個 repo-local `KS_ROOT` 與 workspace registry。
 - `../../config/hks.yaml.example` / `../../config/hks.json.example`：local runtime、provider、limit、routing、writeback 設定範本。
+- `../../docs/configuration.md`：設定檔建立、欄位意義、啟用、驗證與 troubleshooting。
 - `workflows/`：可直接執行的任務流程。
 - `contracts/`：response shape 與 semantic rules。
 - `policies/`：環境、mutation、adapter 分界。
