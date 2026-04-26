@@ -41,6 +41,7 @@ Thumbs.db
 # Secrets
 .env
 .env.local
+config/hks.env
 *.key
 
 # Agent / spec tooling

@@ -286,6 +286,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 
 - `KS_ROOT`：runtime 資料根，預設 `./ks`
 - `HKS_EMBEDDING_MODEL`：embedding backend；`simple` 適合離線 smoke / CI；`openai:text-embedding-3-small` 使用 OpenAI Embeddings API
+- `HKS_CONFIG_ENV`：local env config file；預設讀 `config/hks.env`，可由 `config/hks.env.example` 複製建立
 - `HKS_OPENAI_API_KEY` / `OPENAI_API_KEY`：OpenAI embedding credential；`HKS_OPENAI_API_KEY` 優先
 - `HKS_OPENAI_EMBEDDING_DIMENSIONS`：OpenAI embedding dimensions override；只適用支援 dimensions 的 OpenAI embedding model
 - `HKS_OPENAI_EMBEDDING_ENDPOINT`：OpenAI-compatible embeddings endpoint；預設 `https://api.openai.com/v1/embeddings`

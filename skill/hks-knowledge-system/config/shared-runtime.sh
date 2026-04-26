@@ -14,6 +14,13 @@ fi
 
 export HKS_REPO_ROOT
 
+HKS_CONFIG_ENV="${HKS_CONFIG_ENV:-$HKS_REPO_ROOT/config/hks.env}"
+if [ -f "$HKS_CONFIG_ENV" ]; then
+  # shellcheck disable=SC1090
+  . "$HKS_CONFIG_ENV"
+fi
+export HKS_CONFIG_ENV
+
 HKS_SHARED_RUNTIME_ENV="${HKS_SHARED_RUNTIME_ENV:-$HKS_REPO_ROOT/.hks-runs/shared-runtime.env}"
 if [ -f "$HKS_SHARED_RUNTIME_ENV" ]; then
   # shellcheck disable=SC1090
@@ -26,6 +33,7 @@ export HKS_WORKSPACE_REGISTRY="${HKS_WORKSPACE_REGISTRY:-$HKS_REPO_ROOT/.hks-run
 mkdir -p "$(dirname "$KS_ROOT")" "$(dirname "$HKS_WORKSPACE_REGISTRY")"
 
 printf 'HKS_REPO_ROOT=%s\n' "$HKS_REPO_ROOT"
+printf 'HKS_CONFIG_ENV=%s\n' "$HKS_CONFIG_ENV"
 printf 'HKS_SHARED_RUNTIME_ENV=%s\n' "$HKS_SHARED_RUNTIME_ENV"
 printf 'KS_ROOT=%s\n' "$KS_ROOT"
 printf 'HKS_WORKSPACE_REGISTRY=%s\n' "$HKS_WORKSPACE_REGISTRY"

@@ -88,12 +88,14 @@ find "$KS_ROOT/wiki/pages" -maxdepth 1 -type f -name '*.md' | wc -l
 OpenAI embedding 需要新的 vector DB；不要直接拿 `simple` 或 sentence-transformers 建好的 `$KS_ROOT/vector/db` 查。
 
 ```bash
+cp config/hks.env.example config/hks.env
+$EDITOR config/hks.env
+
 mkdir -p .hks-runs
 cat > .hks-runs/shared-runtime.env <<'EOF'
 export KS_ROOT="$HKS_REPO_ROOT/.hks-runs/openai/ks"
 export HKS_WORKSPACE_REGISTRY="$HKS_REPO_ROOT/.hks-runs/workspaces.json"
 export HKS_EMBEDDING_MODEL=openai:text-embedding-3-small
-export HKS_OPENAI_API_KEY="$OPENAI_API_KEY"
 EOF
 
 . skill/hks-knowledge-system/config/shared-runtime.sh
