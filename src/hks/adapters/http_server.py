@@ -82,6 +82,10 @@ async def lint_endpoint(request: Request) -> Response:
     return await _adapter_response(request, core.hks_lint)
 
 
+async def llm_classify_endpoint(request: Request) -> Response:
+    return await _adapter_response(request, core.hks_llm_classify)
+
+
 async def coord_session_endpoint(request: Request) -> Response:
     return await _adapter_response(request, core.hks_coord_session)
 
@@ -104,6 +108,7 @@ def create_app() -> Starlette:
             Route("/query", query_endpoint, methods=["POST"]),
             Route("/ingest", ingest_endpoint, methods=["POST"]),
             Route("/lint", lint_endpoint, methods=["POST"]),
+            Route("/llm/classify", llm_classify_endpoint, methods=["POST"]),
             Route("/coord/session", coord_session_endpoint, methods=["POST"]),
             Route("/coord/lease", coord_lease_endpoint, methods=["POST"]),
             Route("/coord/handoff", coord_handoff_endpoint, methods=["POST"]),

@@ -2,13 +2,13 @@
 
 [English](./README.en.md)
 
-Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。目前 runtime 已完成 Phase 1-3：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 會在 `wiki / graph / vector` 三層間切換，relation 類問題優先走 graph，高 confidence 答案預設自動 write-back，並提供 image ingest、lint system、multi-agent coordination 與 local MCP / HTTP adapter。
+Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。目前 runtime 已完成 Phase 1-3 與 008：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 會在 `wiki / graph / vector` 三層間切換，relation 類問題優先走 graph，高 confidence 答案預設自動 write-back，並提供 image ingest、lint system、multi-agent coordination、local MCP / HTTP adapter，以及 LLM-assisted classification/extraction candidate artifact。
 
 ## 這個專案怎麼運作
 
 HKS 預設不是常駐服務。一般使用方式是需要時執行 `uv run ks ...` 指令，指令完成後結束；資料會保存在 `$KS_ROOT`。
 
-- 一般使用者 / shell / Codex / Claude Code / OpenClaw：直接呼叫 `ks ingest`、`ks query`、`ks lint`、`ks coord`
+- 一般使用者 / shell / Codex / Claude Code / OpenClaw：直接呼叫 `ks ingest`、`ks query`、`ks lint`、`ks coord`、`ks llm classify`
 - MCP agent integration：啟動 `hks-mcp`；stdio 模式通常由 agent client 啟動並跟著 session 存活
 - HTTP client integration：啟動 `hks-api` 或 `hks-mcp --transport streamable-http`；有 client 要連線時才需要保持該 process running
 
@@ -18,8 +18,9 @@ HKS 預設不是常駐服務。一般使用方式是需要時執行 `uv run ks .
 - `ks query "<question>" [--writeback auto|yes|no|ask]`：回傳穩定 JSON，summary 優先 wiki、relation 優先 graph、detail 優先 vector
 - `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`：檢查 `wiki / graph / vector / manifest / raw_sources` 跨層一致性
 - `ks coord session|lease|handoff|status|lint`：提供 agent presence、resource lease、handoff notes 與 coordination ledger lint
-- `hks-mcp --transport stdio|streamable-http`：以本機 MCP tools 暴露 query / ingest / lint / coordination tools
-- `hks-api`：optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`、`/coord/*`
+- `ks llm classify <source-relpath> [--mode preview|store] [--provider fake]`：對已 ingest source 產生 LLM classification / summary / fact / entity / relation candidates；preview 預設不改 wiki / graph / vector，store 只寫 `$KS_ROOT/llm/extractions/`
+- `hks-mcp --transport stdio|streamable-http`：以本機 MCP tools 暴露 query / ingest / lint / coordination / LLM extraction tools
+- `hks-api`：optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`、`/llm/classify`、`/coord/*`
 - 獨立圖片檔 ingest 已支援 `png / jpg / jpeg`，以本機 `tesseract` OCR 處理；`.heic / .webp` 與 VLM 仍未納入
 
 ## 安裝
@@ -50,6 +51,7 @@ export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
 uv run ks query "這批文件的重點是什麼" --writeback=no | jq .
 uv run ks query "A 專案延遲會影響哪些系統" --writeback=no | jq .
+uv run ks llm classify project-atlas.txt --provider fake --mode preview | jq .
 uv run ks coord session start agent-a | jq .
 uv run ks coord lease claim agent-a wiki:atlas | jq .
 uv run hks-mcp --help
@@ -106,6 +108,20 @@ uv run ks lint
 - `--fix`：只列出可安全修復的動作，不寫入
 - `--fix=apply`：只執行 allowlist 動作：rebuild `wiki/index.md`、prune orphan vector chunks、prune orphan graph nodes/edges，並寫入 `wiki/log.md`
 
+### LLM Classification / Extraction
+
+```bash
+uv run ks llm classify <source-relpath> --provider fake --mode preview
+uv run ks llm classify <source-relpath> --provider fake --mode store
+```
+
+- 只處理已由 `ks ingest` 建立 manifest 的 source relpath，例如 `project-atlas.txt`
+- 成功 response 仍是 HKS top-level JSON；`trace.route="wiki"`、`source=[]`、`trace.steps[kind="llm_extraction_summary"]`
+- `preview` 是預設模式，不寫 `wiki/`、`graph/graph.json`、`vector/db/` 或 `manifest.json`
+- `store` 只寫 versioned candidate artifact 到 `$KS_ROOT/llm/extractions/`，供後續 009 Wiki synthesis、010 Graphify、011 watch/re-ingest 使用
+- 目前內建 deterministic `fake` provider，測試與 agent smoke 不需要 network 或 API key
+- hosted/network provider 預設拒絕；必須用環境變數 opt-in，不能用 CLI/MCP/HTTP request body 打開
+
 ### Coordination
 
 ```bash
@@ -132,6 +148,7 @@ Codex、Claude Code、OpenClaw 或其他 local agent 可以用三種方式接 HK
 # 1. 最簡單：agent 直接執行 CLI
 export KS_ROOT=/path/to/hks-runtime
 uv run ks query "Project Atlas 目前風險是什麼？" --writeback=no
+uv run ks llm classify project-atlas.txt --provider fake --mode preview
 uv run ks lint --strict
 
 # 2. MCP stdio：讓支援 MCP 的 agent client 啟動這個 server
@@ -151,8 +168,8 @@ uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
-- MCP tools：`hks_query`、`hks_ingest`、`hks_lint`、`hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_coord_status`
-- HTTP endpoints：`/query`、`/ingest`、`/lint`、`/coord/session`、`/coord/lease`、`/coord/handoff`、`/coord/status`
+- MCP tools：`hks_query`、`hks_ingest`、`hks_lint`、`hks_llm_classify`、`hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_coord_status`
+- HTTP endpoints：`/query`、`/ingest`、`/lint`、`/llm/classify`、`/coord/session`、`/coord/lease`、`/coord/handoff`、`/coord/status`
 - 成功 payload 直接沿用 `ks` 的 top-level JSON shape，不包 adapter envelope
 - 錯誤 payload 使用 `{ok:false,error:{code,exit_code,message,details},response?}`
 - adapter 預設 local-first；Streamable HTTP 與 HTTP facade 預設只允許 loopback host
@@ -175,7 +192,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 }
 ```
 
-`ks ingest`、`ks query`、`ks lint`、`ks coord` 共用同一 top-level JSON shape。
+`ks ingest`、`ks query`、`ks lint`、`ks coord`、`ks llm classify` 共用同一 top-level JSON shape。`ks llm classify` 的 successful extraction 使用 `source=[]`，語意由 `trace.steps[kind="llm_extraction_summary"]` 區分，不等同 `ks query` no-hit。
 
 ## Exit Code
 
@@ -199,6 +216,11 @@ uv run hks-api --host 127.0.0.1 --port 8766
 - `HKS_IMAGE_MAX_PIXELS`：Image decode 後像素上限，預設 `100000000`
 - `HKS_OCR_LANGS`：tesseract language set，預設 `eng+chi_tra`
 - `HKS_ROUTING_RULES`：覆寫 routing rules 檔案路徑
+- `HKS_LLM_PROVIDER`：LLM extraction provider，預設 `fake`
+- `HKS_LLM_MODEL`：LLM extraction model id，預設 `fake-llm-extractor-v1`
+- `HKS_LLM_NETWORK_OPT_IN`：hosted/network provider opt-in；必須為 `1` 才允許非 fake provider 繼續檢查 credential
+- `HKS_LLM_PROVIDER_<ID>_API_KEY`：hosted provider credential，例如 provider id `openai` 對應 `HKS_LLM_PROVIDER_OPENAI_API_KEY`
+- `HKS_LLM_PROVIDER_<ID>_ENDPOINT`：hosted provider optional endpoint
 
 ## 進一步文件
 
@@ -211,6 +233,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 - Phase 3 lint system：[specs/005-phase3-lint-impl/spec.md](./specs/005-phase3-lint-impl/spec.md)
 - Phase 3 MCP / API adapter：[specs/006-mcp-api-adapter/spec.md](./specs/006-mcp-api-adapter/spec.md)
 - Phase 3 multi-agent support：[specs/007-multi-agent-support/spec.md](./specs/007-multi-agent-support/spec.md)
+- LLM-assisted classification / extraction：[specs/008-llm-classification-extraction/spec.md](./specs/008-llm-classification-extraction/spec.md)
 
 ## 開發檢查
 

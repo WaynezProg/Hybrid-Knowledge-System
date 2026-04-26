@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/llm-extraction-artifact.schema.json",
+  "title": "HKS LLM extraction artifact",
+  "type": "object",
+  "required": [
+    "artifact_id",
+    "schema_version",
+    "idempotency_key",
+    "created_at",
+    "status",
+    "request",
+    "result"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": { "type": "string", "minLength": 1 },
+    "schema_version": { "type": "integer", "const": 1 },
+    "idempotency_key": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "status": { "type": "string", "enum": ["valid", "invalid", "partial"] },
+    "request": {
+      "type": "object",
+      "required": [
+        "source_relpath",
+        "mode",
+        "prompt_version",
+        "provider_id",
+        "model_id",
+        "force_new_run"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "source_relpath": { "type": "string", "minLength": 1 },
+        "mode": { "type": "string", "enum": ["store"] },
+        "prompt_version": { "type": "string", "minLength": 1 },
+        "provider_id": { "type": "string", "minLength": 1 },
+        "model_id": { "type": "string", "minLength": 1 },
+        "force_new_run": { "type": "boolean" },
+        "requested_by": { "type": ["string", "null"], "minLength": 1 }
+      }
+    },
+    "result": {
+      "$ref": "llm-extraction-summary-detail.schema.json"
+    }
+  }
+}

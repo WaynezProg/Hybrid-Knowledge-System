@@ -14,6 +14,7 @@ from hks import __version__
 from hks.commands import coord as coord_command
 from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
+from hks.commands import llm as llm_command
 from hks.commands import query as query_command
 from hks.core.schema import QueryResponse, Route, build_error_response
 from hks.errors import ExitCode, KSError
@@ -25,6 +26,7 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 coord_app = typer.Typer(add_completion=False, no_args_is_help=True)
+llm_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_session_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_lease_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_handoff_app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -32,6 +34,7 @@ coord_app.add_typer(coord_session_app, name="session")
 coord_app.add_typer(coord_lease_app, name="lease")
 coord_app.add_typer(coord_handoff_app, name="handoff")
 app.add_typer(coord_app, name="coord")
+app.add_typer(llm_app, name="llm")
 
 
 class WritebackMode(StrEnum):
@@ -44,6 +47,11 @@ class WritebackMode(StrEnum):
 class PptxNotesMode(StrEnum):
     include = "include"
     exclude = "exclude"
+
+
+class LlmMode(StrEnum):
+    preview = "preview"
+    store = "store"
 
 
 def version_callback(value: bool) -> None:
@@ -171,6 +179,41 @@ def query(
     ] = WritebackMode.auto,
 ) -> None:
     run_command("query", query_command.run, question, writeback=writeback.value)
+
+
+@llm_app.command("classify")
+def llm_classify(
+    source_relpath: Annotated[str, typer.Argument(help="Ingested source relpath.")],
+    mode: Annotated[
+        LlmMode,
+        typer.Option("--mode", case_sensitive=False, help="Extraction mode."),
+    ] = LlmMode.preview,
+    provider: Annotated[str, typer.Option("--provider", help="LLM provider id.")] = "fake",
+    model: Annotated[str | None, typer.Option("--model", help="Provider model id.")] = None,
+    prompt_version: Annotated[
+        str | None,
+        typer.Option("--prompt-version", help="Prompt contract version."),
+    ] = None,
+    force_new_run: Annotated[
+        bool,
+        typer.Option("--force-new-run", help="Do not reuse an existing stored artifact."),
+    ] = False,
+    requested_by: Annotated[
+        str | None,
+        typer.Option("--requested-by", help="Agent or user label for audit."),
+    ] = None,
+) -> None:
+    run_command(
+        "llm classify",
+        llm_command.run_classify,
+        source_relpath=source_relpath,
+        mode=mode.value,
+        provider=provider,
+        model=model,
+        prompt_version=prompt_version,
+        force_new_run=force_new_run,
+        requested_by=requested_by,
+    )
 
 
 @app.command(

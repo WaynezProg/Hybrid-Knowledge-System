@@ -46,7 +46,9 @@
           "manifest_vector_mismatch",
           "orphan_vector_chunk",
           "graph_drift",
-          "fingerprint_drift"
+          "fingerprint_drift",
+          "llm_artifact_invalid",
+          "llm_artifact_corrupt"
         ]
       }
     },
@@ -77,7 +79,9 @@
         "manifest_vector_mismatch",
         "orphan_vector_chunk",
         "graph_drift",
-        "fingerprint_drift"
+        "fingerprint_drift",
+        "llm_artifact_invalid",
+        "llm_artifact_corrupt"
       ]
     },
     "severity": {

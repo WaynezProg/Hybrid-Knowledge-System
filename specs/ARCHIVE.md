@@ -9,7 +9,10 @@
 
 ## Active
 
-目前沒有 active feature spec。
+- `008-llm-classification-extraction`
+  - Status: Complete on feature branch; pending merge to `main`
+  - Verified on: 2026-04-26
+  - Canonical artifacts: [spec.md](./008-llm-classification-extraction/spec.md), [plan.md](./008-llm-classification-extraction/plan.md), [tasks.md](./008-llm-classification-extraction/tasks.md)
 
 ## Archived
 

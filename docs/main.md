@@ -8,6 +8,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * Phase 1：完成
 * Phase 2：完成
 * Phase 3：完成（`004` image ingest、`005` lint system、`006` MCP / API adapter、`007` multi-agent support）
+* 008：完成（LLM-assisted classification / extraction candidate artifacts）
 
 ---
 
@@ -26,6 +27,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
   * `ks query`
   * `ks lint`
   * `ks coord`
+  * `ks llm classify`
   * `hks-mcp`
   * `hks-api`（optional loopback facade）
 
@@ -43,7 +45,8 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 
 * 已完成：來源 ingest 後同步更新 `wiki / graph / vector / manifest`；修改來源後重跑 `ks ingest` 可依 hash / parser fingerprint 更新資料庫。
 * 已完成：query 會依問題類型走 wiki、graph 或 vector；高 confidence 結果可 write-back 成 wiki page。
-* 尚未完成：LLM-based wiki rewriting、LLM-based entity / relation extraction、Graphify community clustering、HTML visualization、audit report、資料夾 watch / daemon 式持續 ingest。
+* 已完成：008 可對已 ingest source 產生 schema-validated LLM classification / summary / fact / entity / relation candidates，並可 explicit store 到 `$KS_ROOT/llm/extractions/`。
+* 尚未完成：LLM-based wiki rewriting、Graphify community clustering、HTML visualization、audit report、資料夾 watch / daemon 式持續 ingest。
 
 換句話說，HKS 現在是 agent 可調用的 local knowledge runtime；完整 LLM Wiki + Graphify 應以後續 feature 擴充，而不是視為 Phase 1-3 已交付內容。
 
@@ -56,6 +59,7 @@ ks ingest <file|dir>
 ks query "<question>" [--writeback auto|yes|no|ask]
 ks lint
 ks coord session|lease|handoff|status|lint
+ks llm classify <source-relpath> [--mode preview|store] [--provider fake]
 hks-mcp --transport stdio|streamable-http
 hks-api
 ```
@@ -74,8 +78,10 @@ stdout 契約統一：
 }
 ```
 
-`ks ingest`、`ks query`、`ks lint`、`ks coord` 共用同一 top-level JSON shape。
+`ks ingest`、`ks query`、`ks lint`、`ks coord`、`ks llm classify` 共用同一 top-level JSON shape。
 `hks-mcp` 與 `hks-api` 的成功 payload 也共用此 shape；adapter 錯誤才使用 `{ok:false,error:{code,exit_code,message,details},response?}` envelope。
+
+`ks llm classify` 的 successful extraction 使用 `trace.route="wiki"`、`source=[]`、`trace.steps[kind="llm_extraction_summary"]`。這是 008 為避免擴 route/source enum 做出的 contract choice；consumer 不得把它解讀成 `ks query` no-hit。
 
 ---
 
@@ -175,6 +181,9 @@ graph persistence 位於 `/ks/graph/graph.json`。
   /coordination
     state.json
     events.jsonl
+  /llm
+    /extractions
+      <artifact-id>.json
   /manifest.json
 ```
 
@@ -186,6 +195,7 @@ graph persistence 位於 `/ks/graph/graph.json`。
 * `vector_ids`
 
 `coordination/state.json` 存 agent sessions、resource leases、handoff notes；`events.jsonl` 是 append-only coordination event log。
+`llm/extractions/*.json` 存 008 candidate artifact；它不是 authoritative wiki / graph / vector state，後續 009/010/011 可讀取但不得把它視為已 apply 的知識。
 
 ---
 
@@ -201,9 +211,24 @@ graph persistence 位於 `/ks/graph/graph.json`。
 
 MCP 暴露 `hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_coord_status`；HTTP facade 暴露 `/coord/session`、`/coord/lease`、`/coord/handoff`、`/coord/status`。
 
+## 10. LLM Classification / Extraction
+
+008 提供 `ks llm classify <source-relpath>`，只接受已由 `ks ingest` 登錄在 `manifest.json` 的 source relpath。
+
+* `--mode=preview`：預設，read-only，不改 `wiki/`、`graph/graph.json`、`vector/db/` 或 `manifest.json`
+* `--mode=store`：只寫 `$KS_ROOT/llm/extractions/<artifact-id>.json`
+* provider 預設 `fake`，用於 deterministic tests / agent smoke
+* hosted/network provider 必須由 `HKS_LLM_NETWORK_OPT_IN=1` 與 provider-specific credential gate 開啟，CLI/MCP/HTTP request body 不提供 opt-in toggle
+* entity candidates 限定 `Person / Project / Document / Event / Concept`
+* relation candidates 限定 `owns / depends_on / impacts / references / belongs_to`
+
+MCP 暴露 `hks_llm_classify`；HTTP facade 暴露 `/llm/classify`。
+
+008 不做 wiki synthesis、Graphify clustering / visualization / audit report，也不做 watch / daemon。這些分別留給 009、010、011。
+
 ---
 
-## 10. Phase Status
+## 11. Phase Status
 
 ### Phase 1
 
@@ -231,7 +256,16 @@ MCP 暴露 `hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_
 
 ---
 
-## 11. Runtime configuration
+### Post-Phase Specs
+
+* [x] 008 LLM-assisted classification / extraction candidate artifacts
+* [ ] 009 LLM Wiki synthesis
+* [ ] 010 Graphify clustering / visualization / audit report
+* [ ] 011 continuous update / watch workflow
+
+---
+
+## 12. Runtime configuration
 
 常用環境變數不在本文件重複列完整清單，避免 drift。請以 [README.md#常用環境變數](../README.md#常用環境變數) 與 [README.en.md#useful-environment-variables](../README.en.md#useful-environment-variables) 為準。
 
@@ -239,7 +273,7 @@ MCP 暴露 `hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_
 
 ---
 
-## 12. 非目標
+## 13. 非目標
 
 目前仍不做：
 
