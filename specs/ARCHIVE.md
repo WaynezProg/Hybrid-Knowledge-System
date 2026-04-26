@@ -56,5 +56,5 @@
 - `009-llm-wiki-synthesis`
   - Status: Complete
   - Archived on: 2026-04-26
-  - Merged into: pending
+  - Merged into: `main`
   - Canonical artifacts: [spec.md](./009-llm-wiki-synthesis/spec.md), [plan.md](./009-llm-wiki-synthesis/plan.md), [tasks.md](./009-llm-wiki-synthesis/tasks.md)

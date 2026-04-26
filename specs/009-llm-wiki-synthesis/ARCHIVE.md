@@ -3,7 +3,7 @@
 Status: Complete
 Archived on: 2026-04-26
 Branch: `009-llm-wiki-synthesis`
-Merged into: pending
+Merged into: `main`
 
 ## Scope Delivered
 
