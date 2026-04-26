@@ -82,3 +82,22 @@ find "$KS_ROOT/wiki/pages" -maxdepth 1 -type f -name '*.md' | wc -l
 不要用 tracked git diff 判斷知識庫內容；runtime data 不進 git。
 
 如果 `ks query` 回報 embedding dimension mismatch，代表 `HKS_EMBEDDING_MODEL` 跟建立 vector DB 時不同。把 `.hks-runs/shared-runtime.env` 裡的 `HKS_EMBEDDING_MODEL` 改回原本 ingest 使用的 model；smoke-test/runtime demo 通常是 `simple`。
+
+## Use OpenAI Embeddings
+
+OpenAI embedding 需要新的 vector DB；不要直接拿 `simple` 或 sentence-transformers 建好的 `$KS_ROOT/vector/db` 查。
+
+```bash
+mkdir -p .hks-runs
+cat > .hks-runs/shared-runtime.env <<'EOF'
+export KS_ROOT="$HKS_REPO_ROOT/.hks-runs/openai/ks"
+export HKS_WORKSPACE_REGISTRY="$HKS_REPO_ROOT/.hks-runs/workspaces.json"
+export HKS_EMBEDDING_MODEL=openai:text-embedding-3-small
+export HKS_OPENAI_API_KEY="$OPENAI_API_KEY"
+EOF
+
+. skill/hks-knowledge-system/config/shared-runtime.sh
+uv run ks ingest <source-dir>
+uv run ks workspace register openai --ks-root "$KS_ROOT" --label "OpenAI"
+uv run ks workspace query openai "目前有哪些資料？" --writeback=no
+```

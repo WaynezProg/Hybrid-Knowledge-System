@@ -75,7 +75,7 @@ cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 
 `.hks-runs/` 是 repo-local runtime 目錄，已被 `.gitignore` 忽略；這比 `/tmp` 更適合跨平台與長期保留測試輸出。
 
-`HKS_EMBEDDING_MODEL=simple` 適合 CI、demo 與 agent smoke test。正式使用可移除此設定，改用預設 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`，或把 `HKS_EMBEDDING_MODEL` 指向本機模型目錄。
+`HKS_EMBEDDING_MODEL=simple` 適合 CI、demo 與 agent smoke test。正式使用可移除此設定，改用預設 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`、把 `HKS_EMBEDDING_MODEL` 指向本機模型目錄，或設定 `HKS_EMBEDDING_MODEL=openai:text-embedding-3-small` 使用 OpenAI Embeddings API。
 
 ## 怎麼使用
 
@@ -285,7 +285,11 @@ uv run hks-api --host 127.0.0.1 --port 8766
 ## 常用環境變數
 
 - `KS_ROOT`：runtime 資料根，預設 `./ks`
-- `HKS_EMBEDDING_MODEL`：embedding backend；`simple` 適合離線 smoke / CI
+- `HKS_EMBEDDING_MODEL`：embedding backend；`simple` 適合離線 smoke / CI；`openai:text-embedding-3-small` 使用 OpenAI Embeddings API
+- `HKS_OPENAI_API_KEY` / `OPENAI_API_KEY`：OpenAI embedding credential；`HKS_OPENAI_API_KEY` 優先
+- `HKS_OPENAI_EMBEDDING_DIMENSIONS`：OpenAI embedding dimensions override；只適用支援 dimensions 的 OpenAI embedding model
+- `HKS_OPENAI_EMBEDDING_ENDPOINT`：OpenAI-compatible embeddings endpoint；預設 `https://api.openai.com/v1/embeddings`
+- `HKS_OPENAI_TIMEOUT_SECONDS`：OpenAI embedding request timeout，預設 `60`
 - `HKS_ROUTING_MODEL`：routing backend 標記與未來接本機 model 的入口；預設 `simple`
 - `HKS_WRITEBACK_AUTO_THRESHOLD`：auto write-back 門檻，預設 `0.75`
 - `HKS_MAX_FILE_MB`：`txt / md / pdf` 單檔 ingest 上限，預設 `200`；Office 與 Image 使用各自上限

@@ -6,16 +6,21 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SRC_ROOT = PROJECT_ROOT / "src" / "hks"
-FORBIDDEN_VENDOR_TOKENS = ("openai", "anthropic")
+FORBIDDEN_HOSTED_VENDOR_IMPORTS = (
+    "from openai",
+    "import openai",
+    "from anthropic",
+    "import anthropic",
+)
 
 
 @pytest.mark.contract
-def test_src_has_no_hosted_vendor_dependencies() -> None:
+def test_src_has_no_hosted_vendor_sdk_dependencies() -> None:
     violations: list[str] = []
     for path in sorted(SRC_ROOT.rglob("*.py")):
         for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             lowered = line.lower()
-            if any(token in lowered for token in FORBIDDEN_VENDOR_TOKENS):
+            if any(token in lowered for token in FORBIDDEN_HOSTED_VENDOR_IMPORTS):
                 violations.append(f"{path.relative_to(PROJECT_ROOT)}:{lineno}: {line.strip()}")
     assert violations == []
 

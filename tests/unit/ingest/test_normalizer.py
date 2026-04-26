@@ -26,3 +26,14 @@ def test_chunk_respects_overlap() -> None:
     first_tokens = simple_tokenize(chunks[0])
     second_tokens = simple_tokenize(chunks[1])
     assert first_tokens[-2:] == second_tokens[:2]
+
+
+@pytest.mark.unit
+def test_chunk_uses_simple_tokens_for_openai_backend() -> None:
+    backend = TextModelBackend("openai:text-embedding-3-small")
+    text = " ".join(f"token{i}" for i in range(12))
+
+    chunks = chunk(text, size=5, overlap=1, backend=backend)
+
+    assert len(chunks) == 3
+    assert simple_tokenize(chunks[0])[-1:] == simple_tokenize(chunks[1])[:1]

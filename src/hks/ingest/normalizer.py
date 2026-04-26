@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from hks.core.text_models import SIMPLE_EMBEDDING_MODEL, TextModelBackend, join_tokens
+from hks.core.text_models import TextModelBackend, join_tokens
 from hks.ingest.office_common import Segment
 
 WHITESPACE_RE = re.compile(r"[ \t]+")
@@ -32,7 +32,7 @@ def chunk(
         return []
 
     model_backend = backend or TextModelBackend()
-    if model_backend.model_name != SIMPLE_EMBEDDING_MODEL:
+    if model_backend.supports_token_ids:
         token_ids = model_backend.encode_token_ids(text)
         if not token_ids:
             return []

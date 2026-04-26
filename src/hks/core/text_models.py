@@ -2,16 +2,22 @@
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
 from functools import cached_property
 from typing import cast
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
 
 from hks.errors import ExitCode, KSError
 
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 SIMPLE_EMBEDDING_MODEL = "simple"
+OPENAI_EMBEDDING_PREFIX = "openai:"
+DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
+DEFAULT_OPENAI_EMBEDDING_ENDPOINT = "https://api.openai.com/v1/embeddings"
 
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]+|[\u4e00-\u9fff]|[^\s]")
 
@@ -62,15 +68,39 @@ def simple_embed(texts: list[str], *, dimensions: int = 128) -> list[list[float]
     return embeddings
 
 
+def _normalize_embedding(vector: list[float]) -> list[float]:
+    norm = math.sqrt(sum(value * value for value in vector))
+    if not norm:
+        return vector
+    return [value / norm for value in vector]
+
+
+def _is_openai_embedding_model(model_name: str) -> bool:
+    return model_name.startswith(OPENAI_EMBEDDING_PREFIX)
+
+
 class TextModelBackend:
     """Shared tokenizer/embedding backend with a test-friendly fallback."""
 
     def __init__(self, model_name: str | None = None) -> None:
         self.model_name = model_name or resolve_embedding_model()
 
+    @property
+    def supports_token_ids(self) -> bool:
+        return self.model_name != SIMPLE_EMBEDDING_MODEL and not _is_openai_embedding_model(
+            self.model_name
+        )
+
+    @property
+    def _openai_model_id(self) -> str:
+        model_id = self.model_name.removeprefix(OPENAI_EMBEDDING_PREFIX).strip()
+        return model_id or DEFAULT_OPENAI_EMBEDDING_MODEL
+
     @cached_property
     def _tokenizer(self):  # type: ignore[no-untyped-def]
-        if self.model_name == SIMPLE_EMBEDDING_MODEL:
+        if self.model_name == SIMPLE_EMBEDDING_MODEL or _is_openai_embedding_model(
+            self.model_name
+        ):
             return None
 
         try:
@@ -97,7 +127,9 @@ class TextModelBackend:
 
     @cached_property
     def _model(self):  # type: ignore[no-untyped-def]
-        if self.model_name == SIMPLE_EMBEDDING_MODEL:
+        if self.model_name == SIMPLE_EMBEDDING_MODEL or _is_openai_embedding_model(
+            self.model_name
+        ):
             return None
 
         try:
@@ -123,7 +155,9 @@ class TextModelBackend:
             ) from exc
 
     def tokenize(self, text: str) -> list[str]:
-        if self.model_name == SIMPLE_EMBEDDING_MODEL:
+        if self.model_name == SIMPLE_EMBEDDING_MODEL or _is_openai_embedding_model(
+            self.model_name
+        ):
             return simple_tokenize(text)
 
         tokenizer = self._tokenizer
@@ -131,20 +165,22 @@ class TextModelBackend:
         return cast(list[str], tokenizer.convert_ids_to_tokens(encoded))
 
     def count_tokens(self, text: str) -> int:
-        if self.model_name == SIMPLE_EMBEDDING_MODEL:
+        if self.model_name == SIMPLE_EMBEDDING_MODEL or _is_openai_embedding_model(
+            self.model_name
+        ):
             return len(self.tokenize(text))
         return len(self.encode_token_ids(text))
 
     def encode_token_ids(self, text: str) -> list[int]:
-        if self.model_name == SIMPLE_EMBEDDING_MODEL:
-            raise RuntimeError("simple backend does not expose tokenizer ids")
+        if not self.supports_token_ids:
+            raise RuntimeError(f"{self.model_name} backend does not expose tokenizer ids")
 
         tokenizer = self._tokenizer
         return cast(list[int], tokenizer.encode(text, add_special_tokens=False))
 
     def decode_token_ids(self, token_ids: list[int]) -> str:
-        if self.model_name == SIMPLE_EMBEDDING_MODEL:
-            raise RuntimeError("simple backend does not expose tokenizer ids")
+        if not self.supports_token_ids:
+            raise RuntimeError(f"{self.model_name} backend does not expose tokenizer ids")
 
         tokenizer = self._tokenizer
         return cast(
@@ -159,6 +195,8 @@ class TextModelBackend:
     def embed_texts(self, texts: list[str]) -> list[list[float]]:
         if self.model_name == SIMPLE_EMBEDDING_MODEL:
             return simple_embed(texts)
+        if _is_openai_embedding_model(self.model_name):
+            return self._embed_openai_texts(texts)
 
         model = self._model
         embeddings = model.encode(texts, normalize_embeddings=True)
@@ -166,3 +204,94 @@ class TextModelBackend:
 
     def embed_query(self, text: str) -> list[float]:
         return self.embed_texts([text])[0]
+
+    def _embed_openai_texts(self, texts: list[str]) -> list[list[float]]:
+        if not texts:
+            return []
+
+        api_key = os.environ.get("HKS_OPENAI_API_KEY") or os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            raise KSError(
+                "缺少 OpenAI embedding API key",
+                exit_code=ExitCode.GENERAL,
+                code="OPENAI_EMBEDDING_CREDENTIAL_MISSING",
+                hint="設定 HKS_OPENAI_API_KEY 或 OPENAI_API_KEY",
+            )
+
+        payload: dict[str, object] = {
+            "model": self._openai_model_id,
+            "input": texts,
+            "encoding_format": "float",
+        }
+        dimensions = os.environ.get("HKS_OPENAI_EMBEDDING_DIMENSIONS")
+        if dimensions:
+            try:
+                payload["dimensions"] = int(dimensions)
+            except ValueError as exc:
+                raise KSError(
+                    "HKS_OPENAI_EMBEDDING_DIMENSIONS 必須是整數",
+                    exit_code=ExitCode.USAGE,
+                    code="OPENAI_EMBEDDING_INVALID_DIMENSIONS",
+                ) from exc
+
+        endpoint = os.environ.get(
+            "HKS_OPENAI_EMBEDDING_ENDPOINT",
+            DEFAULT_OPENAI_EMBEDDING_ENDPOINT,
+        )
+        request = Request(
+            endpoint,
+            data=json.dumps(payload).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        timeout = float(os.environ.get("HKS_OPENAI_TIMEOUT_SECONDS", "60"))
+
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                response_payload = json.loads(response.read().decode("utf-8"))
+        except HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="replace")
+            raise KSError(
+                "OpenAI embedding request failed",
+                exit_code=ExitCode.GENERAL,
+                code="OPENAI_EMBEDDING_FAILED",
+                details=[detail],
+            ) from exc
+        except (OSError, URLError, ValueError) as exc:
+            raise KSError(
+                "OpenAI embedding request failed",
+                exit_code=ExitCode.GENERAL,
+                code="OPENAI_EMBEDDING_FAILED",
+                details=[str(exc)],
+            ) from exc
+
+        data = response_payload.get("data")
+        if not isinstance(data, list):
+            raise KSError(
+                "OpenAI embedding response missing data",
+                exit_code=ExitCode.GENERAL,
+                code="OPENAI_EMBEDDING_INVALID_RESPONSE",
+            )
+
+        embeddings: list[list[float] | None] = [None] * len(texts)
+        for item in data:
+            if not isinstance(item, dict):
+                continue
+            index = item.get("index")
+            embedding = item.get("embedding")
+            if not isinstance(index, int) or not isinstance(embedding, list):
+                continue
+            if 0 <= index < len(embeddings):
+                embeddings[index] = _normalize_embedding([float(value) for value in embedding])
+
+        if any(embedding is None for embedding in embeddings):
+            raise KSError(
+                "OpenAI embedding response count mismatch",
+                exit_code=ExitCode.GENERAL,
+                code="OPENAI_EMBEDDING_INVALID_RESPONSE",
+            )
+
+        return [embedding for embedding in embeddings if embedding is not None]
