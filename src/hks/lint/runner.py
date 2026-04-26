@@ -104,6 +104,10 @@ def _build_snapshot(paths: RuntimePaths) -> RuntimeSnapshot:
         graphify_artifact_errors=_load_graphify_artifact_errors(paths),
         graphify_partial_runs=_load_graphify_partial_runs(paths),
         graphify_latest_error=_load_graphify_latest_error(paths),
+        watch_artifacts=_load_watch_artifacts(paths),
+        watch_artifact_errors=_load_watch_artifact_errors(paths),
+        watch_partial_runs=_load_watch_partial_runs(paths),
+        watch_latest_error=_load_watch_latest_error(paths),
     )
 
 
@@ -327,4 +331,85 @@ def _load_graphify_latest_error(paths: RuntimePaths) -> str | None:
         return "graphify latest pointer is missing run_manifest_path"
     if not Path(run_manifest).exists():
         return "graphify latest pointer references missing run manifest"
+    return None
+
+
+def _watch_dir(paths: RuntimePaths) -> Path:
+    return paths.root / "watch"
+
+
+def _load_watch_artifacts(paths: RuntimePaths) -> dict[str, dict[str, object]]:
+    base = _watch_dir(paths)
+    if not base.exists():
+        return {}
+    artifacts: dict[str, dict[str, object]] = {}
+    for path in [
+        *sorted((base / "plans").glob("*.json")),
+        *sorted((base / "runs").glob("*.json")),
+        base / "latest.json",
+    ]:
+        if not path.exists():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            artifacts[path.relative_to(paths.root).as_posix()] = payload
+    return artifacts
+
+
+def _load_watch_artifact_errors(paths: RuntimePaths) -> dict[str, str]:
+    base = _watch_dir(paths)
+    if not base.exists():
+        return {}
+    errors: dict[str, str] = {}
+    for path in [
+        *sorted((base / "plans").glob("*.json")),
+        *sorted((base / "runs").glob("*.json")),
+        base / "latest.json",
+    ]:
+        if not path.exists():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            errors[path.relative_to(paths.root).as_posix()] = str(exc)
+            continue
+        if not isinstance(payload, dict):
+            errors[path.relative_to(paths.root).as_posix()] = "artifact root must be an object"
+    return errors
+
+
+def _load_watch_partial_runs(paths: RuntimePaths) -> set[str]:
+    base = _watch_dir(paths) / "runs"
+    if not base.exists():
+        return set()
+    partial: set[str] = set()
+    for path in sorted(base.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(payload, dict) and payload.get("status") == "partial":
+            partial.add(path.relative_to(paths.root).as_posix())
+    return partial
+
+
+def _load_watch_latest_error(paths: RuntimePaths) -> str | None:
+    latest = _watch_dir(paths) / "latest.json"
+    if not latest.exists():
+        return None
+    try:
+        payload = json.loads(latest.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return f"watch latest pointer cannot be parsed: {exc}"
+    if not isinstance(payload, dict):
+        return "watch latest pointer root must be an object"
+    plan_id = payload.get("latest_plan_id")
+    if plan_id and not (_watch_dir(paths) / "plans" / f"{plan_id}.json").exists():
+        return "watch latest pointer references missing plan"
+    run_id = payload.get("latest_run_id")
+    if run_id and not (_watch_dir(paths) / "runs" / f"{run_id}.json").exists():
+        return "watch latest pointer references missing run"
     return None

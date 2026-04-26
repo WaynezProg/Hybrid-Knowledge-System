@@ -15,6 +15,8 @@ type FixMode = Literal["none", "plan", "apply"]
 type LlmMode = Literal["preview", "store"]
 type WikiSynthesisMode = Literal["preview", "store", "apply"]
 type GraphifyMode = Literal["preview", "store"]
+type WatchMode = Literal["dry-run", "execute"]
+type WatchProfile = Literal["scan-only", "ingest-only", "derived-refresh", "wiki-apply", "full"]
 
 WRITEBACK_MODES: frozenset[str] = frozenset(("no", "auto", "yes", "ask"))
 PPTX_NOTES_MODES: frozenset[str] = frozenset(("include", "exclude"))
@@ -23,6 +25,10 @@ FIX_MODES: frozenset[str] = frozenset(("none", "plan", "apply"))
 LLM_MODES: frozenset[str] = frozenset(("preview", "store"))
 WIKI_SYNTHESIS_MODES: frozenset[str] = frozenset(("preview", "store", "apply"))
 GRAPHIFY_MODES: frozenset[str] = frozenset(("preview", "store"))
+WATCH_MODES: frozenset[str] = frozenset(("dry-run", "execute"))
+WATCH_PROFILES: frozenset[str] = frozenset(
+    ("scan-only", "ingest-only", "derived-refresh", "wiki-apply", "full")
+)
 
 
 @dataclass(frozen=True, slots=True)

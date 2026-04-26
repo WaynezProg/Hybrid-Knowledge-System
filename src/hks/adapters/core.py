@@ -13,6 +13,7 @@ from hks.adapters.contracts import (
     validate_graphify_tool_input,
     validate_llm_tool_input,
     validate_tool_input,
+    validate_watch_tool_input,
     validate_wiki_tool_input,
 )
 from hks.adapters.models import (
@@ -21,6 +22,8 @@ from hks.adapters.models import (
     LLM_MODES,
     PPTX_NOTES_MODES,
     SEVERITY_THRESHOLDS,
+    WATCH_MODES,
+    WATCH_PROFILES,
     WIKI_SYNTHESIS_MODES,
     WRITEBACK_MODES,
     AdapterError,
@@ -30,6 +33,8 @@ from hks.adapters.models import (
     LlmMode,
     PptxNotesMode,
     SeverityThreshold,
+    WatchMode,
+    WatchProfile,
     WikiSynthesisMode,
     WritebackMode,
 )
@@ -39,6 +44,7 @@ from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
 from hks.commands import llm as llm_command
 from hks.commands import query as query_command
+from hks.commands import watch as watch_command
 from hks.commands import wiki as wiki_command
 from hks.core.schema import QueryResponse, Route, build_error_response, validate
 from hks.errors import ExitCode, KSError
@@ -533,6 +539,109 @@ def hks_graphify_build(
         include_report=include_report,
         force_new_run=force_new_run,
         requested_by=requested_by,
+        ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_watch_scan(
+    *,
+    source_roots: list[str] | None = None,
+    ks_root: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {"ks_root": ks_root, "request_id": request_id}
+    if source_roots:
+        payload["source_roots"] = source_roots
+    try:
+        validate_watch_tool_input(
+            "hks_watch_scan",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    return _run_command(
+        watch_command.run_scan,
+        source_roots=[Path(root) for root in source_roots or []],
+        ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_watch_run(
+    *,
+    mode: str = "dry-run",
+    profile: str = "scan-only",
+    source_roots: list[str] | None = None,
+    prune: bool = False,
+    include_llm: bool = False,
+    include_wiki_apply: bool = False,
+    include_graphify: bool = False,
+    force: bool = False,
+    requested_by: str | None = None,
+    ks_root: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "mode": mode,
+        "profile": profile,
+        "prune": prune,
+        "include_llm": include_llm,
+        "include_wiki_apply": include_wiki_apply,
+        "include_graphify": include_graphify,
+        "force": force,
+        "requested_by": requested_by,
+        "ks_root": ks_root,
+        "request_id": request_id,
+    }
+    if source_roots:
+        payload["source_roots"] = source_roots
+    try:
+        validate_watch_tool_input(
+            "hks_watch_run",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    normalized_mode = cast(
+        WatchMode,
+        _require_choice(mode, WATCH_MODES, field="mode", request_id=request_id),
+    )
+    normalized_profile = cast(
+        WatchProfile,
+        _require_choice(profile, WATCH_PROFILES, field="profile", request_id=request_id),
+    )
+    return _run_command(
+        watch_command.run_watch,
+        source_roots=[Path(root) for root in source_roots or []],
+        mode=normalized_mode,
+        profile=normalized_profile,
+        prune=prune,
+        include_llm=include_llm,
+        include_wiki_apply=include_wiki_apply,
+        include_graphify=include_graphify,
+        force=force,
+        requested_by=requested_by,
+        ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_watch_status(
+    *,
+    ks_root: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {"ks_root": ks_root, "request_id": request_id}
+    try:
+        validate_watch_tool_input(
+            "hks_watch_status",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    return _run_command(
+        watch_command.run_status,
         ks_root=ks_root,
         request_id=request_id,
     )

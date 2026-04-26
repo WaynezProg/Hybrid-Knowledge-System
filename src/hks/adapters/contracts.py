@@ -307,6 +307,84 @@ def load_graphify_http_openapi() -> dict[str, Any]:
     return payload
 
 
+@lru_cache(maxsize=1)
+def load_watch_tools_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "011-continuous-watch",
+                "mcp-watch-tools.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_watch_summary_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "011-continuous-watch",
+                "watch-summary-detail.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_watch_plan_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "011-continuous-watch",
+                "watch-plan.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_watch_run_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "011-continuous-watch",
+                "watch-run.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_watch_latest_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "011-continuous-watch",
+                "watch-latest.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_watch_http_openapi() -> dict[str, Any]:
+    payload = YAML(typ="safe").load(
+        feature_contract_path(
+            "011-continuous-watch",
+            "http-watch-api.openapi.yaml",
+        ).read_text("utf-8")
+    )
+    if not isinstance(payload, dict):
+        raise ValueError("http-watch-api.openapi.yaml must be an object")
+    return payload
+
+
 def validate_tool_input(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
     full_schema = load_mcp_tools_schema()
     schema = dict(full_schema["properties"]["tools"]["properties"][tool])
@@ -341,6 +419,14 @@ def validate_wiki_tool_input(tool: str, payload: dict[str, Any]) -> dict[str, An
 
 def validate_graphify_tool_input(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
     full_schema = load_graphify_tools_schema()
+    schema = dict(full_schema["properties"]["tools"]["properties"][tool])
+    schema["$defs"] = full_schema["$defs"]
+    jsonschema.validate(instance=payload, schema=schema)
+    return payload
+
+
+def validate_watch_tool_input(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
+    full_schema = load_watch_tools_schema()
     schema = dict(full_schema["properties"]["tools"]["properties"][tool])
     schema["$defs"] = full_schema["$defs"]
     jsonschema.validate(instance=payload, schema=schema)
@@ -389,6 +475,26 @@ def validate_graphify_graph(payload: dict[str, Any]) -> dict[str, Any]:
 
 def validate_graphify_run(payload: dict[str, Any]) -> dict[str, Any]:
     jsonschema.validate(instance=payload, schema=load_graphify_run_schema())
+    return payload
+
+
+def validate_watch_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    jsonschema.validate(instance=payload, schema=load_watch_summary_schema())
+    return payload
+
+
+def validate_watch_plan(payload: dict[str, Any]) -> dict[str, Any]:
+    jsonschema.validate(instance=payload, schema=load_watch_plan_schema())
+    return payload
+
+
+def validate_watch_run(payload: dict[str, Any]) -> dict[str, Any]:
+    jsonschema.validate(instance=payload, schema=load_watch_run_schema())
+    return payload
+
+
+def validate_watch_latest(payload: dict[str, Any]) -> dict[str, Any]:
+    jsonschema.validate(instance=payload, schema=load_watch_latest_schema())
     return payload
 
 

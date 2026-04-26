@@ -1,0 +1,205 @@
+openapi: 3.1.0
+info:
+  title: HKS Watch API
+  version: 0.1.0
+paths:
+  /watch/scan:
+    post:
+      summary: Scan HKS sources and derived lineage for refresh needs
+      operationId: watchScan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WatchScanRequest"
+      responses:
+        "200":
+          description: HKS top-level response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResponse"
+        "400":
+          description: Adapter error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdapterError"
+        "500":
+          description: Adapter error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdapterError"
+  /watch/run:
+    post:
+      summary: Run a bounded watch refresh
+      operationId: watchRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WatchRunRequest"
+      responses:
+        "200":
+          description: HKS top-level response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResponse"
+        "400":
+          description: Adapter error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdapterError"
+        "500":
+          description: Adapter error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdapterError"
+  /watch/status:
+    post:
+      summary: Return latest watch status
+      operationId: watchStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WatchStatusRequest"
+      responses:
+        "200":
+          description: HKS top-level response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/QueryResponse"
+        "400":
+          description: Adapter error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdapterError"
+        "500":
+          description: Adapter error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdapterError"
+components:
+  schemas:
+    WatchScanRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        source_roots:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        ks_root:
+          type:
+            - string
+            - "null"
+    WatchRunRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        mode:
+          type: string
+          enum: [dry-run, execute]
+          default: dry-run
+        profile:
+          type: string
+          enum: [scan-only, ingest-only, derived-refresh, wiki-apply, full]
+          default: scan-only
+        source_roots:
+          type: array
+          minItems: 1
+          items:
+            type: string
+        prune:
+          type: boolean
+          default: false
+        include_llm:
+          type: boolean
+          default: false
+        include_wiki_apply:
+          type: boolean
+          default: false
+        include_graphify:
+          type: boolean
+          default: false
+        force:
+          type: boolean
+          default: false
+        requested_by:
+          type:
+            - string
+            - "null"
+        ks_root:
+          type:
+            - string
+            - "null"
+    WatchStatusRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        ks_root:
+          type:
+            - string
+            - "null"
+    QueryResponse:
+      type: object
+      required: [answer, source, confidence, trace]
+      additionalProperties: false
+      properties:
+        answer:
+          type: string
+        source:
+          type: array
+          items:
+            type: string
+            enum: [wiki, graph, vector]
+        confidence:
+          type: number
+        trace:
+          type: object
+          required: [route, steps]
+          additionalProperties: false
+          properties:
+            route:
+              type: string
+              enum: [wiki, graph, vector]
+            steps:
+              type: array
+              items:
+                type: object
+    AdapterError:
+      type: object
+      required: [ok, error, response]
+      additionalProperties: false
+      properties:
+        ok:
+          type: boolean
+          const: false
+        error:
+          type: object
+          required: [code, exit_code, message, details]
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+            exit_code:
+              type: integer
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: false
+        response:
+          type: object

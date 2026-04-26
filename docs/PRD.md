@@ -30,12 +30,13 @@
 
 ### 4.0 Current runtime boundary
 
-目前已完成的是 local-first HKS runtime，已包含 LLM-assisted wiki synthesis 與 derived Graphify artifacts；continuous watch / daemon 仍未完成。
+目前已完成的是 local-first HKS runtime，已包含 LLM-assisted wiki synthesis、derived Graphify artifacts 與 bounded watch/re-ingest workflow；常駐 daemon 仍未完成。
 
 * HKS 負責 ingest、wiki / graph / vector 同步、query routing、write-back、lint、coordination。
 * 外部 agent（Codex / Claude Code / OpenClaw 等）負責 LLM reasoning、任務拆解與是否呼叫 HKS。
 * 008 已提供 LLM-assisted classification / extraction candidate artifacts；009 已提供 explicit wiki synthesis apply，但不自動 apply 到 graph / vector / manifest。
 * 010 已提供 derived Graphify community clustering、HTML visualization、JSON export、audit report；它不修改 authoritative `graph/graph.json`。
+* 011 已提供 bounded `ks watch scan|run|status`；它不是常駐 daemon，scan / dry-run 不改 authoritative layers。
 
 ### 4.1 Ingest
 
@@ -110,6 +111,15 @@
 * MCP tool：`hks_graphify_build`
 * HTTP endpoint：`/graphify/build`
 
+### 4.10 Watch / Refresh Workflow
+
+* `ks watch scan|run|status`
+* `scan` 與 `run --mode=dry-run` 只寫 `$KS_ROOT/watch/` operational state，不改 authoritative layers
+* `run --mode=execute --profile=ingest-only` 透過既有 ingest 更新 `wiki / graph / vector / manifest`
+* 成功 response 使用 `trace.steps[kind="watch_summary"]`
+* MCP tools：`hks_watch_scan`、`hks_watch_run`、`hks_watch_status`
+* HTTP endpoints：`/watch/scan`、`/watch/run`、`/watch/status`
+
 ---
 
 ## 5. 非功能需求
@@ -166,4 +176,4 @@
 * [x] 008 LLM-assisted classification / extraction candidate artifacts
 * [x] 009 LLM-assisted wiki rewriting / summarization
 * [x] Graphify pipeline：community clustering、HTML visualization、audit report
-* [ ] Watch / re-ingest workflow for continuously updated personal knowledge roots
+* [x] Watch / re-ingest workflow for continuously updated personal knowledge roots

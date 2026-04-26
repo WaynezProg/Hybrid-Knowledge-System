@@ -28,6 +28,7 @@ type TraceKind = Literal[
     "llm_extraction_summary",
     "wiki_synthesis_summary",
     "graphify_summary",
+    "watch_summary",
 ]
 
 

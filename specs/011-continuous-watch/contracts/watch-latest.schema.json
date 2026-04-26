@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/watch-latest.schema.json",
+  "title": "HKS Watch latest pointer",
+  "type": "object",
+  "required": ["schema_version", "latest_plan_id", "latest_run_id", "updated_at", "plan_fingerprint"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "string", "const": "1.0" },
+    "latest_plan_id": { "type": ["string", "null"], "minLength": 1 },
+    "latest_run_id": { "type": ["string", "null"], "minLength": 1 },
+    "updated_at": { "type": "string", "format": "date-time" },
+    "plan_fingerprint": { "type": ["string", "null"], "minLength": 1 }
+  }
+}

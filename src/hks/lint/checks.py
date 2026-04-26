@@ -10,6 +10,9 @@ from hks.adapters.contracts import (
     validate_graphify_graph,
     validate_graphify_run,
     validate_llm_artifact,
+    validate_watch_latest,
+    validate_watch_plan,
+    validate_watch_run,
     validate_wiki_artifact,
 )
 from hks.ingest.fingerprint import (
@@ -30,6 +33,7 @@ def run_checks(snapshot: RuntimeSnapshot) -> list[Finding]:
     findings.extend(check_llm_artifacts(snapshot))
     findings.extend(check_wiki_synthesis(snapshot))
     findings.extend(check_graphify(snapshot))
+    findings.extend(check_watch(snapshot))
     return sorted(
         findings,
         key=lambda finding: (finding.category, finding.target, finding.message),
@@ -394,6 +398,53 @@ def check_graphify(snapshot: RuntimeSnapshot) -> list[Finding]:
                     "graphify_invalid_graph",
                     relpath,
                     f"graphify graph artifact `{relpath}` does not match schema",
+                    details={"error": exc.message},
+                )
+            )
+    return findings
+
+
+def check_watch(snapshot: RuntimeSnapshot) -> list[Finding]:
+    findings: list[Finding] = []
+    for target in sorted(snapshot.watch_partial_runs):
+        findings.append(
+            Finding.make(
+                "watch_partial_run",
+                target,
+                f"watch run `{target}` is partial or missing required state",
+            )
+        )
+    if snapshot.watch_latest_error:
+        findings.append(
+            Finding.make(
+                "watch_latest_mismatch",
+                "watch/latest.json",
+                snapshot.watch_latest_error,
+            )
+        )
+    for relpath, error in sorted(snapshot.watch_artifact_errors.items()):
+        findings.append(
+            Finding.make(
+                "watch_artifact_corrupt",
+                relpath,
+                f"watch artifact `{relpath}` cannot be parsed",
+                details={"error": error},
+            )
+        )
+    for relpath, payload in sorted(snapshot.watch_artifacts.items()):
+        try:
+            if relpath.startswith("watch/plans/"):
+                validate_watch_plan(payload)
+            elif relpath.startswith("watch/runs/"):
+                validate_watch_run(payload)
+            elif relpath == "watch/latest.json":
+                validate_watch_latest(payload)
+        except ValidationError as exc:
+            findings.append(
+                Finding.make(
+                    "watch_artifact_invalid",
+                    relpath,
+                    f"watch artifact `{relpath}` does not match schema",
                     details={"error": exc.message},
                 )
             )
