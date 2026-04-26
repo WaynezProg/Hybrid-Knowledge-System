@@ -12,11 +12,13 @@ type WritebackMode = Literal["no", "auto", "yes", "ask"]
 type PptxNotesMode = Literal["include", "exclude"]
 type SeverityThreshold = Literal["error", "warning", "info"]
 type FixMode = Literal["none", "plan", "apply"]
+type LlmMode = Literal["preview", "store"]
 
 WRITEBACK_MODES: frozenset[str] = frozenset(("no", "auto", "yes", "ask"))
 PPTX_NOTES_MODES: frozenset[str] = frozenset(("include", "exclude"))
 SEVERITY_THRESHOLDS: frozenset[str] = frozenset(("error", "warning", "info"))
 FIX_MODES: frozenset[str] = frozenset(("none", "plan", "apply"))
+LLM_MODES: frozenset[str] = frozenset(("preview", "store"))
 
 
 @dataclass(frozen=True, slots=True)

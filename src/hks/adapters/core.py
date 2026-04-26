@@ -8,15 +8,21 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
 
-from hks.adapters.contracts import validate_coordination_tool_input, validate_tool_input
+from hks.adapters.contracts import (
+    validate_coordination_tool_input,
+    validate_llm_tool_input,
+    validate_tool_input,
+)
 from hks.adapters.models import (
     FIX_MODES,
+    LLM_MODES,
     PPTX_NOTES_MODES,
     SEVERITY_THRESHOLDS,
     WRITEBACK_MODES,
     AdapterError,
     AdapterToolError,
     FixMode,
+    LlmMode,
     PptxNotesMode,
     SeverityThreshold,
     WritebackMode,
@@ -24,6 +30,7 @@ from hks.adapters.models import (
 from hks.commands import coord as coord_command
 from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
+from hks.commands import llm as llm_command
 from hks.commands import query as query_command
 from hks.core.schema import QueryResponse, Route, build_error_response, validate
 from hks.errors import ExitCode, KSError
@@ -365,6 +372,53 @@ def hks_coord_status(
         agent_id=agent_id,
         resource_key=resource_key,
         include_stale=include_stale,
+        ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_llm_classify(
+    *,
+    source_relpath: str,
+    mode: str = "preview",
+    provider: str = "fake",
+    model: str | None = None,
+    prompt_version: str | None = None,
+    force_new_run: bool = False,
+    requested_by: str | None = None,
+    ks_root: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "source_relpath": source_relpath,
+        "mode": mode,
+        "provider": provider,
+        "model": model,
+        "prompt_version": prompt_version,
+        "force_new_run": force_new_run,
+        "requested_by": requested_by,
+        "ks_root": ks_root,
+    }
+    try:
+        validate_llm_tool_input(
+            "hks_llm_classify",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
+    normalized_mode = cast(
+        LlmMode,
+        _require_choice(mode, LLM_MODES, field="mode", request_id=request_id),
+    )
+    return _run_command(
+        llm_command.run_classify,
+        source_relpath=source_relpath,
+        mode=normalized_mode,
+        provider=provider,
+        model=model,
+        prompt_version=prompt_version,
+        force_new_run=force_new_run,
+        requested_by=requested_by,
         ks_root=ks_root,
         request_id=request_id,
     )

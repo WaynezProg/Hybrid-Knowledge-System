@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from collections import Counter
 
+from jsonschema import ValidationError
+
+from hks.adapters.contracts import validate_llm_artifact
 from hks.ingest.fingerprint import (
     ParserFlags,
     are_fingerprints_compatible,
@@ -19,6 +22,7 @@ def run_checks(snapshot: RuntimeSnapshot) -> list[Finding]:
     findings.extend(check_vector(snapshot))
     findings.extend(check_graph(snapshot))
     findings.extend(check_fingerprint(snapshot))
+    findings.extend(check_llm_artifacts(snapshot))
     return sorted(
         findings,
         key=lambda finding: (finding.category, finding.target, finding.message),
@@ -243,6 +247,32 @@ def check_fingerprint(snapshot: RuntimeSnapshot) -> list[Finding]:
                         "stored": entry.parser_fingerprint,
                         "current": current,
                     },
+                )
+            )
+    return findings
+
+
+def check_llm_artifacts(snapshot: RuntimeSnapshot) -> list[Finding]:
+    findings: list[Finding] = []
+    for relpath, error in sorted(snapshot.llm_artifact_errors.items()):
+        findings.append(
+            Finding.make(
+                "llm_artifact_corrupt",
+                relpath,
+                f"LLM extraction artifact `{relpath}` cannot be parsed",
+                details={"error": error},
+            )
+        )
+    for relpath, payload in sorted(snapshot.llm_artifacts.items()):
+        try:
+            validate_llm_artifact(payload)
+        except ValidationError as exc:
+            findings.append(
+                Finding.make(
+                    "llm_artifact_invalid",
+                    relpath,
+                    f"LLM extraction artifact `{relpath}` does not match schema",
+                    details={"error": exc.message},
                 )
             )
     return findings

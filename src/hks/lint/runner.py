@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from json import JSONDecodeError
 from pathlib import Path
@@ -94,6 +95,8 @@ def _build_snapshot(paths: RuntimePaths) -> RuntimeSnapshot:
         wiki_index_slugs=_load_wiki_index_slugs(paths),
         vector_ids=vector_ids,
         graph=graph,
+        llm_artifacts=_load_llm_artifacts(paths),
+        llm_artifact_errors=_load_llm_artifact_errors(paths),
     )
 
 
@@ -165,3 +168,38 @@ def _load_wiki_index_slugs(paths: RuntimePaths) -> list[str]:
         if match:
             slugs.append(match.group(1))
     return slugs
+
+
+def _llm_extractions_dir(paths: RuntimePaths) -> Path:
+    return paths.root / "llm" / "extractions"
+
+
+def _load_llm_artifacts(paths: RuntimePaths) -> dict[str, dict[str, object]]:
+    base = _llm_extractions_dir(paths)
+    if not base.exists():
+        return {}
+    artifacts: dict[str, dict[str, object]] = {}
+    for path in sorted(base.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(payload, dict):
+            artifacts[path.name] = payload
+    return artifacts
+
+
+def _load_llm_artifact_errors(paths: RuntimePaths) -> dict[str, str]:
+    base = _llm_extractions_dir(paths)
+    if not base.exists():
+        return {}
+    errors: dict[str, str] = {}
+    for path in sorted(base.glob("*.json")):
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            errors[path.name] = str(exc)
+            continue
+        if not isinstance(payload, dict):
+            errors[path.name] = "artifact root must be an object"
+    return errors

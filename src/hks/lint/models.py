@@ -22,6 +22,8 @@ type FindingCategory = Literal[
     "orphan_vector_chunk",
     "graph_drift",
     "fingerprint_drift",
+    "llm_artifact_invalid",
+    "llm_artifact_corrupt",
 ]
 type FixActionKind = Literal[
     "rebuild_index",
@@ -51,6 +53,8 @@ FINDING_SEVERITY: dict[FindingCategory, Severity] = {
     "orphan_vector_chunk": "warning",
     "graph_drift": "error",
     "fingerprint_drift": "info",
+    "llm_artifact_invalid": "error",
+    "llm_artifact_corrupt": "error",
 }
 
 SEVERITY_RANK: dict[Severity, int] = {"info": 0, "warning": 1, "error": 2}
@@ -143,6 +147,8 @@ class RuntimeSnapshot:
     wiki_index_slugs: list[str]
     vector_ids: set[str]
     graph: GraphPayload
+    llm_artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    llm_artifact_errors: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

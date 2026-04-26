@@ -76,6 +76,32 @@ def create_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
+    def hks_llm_classify(
+        source_relpath: str,
+        mode: str = "preview",
+        provider: str = "fake",
+        model: str | None = None,
+        prompt_version: str | None = None,
+        force_new_run: bool = False,
+        requested_by: str | None = None,
+        ks_root: str | None = None,
+    ) -> Any:
+        """Run LLM-assisted classification/extraction for one ingested source."""
+        try:
+            return core.hks_llm_classify(
+                source_relpath=source_relpath,
+                mode=mode,
+                provider=provider,
+                model=model,
+                prompt_version=prompt_version,
+                force_new_run=force_new_run,
+                requested_by=requested_by,
+                ks_root=ks_root,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
     def hks_coord_session(
         action: str,
         agent_id: str,

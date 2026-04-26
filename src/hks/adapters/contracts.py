@@ -102,6 +102,67 @@ def load_coordination_ledger_schema() -> dict[str, Any]:
     return ledger_schema
 
 
+@lru_cache(maxsize=1)
+def load_llm_tools_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "008-llm-classification-extraction",
+                "mcp-llm-tools.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_llm_summary_schema() -> dict[str, Any]:
+    return cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "008-llm-classification-extraction",
+                "llm-extraction-summary-detail.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+
+
+@lru_cache(maxsize=1)
+def load_llm_artifact_schema() -> dict[str, Any]:
+    artifact_schema = cast(
+        dict[str, Any],
+        json.loads(
+            feature_contract_path(
+                "008-llm-classification-extraction",
+                "llm-extraction-artifact.schema.json",
+            ).read_text(encoding="utf-8")
+        ),
+    )
+    artifact_schema = dict(artifact_schema)
+    artifact_schema["properties"] = dict(artifact_schema["properties"])
+    summary_schema = dict(load_llm_summary_schema())
+    summary_defs = summary_schema.pop("$defs")
+    summary_schema.pop("$schema", None)
+    summary_schema.pop("$id", None)
+    artifact_schema["$defs"] = summary_defs
+    artifact_schema["properties"]["result"] = summary_schema
+    return artifact_schema
+
+
+@lru_cache(maxsize=1)
+def load_llm_http_openapi() -> dict[str, Any]:
+    payload = YAML(typ="safe").load(
+        feature_contract_path(
+            "008-llm-classification-extraction",
+            "http-llm-api.openapi.yaml",
+        ).read_text("utf-8")
+    )
+    if not isinstance(payload, dict):
+        raise ValueError("http-llm-api.openapi.yaml must be an object")
+    return payload
+
+
 def validate_tool_input(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
     full_schema = load_mcp_tools_schema()
     schema = dict(full_schema["properties"]["tools"]["properties"][tool])
@@ -118,8 +179,26 @@ def validate_coordination_tool_input(tool: str, payload: dict[str, Any]) -> dict
     return payload
 
 
+def validate_llm_tool_input(tool: str, payload: dict[str, Any]) -> dict[str, Any]:
+    full_schema = load_llm_tools_schema()
+    schema = dict(full_schema["properties"]["tools"]["properties"][tool])
+    schema["$defs"] = full_schema["$defs"]
+    jsonschema.validate(instance=payload, schema=schema)
+    return payload
+
+
 def validate_coordination_summary(payload: dict[str, Any]) -> dict[str, Any]:
     jsonschema.validate(instance=payload, schema=load_coordination_summary_schema())
+    return payload
+
+
+def validate_llm_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    jsonschema.validate(instance=payload, schema=load_llm_summary_schema())
+    return payload
+
+
+def validate_llm_artifact(payload: dict[str, Any]) -> dict[str, Any]:
+    jsonschema.validate(instance=payload, schema=load_llm_artifact_schema())
     return payload
 
 
