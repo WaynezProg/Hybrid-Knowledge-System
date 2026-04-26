@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/llm-extraction-summary-detail.schema.json",
+  "title": "HKS LLM extraction summary detail",
+  "type": "object",
+  "required": [
+    "operation",
+    "mode",
+    "source",
+    "provider",
+    "classification",
+    "summary_candidate",
+    "key_facts",
+    "entity_candidates",
+    "relation_candidates",
+    "confidence",
+    "artifact",
+    "findings"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "operation": { "type": "string", "const": "llm_classify" },
+    "mode": { "type": "string", "enum": ["preview", "store"] },
+    "source": { "$ref": "#/$defs/sourceProvenance" },
+    "provider": { "$ref": "#/$defs/providerMetadata" },
+    "classification": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/classificationLabel" }
+    },
+    "summary_candidate": {
+      "type": ["string", "null"],
+      "minLength": 1
+    },
+    "key_facts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/keyFact" }
+    },
+    "entity_candidates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entityCandidate" }
+    },
+    "relation_candidates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/relationCandidate" }
+    },
+    "confidence": { "$ref": "#/$defs/confidence" },
+    "artifact": {
+      "type": ["object", "null"],
+      "required": ["artifact_id", "artifact_path", "schema_version", "status"],
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": { "type": "string", "minLength": 1 },
+        "artifact_path": { "type": "string", "minLength": 1 },
+        "schema_version": { "type": "integer", "const": 1 },
+        "status": { "type": "string", "enum": ["valid", "invalid", "partial"] },
+        "idempotent_reuse": { "type": "boolean" }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    }
+  },
+  "$defs": {
+    "confidence": {
+      "type": "number",
+      "minimum": 0.0,
+      "maximum": 1.0
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["source_relpath", "quote", "start_offset", "end_offset"],
+      "additionalProperties": false,
+      "properties": {
+        "source_relpath": { "type": "string", "minLength": 1 },
+        "chunk_id": { "type": ["string", "null"], "minLength": 1 },
+        "quote": { "type": "string", "minLength": 1 },
+        "start_offset": { "type": ["integer", "null"], "minimum": 0 },
+        "end_offset": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    },
+    "sourceProvenance": {
+      "type": "object",
+      "required": ["source_relpath", "source_fingerprint", "parser_fingerprint"],
+      "additionalProperties": false,
+      "properties": {
+        "source_relpath": { "type": "string", "minLength": 1 },
+        "source_fingerprint": { "type": "string", "minLength": 1 },
+        "parser_fingerprint": { "type": "string", "minLength": 1 }
+      }
+    },
+    "providerMetadata": {
+      "type": "object",
+      "required": ["provider_id", "model_id", "prompt_version", "generated_at"],
+      "additionalProperties": false,
+      "properties": {
+        "provider_id": { "type": "string", "minLength": 1 },
+        "model_id": { "type": "string", "minLength": 1 },
+        "prompt_version": { "type": "string", "minLength": 1 },
+        "generated_at": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "classificationLabel": {
+      "type": "object",
+      "required": ["label", "confidence", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "label": { "type": "string", "minLength": 1 },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        }
+      }
+    },
+    "keyFact": {
+      "type": "object",
+      "required": ["fact", "confidence", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "fact": { "type": "string", "minLength": 1 },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        }
+      }
+    },
+    "entityCandidate": {
+      "type": "object",
+      "required": ["candidate_id", "type", "label", "aliases", "confidence", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": ["Person", "Project", "Document", "Event", "Concept"]
+        },
+        "label": { "type": "string", "minLength": 1 },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        }
+      }
+    },
+    "relationCandidate": {
+      "type": "object",
+      "required": [
+        "candidate_id",
+        "type",
+        "source_candidate_id",
+        "target_candidate_id",
+        "confidence",
+        "evidence"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": { "type": "string", "minLength": 1 },
+        "type": {
+          "type": "string",
+          "enum": ["owns", "depends_on", "impacts", "references", "belongs_to"]
+        },
+        "source_candidate_id": { "type": "string", "minLength": 1 },
+        "target_candidate_id": { "type": "string", "minLength": 1 },
+        "confidence": { "$ref": "#/$defs/confidence" },
+        "evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "required": ["severity", "code", "message"],
+      "additionalProperties": false,
+      "properties": {
+        "severity": { "type": "string", "enum": ["error", "warning", "info"] },
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 }
+      }
+    }
+  }
+}

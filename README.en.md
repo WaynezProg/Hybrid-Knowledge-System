@@ -2,13 +2,13 @@
 
 [繁體中文](./README.md)
 
-Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 1-3: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, high-confidence answers auto write back by default, and the system ships image ingest, the lint system, multi-agent coordination, and local MCP / HTTP adapters.
+Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 1-3 and 008: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, high-confidence answers auto write back by default, and the system ships image ingest, the lint system, multi-agent coordination, local MCP / HTTP adapters, and LLM-assisted classification/extraction candidate artifacts.
 
 ## How This Project Runs
 
 HKS is not a daemon by default. The normal workflow is to run `uv run ks ...` only when you need it; each command exits after it finishes, and runtime data is stored under `$KS_ROOT`.
 
-- Humans / shell scripts / Codex / Claude Code / OpenClaw: call `ks ingest`, `ks query`, `ks lint`, and `ks coord` directly
+- Humans / shell scripts / Codex / Claude Code / OpenClaw: call `ks ingest`, `ks query`, `ks lint`, `ks coord`, and `ks llm classify` directly
 - MCP agent integration: start `hks-mcp`; stdio mode is usually launched by the agent client and lives for that session
 - HTTP client integration: start `hks-api` or `hks-mcp --transport streamable-http`; keep that process running only while clients need to call it
 
@@ -18,8 +18,9 @@ HKS is not a daemon by default. The normal workflow is to run `uv run ks ...` on
 - `ks query "<question>" [--writeback auto|yes|no|ask]`: returns stable JSON; summary prefers wiki, relation prefers graph, detail prefers vector
 - `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`: checks cross-layer consistency across `wiki / graph / vector / manifest / raw_sources`
 - `ks coord session|lease|handoff|status|lint`: provides agent presence, resource leases, handoff notes, and coordination ledger lint
-- `hks-mcp --transport stdio|streamable-http`: exposes query / ingest / lint / coordination tools as local MCP tools
-- `hks-api`: optional loopback HTTP facade for `/query`, `/ingest`, `/lint`, and `/coord/*`
+- `ks llm classify <source-relpath> [--mode preview|store] [--provider fake]`: creates LLM classification / summary / fact / entity / relation candidates for an already-ingested source; preview does not mutate wiki / graph / vector, and store only writes `$KS_ROOT/llm/extractions/`
+- `hks-mcp --transport stdio|streamable-http`: exposes query / ingest / lint / coordination / LLM extraction tools as local MCP tools
+- `hks-api`: optional loopback HTTP facade for `/query`, `/ingest`, `/lint`, `/llm/classify`, and `/coord/*`
 - Standalone image ingest now supports `png / jpg / jpeg` via local `tesseract`; `.heic / .webp` and VLM are still out of scope
 
 ## Installation
@@ -50,6 +51,7 @@ export HKS_EMBEDDING_MODEL=simple
 uv run ks ingest tests/fixtures/valid
 uv run ks query "What is the main point of these documents?" --writeback=no | jq .
 uv run ks query "Which systems are impacted if Project A slips?" --writeback=no | jq .
+uv run ks llm classify project-atlas.txt --provider fake --mode preview | jq .
 uv run ks coord session start agent-a | jq .
 uv run ks coord lease claim agent-a wiki:atlas | jq .
 uv run hks-mcp --help
@@ -106,6 +108,20 @@ It emits `trace.steps[kind="lint_summary"].detail` with `findings`, severity/cat
 - `--fix`: plans safe repairs without writing
 - `--fix=apply`: only runs allowlisted actions: rebuild `wiki/index.md`, prune orphan vector chunks, prune orphan graph nodes/edges, and append `wiki/log.md`
 
+### LLM Classification / Extraction
+
+```bash
+uv run ks llm classify <source-relpath> --provider fake --mode preview
+uv run ks llm classify <source-relpath> --provider fake --mode store
+```
+
+- Operates only on source relpaths already present in the `ks ingest` manifest, such as `project-atlas.txt`
+- Successful responses keep the HKS top-level JSON shape: `trace.route="wiki"`, `source=[]`, and `trace.steps[kind="llm_extraction_summary"]`
+- `preview` is the default and does not write `wiki/`, `graph/graph.json`, `vector/db/`, or `manifest.json`
+- `store` only writes versioned candidate artifacts to `$KS_ROOT/llm/extractions/` for later 009 Wiki synthesis, 010 Graphify, and 011 watch/re-ingest work
+- The built-in deterministic `fake` provider needs no network or API key
+- Hosted/network providers fail closed by default; opt-in must come from environment variables, not CLI/MCP/HTTP request payloads
+
 ### Coordination
 
 ```bash
@@ -132,6 +148,7 @@ Codex, Claude Code, OpenClaw, or any other local agent can use HKS in three ways
 # 1. Simplest path: the agent runs CLI commands directly
 export KS_ROOT=/path/to/hks-runtime
 uv run ks query "What are the current Project Atlas risks?" --writeback=no
+uv run ks llm classify project-atlas.txt --provider fake --mode preview
 uv run ks lint --strict
 
 # 2. MCP stdio: let an MCP-capable agent client launch this server
@@ -151,8 +168,8 @@ uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
-- MCP tools: `hks_query`, `hks_ingest`, `hks_lint`, `hks_coord_session`, `hks_coord_lease`, `hks_coord_handoff`, `hks_coord_status`
-- HTTP endpoints: `/query`, `/ingest`, `/lint`, `/coord/session`, `/coord/lease`, `/coord/handoff`, `/coord/status`
+- MCP tools: `hks_query`, `hks_ingest`, `hks_lint`, `hks_llm_classify`, `hks_coord_session`, `hks_coord_lease`, `hks_coord_handoff`, `hks_coord_status`
+- HTTP endpoints: `/query`, `/ingest`, `/lint`, `/llm/classify`, `/coord/session`, `/coord/lease`, `/coord/handoff`, `/coord/status`
 - Successful payloads directly use the existing `ks` top-level JSON shape, with no adapter envelope
 - Error payloads use `{ok:false,error:{code,exit_code,message,details},response?}`
 - The adapter is local-first; Streamable HTTP and the HTTP facade bind to loopback by default
@@ -175,7 +192,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 }
 ```
 
-`ks ingest`, `ks query`, `ks lint`, and `ks coord` all share the same top-level JSON shape.
+`ks ingest`, `ks query`, `ks lint`, `ks coord`, and `ks llm classify` all share the same top-level JSON shape. A successful `ks llm classify` response uses `source=[]`; distinguish it from a `ks query` no-hit by `trace.steps[kind="llm_extraction_summary"]`.
 
 ## Exit Codes
 
@@ -199,6 +216,11 @@ uv run hks-api --host 127.0.0.1 --port 8766
 - `HKS_IMAGE_MAX_PIXELS`: max decoded image pixels, default `100000000`
 - `HKS_OCR_LANGS`: tesseract language set, default `eng+chi_tra`
 - `HKS_ROUTING_RULES`: override the routing rules file path
+- `HKS_LLM_PROVIDER`: LLM extraction provider, default `fake`
+- `HKS_LLM_MODEL`: LLM extraction model id, default `fake-llm-extractor-v1`
+- `HKS_LLM_NETWORK_OPT_IN`: hosted/network provider opt-in; must be `1` before non-fake provider credentials are considered
+- `HKS_LLM_PROVIDER_<ID>_API_KEY`: hosted provider credential, e.g. provider id `openai` maps to `HKS_LLM_PROVIDER_OPENAI_API_KEY`
+- `HKS_LLM_PROVIDER_<ID>_ENDPOINT`: optional hosted provider endpoint
 
 ## Further Reading
 
@@ -211,6 +233,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 - Phase 3 lint system: [specs/005-phase3-lint-impl/spec.md](./specs/005-phase3-lint-impl/spec.md)
 - Phase 3 MCP / API adapter: [specs/006-mcp-api-adapter/spec.md](./specs/006-mcp-api-adapter/spec.md)
 - Phase 3 multi-agent support: [specs/007-multi-agent-support/spec.md](./specs/007-multi-agent-support/spec.md)
+- LLM-assisted classification / extraction: [specs/008-llm-classification-extraction/spec.md](./specs/008-llm-classification-extraction/spec.md)
 
 ## Development Checks
 

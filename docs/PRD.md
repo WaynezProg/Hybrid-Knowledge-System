@@ -34,6 +34,7 @@
 
 * HKS 負責 ingest、wiki / graph / vector 同步、query routing、write-back、lint、coordination。
 * 外部 agent（Codex / Claude Code / OpenClaw 等）負責 LLM reasoning、任務拆解與是否呼叫 HKS。
+* 008 已提供 LLM-assisted classification / extraction candidate artifacts；目前仍不自動 apply 到 wiki / graph / vector。
 * 目前 graph extraction 是 pattern-based；Graphify 等級的 community clustering、HTML visualization、audit report 尚未納入 runtime。
 
 ### 4.1 Ingest
@@ -80,6 +81,16 @@
 * `ks coord lease` 對 logical resource 取得 claim / renew / release
 * `ks coord handoff` 記錄交接摘要、下一步、references、blocked_by
 * `ks coord status` 與 `ks coord lint` 提供 runtime visibility 與 missing reference / stale lease 檢查
+
+### 4.7 LLM Classification / Extraction
+
+* `ks llm classify <source-relpath> [--mode preview|store]`
+* 只處理已 ingest 並存在於 manifest 的 source
+* `preview` 預設 read-only，不改 wiki / graph / vector / manifest
+* `store` 只寫 `$KS_ROOT/llm/extractions/` candidate artifact
+* 成功 response 使用 `trace.steps[kind="llm_extraction_summary"]`
+* MCP tool：`hks_llm_classify`
+* HTTP endpoint：`/llm/classify`
 
 ---
 
@@ -134,7 +145,7 @@
 
 ### Candidate Phase 4
 
-* [ ] LLM-assisted wiki rewriting / summarization
-* [ ] LLM-assisted entity / relation extraction
+* [x] 008 LLM-assisted classification / extraction candidate artifacts
+* [ ] 009 LLM-assisted wiki rewriting / summarization
 * [ ] Graphify pipeline：community clustering、HTML visualization、audit report
 * [ ] Watch / re-ingest workflow for continuously updated personal knowledge roots

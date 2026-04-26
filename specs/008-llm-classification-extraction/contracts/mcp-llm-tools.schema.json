@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hks.local/schemas/mcp-llm-tools.schema.json",
+  "title": "HKS MCP LLM tool input schemas",
+  "type": "object",
+  "required": ["tools"],
+  "additionalProperties": false,
+  "properties": {
+    "tools": {
+      "type": "object",
+      "required": ["hks_llm_classify"],
+      "additionalProperties": false,
+      "properties": {
+        "hks_llm_classify": { "$ref": "#/$defs/classifyInput" }
+      }
+    }
+  },
+  "$defs": {
+    "classifyInput": {
+      "type": "object",
+      "required": ["source_relpath"],
+      "additionalProperties": false,
+      "properties": {
+        "source_relpath": { "type": "string", "minLength": 1 },
+        "mode": { "type": "string", "enum": ["preview", "store"], "default": "preview" },
+        "provider": { "type": "string", "default": "fake" },
+        "model": { "type": ["string", "null"], "minLength": 1 },
+        "prompt_version": { "type": ["string", "null"], "minLength": 1 },
+        "force_new_run": { "type": "boolean", "default": false },
+        "requested_by": { "type": ["string", "null"], "minLength": 1 },
+        "ks_root": { "type": ["string", "null"], "minLength": 1 }
+      }
+    }
+  }
+}
