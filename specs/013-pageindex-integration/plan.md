@@ -1019,7 +1019,7 @@ git commit -m "feat(page_tree): rule-based tree builders for md/txt/docx/pptx/xl
 - Create: `tests/unit/ingest/parsers/test_pdf_segments.py`
 - Create: `tests/fixtures/valid/with-toc.pdf` (generated programmatically in test)
 
-- [ ] **Step 1: Add pymupdf dependency**
+- [x] **Step 1: Add pymupdf dependency**
 
 In `pyproject.toml`, add `"pymupdf"` to the `dependencies` list. Also add `"fitz"` to the mypy `ignore_missing_imports` override list.
 
@@ -1027,7 +1027,7 @@ In `pyproject.toml`, add `"pymupdf"` to the `dependencies` list. Also add `"fitz
 uv add pymupdf
 ```
 
-- [ ] **Step 2: Write failing test for PDF segment extraction**
+- [x] **Step 2: Write failing test for PDF segment extraction**
 
 ```python
 # tests/unit/ingest/parsers/test_pdf_segments.py
@@ -1113,12 +1113,12 @@ def _create_heading_pdf(path: Path) -> None:
     doc.close()
 ```
 
-- [ ] **Step 3: Run test to verify it fails**
+- [x] **Step 3: Run test to verify it fails**
 
 Run: `uv run pytest tests/unit/ingest/parsers/test_pdf_segments.py -v`
 Expected: FAIL — segments not produced by current parser
 
-- [ ] **Step 4: Rewrite PDF parser with PyMuPDF segment extraction**
+- [x] **Step 4: Rewrite PDF parser with PyMuPDF segment extraction**
 
 ```python
 # src/hks/ingest/parsers/pdf.py
@@ -1303,17 +1303,17 @@ def _is_header_noise(text: str) -> bool:
     return False
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `uv run pytest tests/unit/ingest/parsers/test_pdf_segments.py -v`
 Expected: all PASS
 
-- [ ] **Step 6: Run full existing PDF tests for regression**
+- [x] **Step 6: Run full existing PDF tests for regression**
 
 Run: `uv run pytest tests/ -k pdf -v`
 Expected: all PASS
 
-- [ ] **Step 7: Update PDF builder in build.py**
+- [x] **Step 7: Update PDF builder in build.py**
 
 In `src/hks/page_tree/build.py`, update the `_BUILDERS` dict to use the heading segments that the new PDF parser now produces:
 
@@ -1331,7 +1331,7 @@ def _build_pdf(parsed: ParsedDocument, text: str) -> list[TreeNode]:
     return _headings_to_tree(headings, text)
 ```
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add pyproject.toml src/hks/ingest/parsers/pdf.py src/hks/page_tree/build.py tests/unit/ingest/parsers/test_pdf_segments.py
