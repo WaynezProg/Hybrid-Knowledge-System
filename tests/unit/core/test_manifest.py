@@ -4,7 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from hks.core.manifest import atomic_write, compute_sha256, resume_or_rebuild
+from hks.core.manifest import (
+    DerivedArtifacts,
+    ManifestEntry,
+    atomic_write,
+    compute_sha256,
+    resume_or_rebuild,
+)
 from hks.core.paths import runtime_paths
 
 
@@ -36,3 +42,40 @@ def test_resume_or_rebuild_reconstructs_manifest_from_raw_sources(tmp_path: Path
     assert entry.relpath == "project-atlas.md"
     assert entry.format == "md"
     assert entry.size_bytes == source.stat().st_size
+
+
+@pytest.mark.unit
+def test_derived_artifacts_round_trips_page_tree_slug() -> None:
+    artifacts = DerivedArtifacts(
+        wiki_pages=["project-atlas"],
+        graph_nodes=["Project:Atlas"],
+        graph_edges=["Project:Atlas->Concept:Search"],
+        vector_ids=["project-atlas:0"],
+        page_tree="project-atlas",
+    )
+
+    restored = DerivedArtifacts.from_dict(artifacts.to_dict())
+
+    assert artifacts.to_dict()["page_tree"] == "project-atlas"
+    assert restored.page_tree == "project-atlas"
+
+
+@pytest.mark.unit
+def test_manifest_entry_deserializes_missing_page_tree_as_none() -> None:
+    entry = ManifestEntry.from_dict(
+        {
+            "relpath": "legacy.md",
+            "sha256": "abc123",
+            "format": "md",
+            "size_bytes": 42,
+            "ingested_at": "2026-05-19T00:00:00+00:00",
+            "derived": {
+                "wiki_pages": ["legacy"],
+                "graph_nodes": [],
+                "graph_edges": [],
+                "vector_ids": ["legacy:0"],
+            },
+        }
+    )
+
+    assert entry.derived.page_tree is None

@@ -38,13 +38,15 @@ class DerivedArtifacts:
     graph_nodes: list[str] = field(default_factory=list)
     graph_edges: list[str] = field(default_factory=list)
     vector_ids: list[str] = field(default_factory=list)
+    page_tree: str | None = None
 
-    def to_dict(self) -> dict[str, list[str]]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "wiki_pages": self.wiki_pages,
             "graph_nodes": self.graph_nodes,
             "graph_edges": self.graph_edges,
             "vector_ids": self.vector_ids,
+            "page_tree": self.page_tree,
         }
 
     @classmethod
@@ -54,6 +56,11 @@ class DerivedArtifacts:
             graph_nodes=list(payload.get("graph_nodes", [])),
             graph_edges=list(payload.get("graph_edges", [])),
             vector_ids=list(payload.get("vector_ids", [])),
+            page_tree=(
+                None
+                if payload.get("page_tree") is None
+                else str(payload["page_tree"])
+            ),
         )
 
 
