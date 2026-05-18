@@ -62,6 +62,10 @@ def _build_docx(parsed: ParsedDocument, text: str) -> list[TreeNode]:
     return _headings_to_tree(headings, text)
 
 
+def _build_pdf(parsed: ParsedDocument, text: str) -> list[TreeNode]:
+    return _build_docx(parsed, text)
+
+
 def _build_pptx(parsed: ParsedDocument, text: str) -> list[TreeNode]:
     spans = _segment_spans(parsed.segments, text)
     slide_ranges = _section_ranges(parsed.segments, "slide_header")
@@ -248,5 +252,5 @@ _BUILDERS: dict[str, _Builder] = {
     "png": _build_single_root,
     "jpg": _build_single_root,
     "jpeg": _build_single_root,
-    "pdf": _build_single_root,
+    "pdf": _build_pdf,
 }

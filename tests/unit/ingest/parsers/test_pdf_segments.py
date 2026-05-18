@@ -1,0 +1,116 @@
+"""Tests for PDF parser segment extraction via PyMuPDF."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import fitz
+
+from hks.ingest.models import ParsedDocument
+from hks.ingest.parsers import pdf as pdf_parser
+from hks.page_tree.build import build_page_tree
+
+
+class TestPdfSegments:
+    def test_parse_returns_parsed_document(self, tmp_path: Path) -> None:
+        path = tmp_path / "simple.pdf"
+        _create_simple_pdf(path, ["Hello world"])
+
+        result = pdf_parser.parse(path)
+
+        assert isinstance(result, ParsedDocument)
+        assert result.title == "simple"
+        assert result.format == "pdf"
+        assert "Hello world" in result.body
+
+    def test_toc_pdf_produces_heading_segments(self, tmp_path: Path) -> None:
+        path = tmp_path / "toc.pdf"
+        _create_toc_pdf(path)
+
+        result = pdf_parser.parse(path)
+
+        heading_segments = [segment for segment in result.segments if segment.kind == "heading"]
+        assert [segment.text for segment in heading_segments] == [
+            "Chapter 1: Introduction",
+            "Chapter 2: Methods",
+        ]
+        assert heading_segments[0].metadata == {"level": 1, "page_number": 1}
+        assert any(segment.kind == "paragraph" for segment in result.segments)
+
+    def test_no_toc_font_heuristic_produces_heading_and_paragraph_segments(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "headings.pdf"
+        _create_heading_pdf(path)
+
+        result = pdf_parser.parse(path)
+
+        headings = [segment for segment in result.segments if segment.kind == "heading"]
+        paragraphs = [segment for segment in result.segments if segment.kind == "paragraph"]
+        assert [segment.text for segment in headings] == ["Big Heading", "Another Heading"]
+        assert headings[0].metadata == {"level": 1, "page_number": 1}
+        assert len(paragraphs) >= 1
+
+    def test_plain_uniform_pdf_preserves_body_only_behavior(self, tmp_path: Path) -> None:
+        path = tmp_path / "plain.pdf"
+        _create_simple_pdf(path, ["Just text. " * 20])
+
+        result = pdf_parser.parse(path)
+
+        assert result.body.strip() != ""
+        assert result.segments == []
+
+    def test_page_tree_uses_pdf_heading_segments(self, tmp_path: Path) -> None:
+        path = tmp_path / "toc.pdf"
+        _create_toc_pdf(path)
+        parsed = pdf_parser.parse(path)
+
+        nodes = build_page_tree(parsed, parsed.body)
+
+        assert [node.title for node in nodes] == ["Chapter 1: Introduction", "Chapter 2: Methods"]
+        assert nodes[0].start_offset == parsed.body.index("Chapter 1: Introduction")
+        assert nodes[1].start_offset == parsed.body.index("Chapter 2: Methods")
+
+
+def _create_simple_pdf(path: Path, texts: list[str]) -> None:
+    doc = fitz.open()
+    try:
+        for text in texts:
+            page = doc.new_page()
+            page.insert_text((72, 72), text, fontsize=11)
+        doc.save(path)
+    finally:
+        doc.close()
+
+
+def _create_toc_pdf(path: Path) -> None:
+    doc = fitz.open()
+    try:
+        page1 = doc.new_page()
+        page1.insert_text((72, 72), "Chapter 1: Introduction", fontsize=18)
+        page1.insert_text((72, 120), "Some introductory text here.", fontsize=11)
+        page2 = doc.new_page()
+        page2.insert_text((72, 72), "Chapter 2: Methods", fontsize=18)
+        page2.insert_text((72, 120), "Methodology description.", fontsize=11)
+        doc.set_toc(
+            [
+                [1, "Chapter 1: Introduction", 1],
+                [1, "Chapter 2: Methods", 2],
+            ]
+        )
+        doc.save(path)
+    finally:
+        doc.close()
+
+
+def _create_heading_pdf(path: Path) -> None:
+    doc = fitz.open()
+    try:
+        page = doc.new_page()
+        page.insert_text((72, 72), "Big Heading", fontsize=24)
+        page.insert_text((72, 120), "Normal body text. " * 10, fontsize=11)
+        page.insert_text((72, 300), "Another Heading", fontsize=24)
+        page.insert_text((72, 348), "More body text. " * 10, fontsize=11)
+        doc.save(path)
+    finally:
+        doc.close()
