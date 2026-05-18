@@ -5,7 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import fitz
+import pytest
 
+from hks.errors import KSError
 from hks.ingest.models import ParsedDocument
 from hks.ingest.parsers import pdf as pdf_parser
 from hks.page_tree.build import build_page_tree
@@ -60,6 +62,27 @@ class TestPdfSegments:
         assert result.body.strip() != ""
         assert result.segments == []
 
+    def test_malformed_pdf_with_magic_raises_pdf_read_error(self, tmp_path: Path) -> None:
+        path = tmp_path / "broken.pdf"
+        path.write_bytes(b"%PDF-1.7\n%%EOF\n")
+
+        with pytest.raises(KSError) as exc_info:
+            pdf_parser.parse(path)
+
+        assert exc_info.value.code == "PDF_READ_ERROR"
+
+    def test_mild_font_size_variation_does_not_create_heading_segments(
+        self, tmp_path: Path
+    ) -> None:
+        path = tmp_path / "mild.pdf"
+        _create_mild_variation_pdf(path)
+
+        result = pdf_parser.parse(path)
+
+        assert result.body.strip() != ""
+        assert [segment for segment in result.segments if segment.kind == "heading"] == []
+        assert result.segments == []
+
     def test_page_tree_uses_pdf_heading_segments(self, tmp_path: Path) -> None:
         path = tmp_path / "toc.pdf"
         _create_toc_pdf(path)
@@ -111,6 +134,17 @@ def _create_heading_pdf(path: Path) -> None:
         page.insert_text((72, 120), "Normal body text. " * 10, fontsize=11)
         page.insert_text((72, 300), "Another Heading", fontsize=24)
         page.insert_text((72, 348), "More body text. " * 10, fontsize=11)
+        doc.save(path)
+    finally:
+        doc.close()
+
+
+def _create_mild_variation_pdf(path: Path) -> None:
+    doc = fitz.open()
+    try:
+        page = doc.new_page()
+        page.insert_text((72, 72), "Slightly larger lead sentence.", fontsize=12)
+        page.insert_text((72, 120), "Normal body text. " * 20, fontsize=11)
         doc.save(path)
     finally:
         doc.close()

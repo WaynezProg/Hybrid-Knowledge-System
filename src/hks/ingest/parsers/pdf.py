@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from pathlib import Path
-from statistics import median
 
 import fitz
 
@@ -30,17 +30,19 @@ def parse(path: Path) -> ParsedDocument:
     try:
         doc = fitz.open(path)
     except Exception as exc:
-        raise KSError(
-            f"無法解析 PDF {path}",
-            exit_code=ExitCode.DATAERR,
-            code="PDF_READ_ERROR",
-            details=[str(exc)],
-        ) from exc
+        raise _pdf_read_error(path, exc) from exc
 
     try:
-        toc = doc.get_toc()
-        segments = _segments_from_toc(doc, toc) if toc else _segments_from_font_heuristic(doc)
-        body = _body_from_segments(segments) if segments else _plain_body(doc)
+        if len(doc) == 0:
+            raise _pdf_read_error(path, ValueError("PDF has no pages"))
+        try:
+            toc = doc.get_toc()
+            segments = _segments_from_toc(doc, toc) if toc else _segments_from_font_heuristic(doc)
+            body = _body_from_segments(segments) if segments else _plain_body(doc)
+        except KSError:
+            raise
+        except Exception as exc:
+            raise _pdf_read_error(path, exc) from exc
     finally:
         doc.close()
 
@@ -96,8 +98,7 @@ def _segments_from_font_heuristic(doc: fitz.Document) -> list[Segment]:
     if len(set(font_sizes)) < 2:
         return []
 
-    base_size = median(font_sizes)
-    max_size = max(font_sizes)
+    base_size = _baseline_font_size(font_sizes)
     h1_threshold = base_size * 1.5
     h2_threshold = base_size * 1.3
     segments: list[Segment] = []
@@ -107,7 +108,7 @@ def _segments_from_font_heuristic(doc: fitz.Document) -> list[Segment]:
     for size, text, page_number in spans:
         if _is_noise(text):
             continue
-        level = _heading_level(size, max_size, h1_threshold, h2_threshold)
+        level = _heading_level(size, h1_threshold, h2_threshold)
         if level is None:
             if not pending_body:
                 body_start_page = page_number
@@ -147,10 +148,15 @@ def _text_spans(doc: fitz.Document) -> list[tuple[float, str, int]]:
     return spans
 
 
-def _heading_level(
-    size: float, max_size: float, h1_threshold: float, h2_threshold: float
-) -> int | None:
-    if size == max_size or size >= h1_threshold:
+def _baseline_font_size(font_sizes: list[float]) -> float:
+    rounded_sizes = [round(size, 1) for size in font_sizes]
+    counts = Counter(rounded_sizes)
+    highest_count = max(counts.values())
+    return min(size for size, count in counts.items() if count == highest_count)
+
+
+def _heading_level(size: float, h1_threshold: float, h2_threshold: float) -> int | None:
+    if size >= h1_threshold:
         return 1
     if size >= h2_threshold:
         return 2
@@ -193,3 +199,12 @@ def _int_or_default(value: object, default: int) -> int:
 def _is_noise(text: str) -> bool:
     stripped = text.strip()
     return not stripped or stripped.isdigit() or len(stripped) <= 1
+
+
+def _pdf_read_error(path: Path, exc: Exception) -> KSError:
+    return KSError(
+        f"無法解析 PDF {path}",
+        exit_code=ExitCode.DATAERR,
+        code="PDF_READ_ERROR",
+        details=[str(exc)],
+    )
