@@ -26,7 +26,7 @@
 | `src/hks/commands/pageindex.py` | CLI `ks pageindex show|enrich` |
 | `tests/unit/page_tree/test_model.py` | Model round-trip tests |
 | `tests/unit/page_tree/test_build.py` | Per-format builder tests |
-| `tests/unit/page_tree/test_store.py` | Store CRUD tests |
+| `tests/unit/page_tree/test_page_tree_store.py` | Store CRUD tests |
 | `tests/unit/page_tree/test_enrich.py` | LLM enrichment tests |
 | `tests/unit/ingest/parsers/test_pdf_segments.py` | PDF segment extraction tests |
 | `tests/integration/test_pageindex_cli.py` | CLI integration tests |
@@ -455,13 +455,13 @@ git commit -m "feat(page_tree): add PageTree and TreeNode data model with serial
 
 **Files:**
 - Create: `src/hks/page_tree/store.py`
-- Test: `tests/unit/page_tree/test_store.py`
+- Test: `tests/unit/page_tree/test_page_tree_store.py`
 - Modify: `src/hks/core/paths.py:11-21`
 
 - [x] **Step 1: Write failing test for TreeStore**
 
 ```python
-# tests/unit/page_tree/test_store.py
+# tests/unit/page_tree/test_page_tree_store.py
 """Unit tests for page_tree store."""
 
 from __future__ import annotations
@@ -527,7 +527,7 @@ class TestTreeStore:
 
 - [x] **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest tests/unit/page_tree/test_store.py -v`
+Run: `uv run pytest tests/unit/page_tree/test_page_tree_store.py -v`
 Expected: FAIL — `ImportError`
 
 - [x] **Step 3: Add `page_trees` to RuntimePaths**
@@ -593,13 +593,13 @@ class TreeStore:
 
 - [x] **Step 5: Run test to verify it passes**
 
-Run: `uv run pytest tests/unit/page_tree/test_store.py -v`
+Run: `uv run pytest tests/unit/page_tree/test_page_tree_store.py -v`
 Expected: all PASS
 
 - [x] **Step 6: Commit**
 
 ```bash
-git add src/hks/page_tree/store.py tests/unit/page_tree/test_store.py src/hks/core/paths.py
+git add src/hks/page_tree/store.py tests/unit/page_tree/test_page_tree_store.py src/hks/core/paths.py
 git commit -m "feat(page_tree): add TreeStore with CRUD and RuntimePaths.page_trees"
 ```
 
