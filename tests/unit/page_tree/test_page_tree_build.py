@@ -32,6 +32,17 @@ class TestMdBuilder:
         assert nodes[0].start_offset == 0
         assert nodes[0].end_offset == len(body)
 
+    def test_nested_h1_h2_h3_hierarchy(self) -> None:
+        body = "# Root\n\n## Child\n\n### Grandchild\n\nDeep detail."
+        parsed = ParsedDocument(title="Doc", body=body, format="md")
+
+        nodes = build_page_tree(parsed, body)
+
+        assert nodes[0].node_id == "n1"
+        assert nodes[0].children[0].node_id == "n1.1"
+        assert nodes[0].children[0].children[0].node_id == "n1.1.1"
+        assert nodes[0].children[0].children[0].title == "Grandchild"
+
 
 class TestTxtBuilder:
     def test_always_single_root(self) -> None:
@@ -74,6 +85,21 @@ class TestDocxBuilder:
         assert len(nodes) == 1
         assert nodes[0].title == "Flat"
 
+    def test_repeated_heading_text_uses_later_offsets(self) -> None:
+        segments = [
+            Segment(kind="heading", text="## Repeat", metadata={"level": 1}),
+            Segment(kind="paragraph", text="First."),
+            Segment(kind="heading", text="## Repeat", metadata={"level": 1}),
+            Segment(kind="paragraph", text="Second."),
+        ]
+        body = "\n\n".join(segment.text for segment in segments)
+        parsed = ParsedDocument(title="Report", body=body, format="docx", segments=segments)
+
+        nodes = build_page_tree(parsed, body)
+
+        assert nodes[0].start_offset == body.index("## Repeat")
+        assert nodes[1].start_offset == body.rindex("## Repeat")
+
 
 class TestPptxBuilder:
     def test_slides_become_nodes_with_heading_children(self) -> None:
@@ -95,6 +121,18 @@ class TestPptxBuilder:
         assert nodes[0].children[0].level == 2
         assert nodes[0].children[0].metadata["slide_index"] == 1
 
+    def test_missing_slide_headers_do_not_cover_full_document(self) -> None:
+        segments = [
+            Segment(kind="slide_header", text="## Missing Slide 1", metadata={"slide_index": 1}),
+            Segment(kind="slide_header", text="## Missing Slide 2", metadata={"slide_index": 2}),
+        ]
+        text = "normalized text without slide headers"
+        parsed = ParsedDocument(title="Deck", body="", format="pptx", segments=segments)
+
+        nodes = build_page_tree(parsed, text)
+
+        assert [(node.start_offset, node.end_offset) for node in nodes] == [(0, 0), (0, 0)]
+
 
 class TestXlsxBuilder:
     def test_sheets_become_nodes(self) -> None:
@@ -112,6 +150,18 @@ class TestXlsxBuilder:
         assert [node.title for node in nodes] == ["Revenue", "Costs"]
         assert nodes[0].metadata["sheet_name"] == "Revenue"
         assert nodes[1].metadata["sheet_name"] == "Costs"
+
+    def test_missing_sheet_headers_do_not_cover_full_document(self) -> None:
+        segments = [
+            Segment(kind="sheet_header", text="## Missing A", metadata={"sheet_name": "A"}),
+            Segment(kind="sheet_header", text="## Missing B", metadata={"sheet_name": "B"}),
+        ]
+        text = "normalized text without sheet headers"
+        parsed = ParsedDocument(title="Workbook", body="", format="xlsx", segments=segments)
+
+        nodes = build_page_tree(parsed, text)
+
+        assert [(node.start_offset, node.end_offset) for node in nodes] == [(0, 0), (0, 0)]
 
 
 class TestImageBuilder:
@@ -135,4 +185,4 @@ class TestOffsetBehavior:
         nodes = build_page_tree(parsed, "normalized body without source header")
 
         assert nodes[0].start_offset == 0
-        assert nodes[0].end_offset == len("normalized body without source header")
+        assert nodes[0].end_offset == 0

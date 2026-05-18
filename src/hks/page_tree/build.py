@@ -14,6 +14,7 @@ _MARKDOWN_PREFIX_RE = re.compile(r"^#{1,6}\s+")
 
 type _Heading = tuple[int, str, int]
 type _Builder = Callable[[ParsedDocument, str], list[TreeNode]]
+type _Span = tuple[int, int] | None
 
 
 def build_page_tree(parsed: ParsedDocument, normalized_text: str) -> list[TreeNode]:
@@ -54,7 +55,7 @@ def _build_docx(parsed: ParsedDocument, text: str) -> list[TreeNode]:
             continue
         level = _metadata_int(segment, "level", 1)
         title = _clean_heading_title(segment.text)
-        headings.append((level, title, spans[index][0]))
+        headings.append((level, title, _span_start(spans[index], 0)))
 
     if not headings:
         return _build_single_root(parsed, text)
@@ -77,7 +78,7 @@ def _build_pptx(parsed: ParsedDocument, text: str) -> list[TreeNode]:
             segment = parsed.segments[segment_index]
             if segment.kind != "heading":
                 continue
-            child_start, child_end = spans[segment_index]
+            child_start, child_end = _span_or_zero(spans[segment_index], 0)
             children.append(
                 TreeNode(
                     node_id=f"n{node_index}.{child_index}",
@@ -96,8 +97,8 @@ def _build_pptx(parsed: ParsedDocument, text: str) -> list[TreeNode]:
                 node_id=f"n{node_index}",
                 title=_clean_heading_title(slide_header.text),
                 level=1,
-                start_offset=spans[start_index][0],
-                end_offset=_range_end(spans, start_index, stop_index, len(text)),
+                start_offset=_span_start(spans[start_index], 0),
+                end_offset=_range_end(spans, start_index, stop_index, 0),
                 children=children,
                 metadata={"slide_index": slide_index},
             )
@@ -121,8 +122,8 @@ def _build_xlsx(parsed: ParsedDocument, text: str) -> list[TreeNode]:
                 node_id=f"n{node_index}",
                 title=title,
                 level=1,
-                start_offset=spans[start_index][0],
-                end_offset=_range_end(spans, start_index, stop_index, len(text)),
+                start_offset=_span_start(spans[start_index], 0),
+                end_offset=_range_end(spans, start_index, stop_index, 0),
                 children=[],
                 metadata={"sheet_name": sheet_name} if sheet_name is not None else {},
             )
@@ -170,13 +171,13 @@ def _heading_end(index: int, headings: list[_Heading], text_len: int) -> int:
     return text_len
 
 
-def _segment_spans(segments: list[Segment], text: str) -> list[tuple[int, int]]:
-    spans: list[tuple[int, int]] = []
+def _segment_spans(segments: list[Segment], text: str) -> list[_Span]:
+    spans: list[_Span] = []
     cursor = 0
     for segment in segments:
         start = text.find(segment.text, cursor) if segment.text else -1
         if start < 0:
-            spans.append((0, len(text)))
+            spans.append(None)
             continue
         end = start + len(segment.text)
         spans.append((_clamp_offset(start, len(text)), _clamp_offset(end, len(text))))
@@ -193,12 +194,20 @@ def _section_ranges(segments: list[Segment], header_kind: str) -> list[tuple[int
 
 
 def _range_end(
-    spans: list[tuple[int, int]], start_index: int, stop_index: int, fallback_end: int
+    spans: list[_Span], start_index: int, stop_index: int, fallback_offset: int
 ) -> int:
-    found_spans = [span for span in spans[start_index:stop_index] if span != (0, fallback_end)]
+    found_spans = [span for span in spans[start_index:stop_index] if span is not None]
     if not found_spans:
-        return fallback_end
+        return fallback_offset
     return max(end for _start, end in found_spans)
+
+
+def _span_start(span: _Span, fallback_offset: int) -> int:
+    return span[0] if span is not None else fallback_offset
+
+
+def _span_or_zero(span: _Span, fallback_offset: int) -> tuple[int, int]:
+    return span if span is not None else (fallback_offset, fallback_offset)
 
 
 def _metadata_int(segment: Segment, key: str, default: int) -> int:
