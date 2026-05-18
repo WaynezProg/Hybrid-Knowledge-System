@@ -458,7 +458,7 @@ git commit -m "feat(page_tree): add PageTree and TreeNode data model with serial
 - Test: `tests/unit/page_tree/test_store.py`
 - Modify: `src/hks/core/paths.py:11-21`
 
-- [ ] **Step 1: Write failing test for TreeStore**
+- [x] **Step 1: Write failing test for TreeStore**
 
 ```python
 # tests/unit/page_tree/test_store.py
@@ -525,18 +525,18 @@ class TestTreeStore:
             store.load("nonexistent")
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/unit/page_tree/test_store.py -v`
 Expected: FAIL — `ImportError`
 
-- [ ] **Step 3: Add `page_trees` to RuntimePaths**
+- [x] **Step 3: Add `page_trees` to RuntimePaths**
 
 In `src/hks/core/paths.py`, add the `page_trees` field to the `RuntimePaths` dataclass and update the factory method `from_root` (or the equivalent construction logic) to set `page_trees = root / "page_trees"`. Also update `runtime_paths()` to include `page_trees`.
 
 Check the exact factory pattern in paths.py first — if it uses `__post_init__` or a classmethod, follow that pattern.
 
-- [ ] **Step 4: Implement TreeStore**
+- [x] **Step 4: Implement TreeStore**
 
 ```python
 # src/hks/page_tree/store.py
@@ -591,12 +591,12 @@ class TreeStore:
         return sorted(p.stem for p in self._dir.glob("*.json"))
 ```
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `uv run pytest tests/unit/page_tree/test_store.py -v`
 Expected: all PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/hks/page_tree/store.py tests/unit/page_tree/test_store.py src/hks/core/paths.py
