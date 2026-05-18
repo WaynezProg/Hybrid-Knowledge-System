@@ -14,6 +14,7 @@ class RuntimePaths:
     raw_sources: Path
     wiki: Path
     wiki_pages: Path
+    page_trees: Path
     graph_dir: Path
     graph_file: Path
     vector_db: Path
@@ -45,6 +46,7 @@ def assert_runtime_path_allowed(path: Path, *, ks_root: Path | str | None = None
         paths.raw_sources,
         paths.wiki,
         paths.wiki_pages,
+        paths.page_trees,
         paths.graph_dir,
         paths.vector_db,
     )
@@ -67,6 +69,7 @@ def runtime_paths(root: Path | str | None = None) -> RuntimePaths:
         raw_sources=ks_root / "raw_sources",
         wiki=ks_root / "wiki",
         wiki_pages=ks_root / "wiki" / "pages",
+        page_trees=ks_root / "page_trees",
         graph_dir=ks_root / "graph",
         graph_file=ks_root / "graph" / "graph.json",
         vector_db=ks_root / "vector" / "db",
@@ -81,6 +84,7 @@ KS_ROOT = _DEFAULT_PATHS.root
 RAW_SOURCES_DIR = _DEFAULT_PATHS.raw_sources
 WIKI_DIR = _DEFAULT_PATHS.wiki
 WIKI_PAGES_DIR = _DEFAULT_PATHS.wiki_pages
+PAGE_TREES_DIR = _DEFAULT_PATHS.page_trees
 GRAPH_DIR = _DEFAULT_PATHS.graph_dir
 GRAPH_FILE = _DEFAULT_PATHS.graph_file
 VECTOR_DB_DIR = _DEFAULT_PATHS.vector_db
