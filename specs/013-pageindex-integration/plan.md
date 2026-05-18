@@ -610,7 +610,7 @@ git commit -m "feat(page_tree): add TreeStore with CRUD and RuntimePaths.page_tr
 **Files:**
 - Modify: `src/hks/core/manifest.py:35-58`
 
-- [ ] **Step 1: Add `page_tree` field to DerivedArtifacts**
+- [x] **Step 1: Add `page_tree` field to DerivedArtifacts**
 
 In `src/hks/core/manifest.py`, add to the `DerivedArtifacts` dataclass:
 
@@ -626,12 +626,12 @@ class DerivedArtifacts:
 
 Also update `to_dict()` and `from_dict()` (or equivalent serialization) to handle the new field. Ensure backward compatibility: missing `page_tree` in existing manifests → `None`.
 
-- [ ] **Step 2: Run existing manifest tests to verify no regression**
+- [x] **Step 2: Run existing manifest tests to verify no regression**
 
 Run: `uv run pytest tests/ -k manifest -v`
 Expected: all existing tests PASS
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/hks/core/manifest.py
