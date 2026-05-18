@@ -22,7 +22,17 @@ class TreeStore:
         wiki_store = WikiStore(self.paths)
         return wiki_store.slug_base(Path(relpath).stem)
 
+    def _validate_slug(self, slug: str) -> None:
+        if (
+            slug in {"", ".", ".."}
+            or "/" in slug
+            or "\\" in slug
+            or Path(slug).is_absolute()
+        ):
+            raise ValueError(f"invalid page tree slug: {slug!r}")
+
     def _path_for(self, slug: str) -> Path:
+        self._validate_slug(slug)
         return self._dir / f"{slug}.json"
 
     def save(self, relpath: str, tree: PageTree) -> str:

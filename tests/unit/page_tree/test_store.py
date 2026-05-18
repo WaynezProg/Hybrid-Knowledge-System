@@ -81,3 +81,34 @@ class TestTreeStore:
         slug = store.save("folder/My Report_v2.md", _sample_tree("folder/My Report_v2.md"))
 
         assert slug == "my-report-v2"
+
+    @pytest.mark.parametrize("slug", ["", ".", "..", "../manifest", "nested/tree", r"nested\\tree"])
+    @pytest.mark.parametrize("method", ["load", "delete", "exists"])
+    def test_rejects_unsafe_slug_without_touching_outside_files(
+        self, tmp_path: Path, slug: str, method: str
+    ) -> None:
+        paths = runtime_paths(tmp_path / "ks")
+        store = TreeStore(paths)
+        sentinel = paths.root / "manifest.json"
+        sentinel.parent.mkdir(parents=True, exist_ok=True)
+        sentinel.write_text("keep", encoding="utf-8")
+
+        with pytest.raises(ValueError):
+            getattr(store, method)(slug)
+
+        assert sentinel.read_text(encoding="utf-8") == "keep"
+
+    @pytest.mark.parametrize("method", ["load", "delete", "exists"])
+    def test_rejects_absolute_slug_without_touching_outside_files(
+        self, tmp_path: Path, method: str
+    ) -> None:
+        paths = runtime_paths(tmp_path / "ks")
+        store = TreeStore(paths)
+        outside = tmp_path / "outside.json"
+        outside.write_text(_sample_tree("outside.md").to_json(), encoding="utf-8")
+
+        with pytest.raises(ValueError):
+            getattr(store, method)(str(outside.with_suffix("")))
+
+        loaded = PageTree.from_json(outside.read_text(encoding="utf-8"))
+        assert loaded.source_relpath == "outside.md"
