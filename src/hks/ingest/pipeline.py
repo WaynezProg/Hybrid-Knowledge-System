@@ -14,6 +14,7 @@ from hks.core.manifest import (
     DerivedArtifacts,
     ManifestEntry,
     SourceFormat,
+    atomic_write,
     classify_supported_file_issue,
     compute_sha256,
     detect_source_format,
@@ -56,6 +57,9 @@ from hks.ingest.parsers import pdf as pdf_parser
 from hks.ingest.parsers import pptx as pptx_parser
 from hks.ingest.parsers import txt as txt_parser
 from hks.ingest.parsers import xlsx as xlsx_parser
+from hks.page_tree.build import build_page_tree
+from hks.page_tree.model import PageTree, TreeNode
+from hks.page_tree.store import TreeStore
 from hks.storage.vector import VectorChunk, VectorStore
 from hks.storage.wiki import EventStatus, LogEntry, WikiStore
 
@@ -122,11 +126,14 @@ def delete_artifacts(
     relpath: str,
     wiki_pages: list[str],
     vector_ids: list[str],
+    page_tree: str | None = None,
 ) -> None:
     wiki_store.delete_pages(wiki_pages)
     if graph_store is not None:
         graph_store.delete_document(relpath)
     vector_store.delete(vector_ids)
+    if page_tree is not None:
+        TreeStore(wiki_store.paths).delete(page_tree)
     raw_source = wiki_store.paths.raw_sources / relpath
     if raw_source.exists():
         raw_source.unlink()
@@ -173,6 +180,7 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
     wiki_store = WikiStore(paths)
     graph_store = GraphStore(paths)
     vector_store = VectorStore(paths, backend=backend)
+    tree_store = TreeStore(paths)
     summary = IngestSummary()
     limits = load_office_limits()
     image_limits = load_image_limits()
@@ -336,6 +344,7 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                         relpath=relpath,
                         wiki_pages=existing.derived.wiki_pages,
                         vector_ids=existing.derived.vector_ids,
+                        page_tree=existing.derived.page_tree,
                     )
                     manifest.entries.pop(relpath, None)
                     save_manifest(manifest, paths.manifest)
@@ -379,6 +388,17 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                 chunks=chunks,
                 chunk_metadata=chunk_metadata,
             )
+            tree_nodes = build_page_tree(parsed, normalized_text)
+            page_tree = PageTree(
+                source_relpath=relpath,
+                source_format=source_format,
+                doc_title=extracted.title,
+                root_nodes=tree_nodes,
+                build_method="rule",
+                built_at=utc_now_iso(),
+                total_nodes=_count_nodes(tree_nodes),
+                source_sha256=sha256,
+            )
 
             raw_target = paths.raw_sources / relpath
             raw_target.parent.mkdir(parents=True, exist_ok=True)
@@ -401,6 +421,12 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                 if graph_store.graph_path.exists()
                 else None
             )
+            existing_tree_slug = existing.derived.page_tree if existing is not None else None
+            existing_tree_backup = (
+                tree_store.load(existing_tree_slug).to_json()
+                if existing_tree_slug is not None and tree_store.exists(existing_tree_slug)
+                else None
+            )
 
             vector_chunks = [
                 VectorChunk(
@@ -418,15 +444,24 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                             if index < len(extracted.chunk_metadata)
                             else {}
                         ),
+                        **_tree_node_metadata(
+                            page_tree=page_tree,
+                            chunk_text=chunk_text,
+                            full_text=normalized_text,
+                            chunk_index=index,
+                            all_chunks=extracted.chunks,
+                        ),
                     },
                 )
                 for index, chunk_text in enumerate(extracted.chunks)
             ]
             page_slug: str | None = None
+            tree_slug: str | None = None
             vector_ids: list[str] = []
             graph_node_ids: list[str] = []
             graph_edge_ids: list[str] = []
             try:
+                tree_slug = tree_store.save(relpath, page_tree)
                 shutil.copy2(file_path, raw_target)
                 page = wiki_store.write_page(
                     title=extracted.title,
@@ -458,11 +493,17 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                         graph_nodes=graph_node_ids,
                         graph_edges=graph_edge_ids,
                         vector_ids=vector_ids,
+                        page_tree=tree_slug,
                     ),
                     parser_fingerprint=current_fp,
                 )
                 save_manifest(manifest, paths.manifest)
             except Exception:
+                if tree_slug is not None:
+                    if tree_slug == existing_tree_slug and existing_tree_backup is not None:
+                        atomic_write(paths.page_trees / f"{tree_slug}.json", existing_tree_backup)
+                    else:
+                        tree_store.delete(tree_slug)
                 if vector_ids:
                     vector_store.delete(vector_ids)
                 if existing is not None:
@@ -487,6 +528,8 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                     graph_store.graph_path.unlink()
                 raise
 
+            if existing_tree_slug is not None and existing_tree_slug != tree_slug:
+                tree_store.delete(existing_tree_slug)
             if existing and existing.derived.vector_ids:
                 stale_vector_ids = sorted(set(existing.derived.vector_ids) - set(vector_ids))
                 vector_store.delete(stale_vector_ids)
@@ -534,6 +577,7 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                     relpath=relpath,
                     wiki_pages=stale_entry.derived.wiki_pages,
                     vector_ids=stale_entry.derived.vector_ids,
+                    page_tree=stale_entry.derived.page_tree,
                 )
                 summary.pruned.append(relpath)
             if stale_paths:
@@ -553,6 +597,51 @@ def _flatten_chunk_metadata(
         elif value is not None:
             flattened[key] = str(value)
     return flattened
+
+
+def _count_nodes(nodes: list[TreeNode]) -> int:
+    return sum(1 + _count_nodes(node.children) for node in nodes)
+
+
+def _tree_node_metadata(
+    *,
+    page_tree: PageTree,
+    chunk_text: str,
+    full_text: str,
+    chunk_index: int,
+    all_chunks: list[str],
+) -> dict[str, str]:
+    offset = _estimate_chunk_offset(
+        full_text=full_text,
+        chunk_text=chunk_text,
+        chunk_index=chunk_index,
+        all_chunks=all_chunks,
+    )
+    node = page_tree.find_node_for_offset(offset)
+    if node is None:
+        return {}
+    return {
+        "tree_node_id": node.node_id,
+        "tree_node_title": node.title,
+    }
+
+
+def _estimate_chunk_offset(
+    *,
+    full_text: str,
+    chunk_text: str,
+    chunk_index: int,
+    all_chunks: list[str],
+) -> int:
+    cursor = 0
+    for previous_chunk in all_chunks[:chunk_index]:
+        previous_pos = full_text.find(previous_chunk, cursor)
+        if previous_pos >= 0:
+            cursor = previous_pos + len(previous_chunk)
+    if chunk_index < len(all_chunks):
+        chunk_text = all_chunks[chunk_index]
+    current_pos = full_text.find(chunk_text, cursor)
+    return current_pos if current_pos >= 0 else cursor
 
 
 def _empty_skip_reason(parsed: ParsedDocument) -> str:
