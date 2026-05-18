@@ -646,10 +646,10 @@ git commit -m "feat(manifest): add page_tree field to DerivedArtifacts"
 - Create: `src/hks/page_tree/build.py`
 - Test: `tests/unit/page_tree/test_build.py`
 
-- [ ] **Step 1: Write failing tests for each format builder**
+- [x] **Step 1: Write failing tests for each format builder**
 
 ```python
-# tests/unit/page_tree/test_build.py
+# tests/unit/page_tree/test_page_tree_build.py
 """Unit tests for rule-based tree builders."""
 
 from __future__ import annotations
@@ -773,12 +773,12 @@ class TestImageBuilder:
         assert nodes[0].title == "photo"
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/unit/page_tree/test_build.py -v`
 Expected: FAIL — `ImportError`
 
-- [ ] **Step 3: Implement build_page_tree with per-format dispatch**
+- [x] **Step 3: Implement build_page_tree with per-format dispatch**
 
 ```python
 # src/hks/page_tree/build.py
@@ -997,12 +997,12 @@ _BUILDERS = {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `uv run pytest tests/unit/page_tree/test_build.py -v`
 Expected: all PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/hks/page_tree/build.py tests/unit/page_tree/test_build.py
