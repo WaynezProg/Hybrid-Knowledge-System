@@ -228,8 +228,12 @@ class TestPageTree:
             source_sha256="x",
         )
 
-        assert tree.find_node_for_offset(25).node_id == "n1.1"
-        assert tree.find_node_for_offset(75).node_id == "n1"
+        child_match = tree.find_node_for_offset(25)
+        assert child_match is not None
+        assert child_match.node_id == "n1.1"
+        parent_match = tree.find_node_for_offset(75)
+        assert parent_match is not None
+        assert parent_match.node_id == "n1"
         assert tree.find_node_for_offset(150) is None
 
     def test_section_path(self) -> None:
