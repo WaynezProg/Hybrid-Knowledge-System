@@ -133,6 +133,24 @@ class TestPptxBuilder:
 
         assert [(node.start_offset, node.end_offset) for node in nodes] == [(0, 0), (0, 0)]
 
+    def test_missing_slide_header_uses_first_found_child_as_section_start(self) -> None:
+        segments = [
+            Segment(kind="slide_header", text="## Missing Slide 1", metadata={"slide_index": 1}),
+            Segment(kind="heading", text="### Visible", metadata={"slide_index": 1}),
+            Segment(kind="paragraph", text="Content.", metadata={"slide_index": 1}),
+            Segment(kind="slide_header", text="## Missing Slide 2", metadata={"slide_index": 2}),
+            Segment(kind="paragraph", text="More.", metadata={"slide_index": 2}),
+        ]
+        text = "preamble\n\n### Visible\n\nContent.\n\nseparator\n\nMore."
+        parsed = ParsedDocument(title="Deck", body="", format="pptx", segments=segments)
+
+        nodes = build_page_tree(parsed, text)
+
+        assert nodes[0].start_offset == text.index("### Visible")
+        assert nodes[0].end_offset == text.index("Content.") + len("Content.")
+        assert nodes[1].start_offset == text.index("More.")
+        assert nodes[1].end_offset == text.index("More.") + len("More.")
+
 
 class TestXlsxBuilder:
     def test_sheets_become_nodes(self) -> None:
@@ -162,6 +180,23 @@ class TestXlsxBuilder:
         nodes = build_page_tree(parsed, text)
 
         assert [(node.start_offset, node.end_offset) for node in nodes] == [(0, 0), (0, 0)]
+
+    def test_missing_sheet_header_uses_first_found_row_as_section_start(self) -> None:
+        segments = [
+            Segment(kind="sheet_header", text="## Missing A", metadata={"sheet_name": "A"}),
+            Segment(kind="table_row", text="A row", metadata={"sheet_name": "A"}),
+            Segment(kind="sheet_header", text="## Missing B", metadata={"sheet_name": "B"}),
+            Segment(kind="table_row", text="B row longer", metadata={"sheet_name": "B"}),
+        ]
+        text = "prefix\n\nA row\n\nbetween\n\nB row longer"
+        parsed = ParsedDocument(title="Workbook", body="", format="xlsx", segments=segments)
+
+        nodes = build_page_tree(parsed, text)
+
+        assert [(node.start_offset, node.end_offset) for node in nodes] == [
+            (text.index("A row"), text.index("A row") + len("A row")),
+            (text.index("B row longer"), text.index("B row longer") + len("B row longer")),
+        ]
 
 
 class TestImageBuilder:

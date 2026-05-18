@@ -97,7 +97,7 @@ def _build_pptx(parsed: ParsedDocument, text: str) -> list[TreeNode]:
                 node_id=f"n{node_index}",
                 title=_clean_heading_title(slide_header.text),
                 level=1,
-                start_offset=_span_start(spans[start_index], 0),
+                start_offset=_range_start(spans, start_index, stop_index, 0),
                 end_offset=_range_end(spans, start_index, stop_index, 0),
                 children=children,
                 metadata={"slide_index": slide_index},
@@ -122,7 +122,7 @@ def _build_xlsx(parsed: ParsedDocument, text: str) -> list[TreeNode]:
                 node_id=f"n{node_index}",
                 title=title,
                 level=1,
-                start_offset=_span_start(spans[start_index], 0),
+                start_offset=_range_start(spans, start_index, stop_index, 0),
                 end_offset=_range_end(spans, start_index, stop_index, 0),
                 children=[],
                 metadata={"sheet_name": sheet_name} if sheet_name is not None else {},
@@ -200,6 +200,15 @@ def _range_end(
     if not found_spans:
         return fallback_offset
     return max(end for _start, end in found_spans)
+
+
+def _range_start(
+    spans: list[_Span], start_index: int, stop_index: int, fallback_offset: int
+) -> int:
+    for span in spans[start_index:stop_index]:
+        if span is not None:
+            return span[0]
+    return fallback_offset
 
 
 def _span_start(span: _Span, fallback_offset: int) -> int:
