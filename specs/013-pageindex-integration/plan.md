@@ -81,7 +81,7 @@
 - Create: `src/hks/page_tree/model.py`
 - Test: `tests/unit/page_tree/test_model.py`
 
-- [ ] **Step 1: Write failing test for TreeNode + PageTree serialization**
+- [x] **Step 1: Write failing test for TreeNode + PageTree serialization**
 
 ```python
 # tests/unit/page_tree/test_model.py
@@ -302,12 +302,12 @@ class TestPageTree:
         assert tree.section_path("n999") is None
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `cd /Users/waynetu/claw_prog/projects/04-kurisu-github/hks/.claude/worktrees/funny-jemison-5ae174 && uv run pytest tests/unit/page_tree/test_model.py -v`
 Expected: FAIL — `ModuleNotFoundError: No module named 'hks.page_tree'`
 
-- [ ] **Step 3: Implement PageTree data model**
+- [x] **Step 3: Implement PageTree data model**
 
 ```python
 # src/hks/page_tree/__init__.py
@@ -437,12 +437,12 @@ class PageTree:
         return None
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `cd /Users/waynetu/claw_prog/projects/04-kurisu-github/hks/.claude/worktrees/funny-jemison-5ae174 && uv run pytest tests/unit/page_tree/test_model.py -v`
 Expected: all PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/hks/page_tree/__init__.py src/hks/page_tree/model.py tests/unit/page_tree/test_model.py
