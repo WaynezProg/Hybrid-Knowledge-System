@@ -1,0 +1,5 @@
+{"id": "e2e-01", "question": "Atlas 的摘要", "expected_route": "wiki", "expected_answer_contains": "Atlas"}
+{"id": "e2e-02", "question": "A 影響了什麼服務？", "expected_route": "graph", "expected_answer_contains": "影響"}
+{"id": "e2e-03", "question": "supply chain risk", "expected_route": "vector"}
+{"id": "e2e-04", "question": "Atlas 的依賴關係", "expected_route": "graph"}
+{"id": "e2e-05", "question": "專案總結", "expected_route": "wiki"}
