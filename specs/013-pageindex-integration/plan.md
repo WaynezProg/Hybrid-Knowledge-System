@@ -1542,7 +1542,7 @@ git commit -m "feat(pipeline): integrate page tree build + chunk tree_node_id in
 - Create: `src/hks/page_tree/enrich.py`
 - Test: `tests/unit/page_tree/test_enrich.py`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```python
 # tests/unit/page_tree/test_enrich.py
@@ -1639,12 +1639,12 @@ class TestEnrichTree:
         assert result is llm_tree  # unchanged, skipped
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/unit/page_tree/test_enrich.py -v`
 Expected: FAIL — `ImportError`
 
-- [ ] **Step 3: Implement enrich_tree**
+- [x] **Step 3: Implement enrich_tree**
 
 ```python
 # src/hks/page_tree/enrich.py
@@ -1761,12 +1761,12 @@ def _count_nodes(nodes: list[TreeNode]) -> int:
     return count
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `uv run pytest tests/unit/page_tree/test_enrich.py -v`
 Expected: all PASS
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/hks/page_tree/enrich.py tests/unit/page_tree/test_enrich.py
