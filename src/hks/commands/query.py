@@ -20,6 +20,8 @@ from hks.storage.wiki import LogEntry, WikiStore
 from hks.writeback.gate import WritebackFlag, decide
 from hks.writeback.writer import WritebackContext, commit
 
+type QueryHit = tuple[str, list[Route], float]
+
 
 def _lexical_terms(text: str) -> set[str]:
     lowered = text.lower()
@@ -92,6 +94,136 @@ def _graph_trace_detail(
     }
 
 
+def _try_wiki(
+    question: str,
+    *,
+    wiki_store: WikiStore,
+    steps: list[TraceStep],
+) -> QueryHit | None:
+    page = wiki_store.search(question)
+    if page is not None:
+        steps.append(
+            TraceStep(
+                kind="wiki_lookup",
+                detail={"slug": page.slug, "hit": True, "source_relpath": page.source_relpath},
+            )
+        )
+        return (f"{page.title}: {page.summary}", ["wiki"], 1.0)
+
+    overview = wiki_store.overview()
+    if overview and any(
+        keyword in question.lower()
+        for keyword in ("summary", "overview", "摘要", "總結", "重點", "說明")
+    ):
+        steps.append(
+            TraceStep(
+                kind="wiki_lookup",
+                detail={"slug": None, "hit": True, "mode": "overview"},
+            )
+        )
+        return (overview, ["wiki"], 1.0)
+
+    steps.append(TraceStep(kind="wiki_lookup", detail={"hit": False}))
+    return None
+
+
+def _try_graph(
+    question: str,
+    *,
+    graph_store: GraphStore,
+    steps: list[TraceStep],
+) -> QueryHit | None:
+    graph_result = answer_query(question, graph_store)
+    if graph_result is None:
+        steps.append(TraceStep(kind="graph_lookup", detail={"hit": False}))
+        return None
+
+    steps.append(
+        TraceStep(
+            kind="graph_lookup",
+            detail=_graph_trace_detail(
+                relpaths=graph_result.relpaths,
+                node_ids=graph_result.node_ids,
+                edge_ids=graph_result.edge_ids,
+                relations=graph_result.relations,
+            ),
+        )
+    )
+    return (graph_result.answer, ["graph"], graph_result.confidence)
+
+
+def _try_vector(
+    question: str,
+    *,
+    vector_store: VectorStore,
+    steps: list[TraceStep],
+) -> QueryHit | None:
+    candidate_limit = max(5, min(50, vector_store.count()))
+    hits = vector_store.search(question, top_k=candidate_limit)
+    top_similarity = hits[0].similarity if hits else 0.0
+    relevant_hits = [hit for hit in hits if _vector_hit_is_relevant(question, hit)]
+    if relevant_hits:
+        chosen_hit = relevant_hits[0]
+        steps.append(
+            TraceStep(
+                kind="vector_lookup",
+                detail=_vector_trace_detail(
+                    top_k=candidate_limit,
+                    top_similarity=top_similarity,
+                    chosen_hit=chosen_hit,
+                ),
+            )
+        )
+        return (chosen_hit.text, ["vector"], chosen_hit.similarity)
+
+    steps.append(
+        TraceStep(
+            kind="vector_lookup",
+            detail=_vector_trace_detail(
+                top_k=candidate_limit,
+                top_similarity=top_similarity,
+                chosen_hit=None,
+            ),
+        )
+    )
+    return None
+
+
+def _try_route(
+    target_route: Route,
+    question: str,
+    *,
+    wiki_store: WikiStore,
+    graph_store: GraphStore,
+    vector_store: VectorStore,
+    steps: list[TraceStep],
+) -> QueryHit | None:
+    if target_route == "wiki":
+        return _try_wiki(question, wiki_store=wiki_store, steps=steps)
+    if target_route == "graph":
+        return _try_graph(question, graph_store=graph_store, steps=steps)
+    return _try_vector(question, vector_store=vector_store, steps=steps)
+
+
+def _secondary_fallback_route(primary: Route, secondary: Route | None) -> Route | None:
+    if secondary is None or secondary in {primary, "vector"}:
+        return None
+    return secondary
+
+
+def _append_fallback(steps: list[TraceStep], *, source_route: Route, target_route: Route) -> None:
+    steps.append(
+        TraceStep(
+            kind="fallback",
+            detail={
+                "from": source_route,
+                "to": target_route,
+                "reason": f"{source_route}-miss",
+            },
+        )
+    )
+
+
 def run(question: str, *, writeback: str = "auto") -> QueryResponse:
     paths = runtime_paths()
     if not paths.manifest.exists():
@@ -118,114 +250,46 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
     graph_store = GraphStore(paths)
     vector_store = VectorStore(paths)
 
-    answer = ""
-    source: list[Route] = []
-    confidence = 0.0
     final_route = decision.route
+    hit = _try_route(
+        decision.route,
+        question,
+        wiki_store=wiki_store,
+        graph_store=graph_store,
+        vector_store=vector_store,
+        steps=steps,
+    )
 
-    if decision.route == "wiki":
-        page = wiki_store.search(question)
-        if page is not None:
-            steps.append(
-                TraceStep(
-                    kind="wiki_lookup",
-                    detail={"slug": page.slug, "hit": True, "source_relpath": page.source_relpath},
-                )
-            )
-            answer = f"{page.title}: {page.summary}"
-            source = ["wiki"]
-            confidence = 1.0
-        else:
-            overview = wiki_store.overview()
-            if overview and any(
-                keyword in question.lower()
-                for keyword in ("summary", "overview", "摘要", "總結", "重點", "說明")
-            ):
-                steps.append(
-                    TraceStep(
-                        kind="wiki_lookup",
-                        detail={"slug": None, "hit": True, "mode": "overview"},
-                    )
-                )
-                answer = overview
-                source = ["wiki"]
-                confidence = 1.0
-            else:
-                steps.append(TraceStep(kind="wiki_lookup", detail={"hit": False}))
-                steps.append(
-                    TraceStep(
-                        kind="fallback",
-                        detail={"from": "wiki", "to": "vector", "reason": "wiki-miss"},
-                    )
-                )
-                final_route = "vector"
-
-    if final_route == "graph" and not source:
-        graph_result = answer_query(question, graph_store)
-        if graph_result is not None:
-            steps.append(
-                TraceStep(
-                    kind="graph_lookup",
-                    detail=_graph_trace_detail(
-                        relpaths=graph_result.relpaths,
-                        node_ids=graph_result.node_ids,
-                        edge_ids=graph_result.edge_ids,
-                        relations=graph_result.relations,
-                    ),
-                )
-            )
-            answer = graph_result.answer
-            source = ["graph"]
-            confidence = graph_result.confidence
-        else:
-            steps.append(TraceStep(kind="graph_lookup", detail={"hit": False}))
-            steps.append(
-                TraceStep(
-                    kind="fallback",
-                    detail={"from": "graph", "to": "vector", "reason": "graph-miss"},
-                )
-            )
-            final_route = "vector"
-
-    if final_route == "vector" and not source:
-        candidate_limit = max(5, min(50, vector_store.count()))
-        hits = vector_store.search(question, top_k=candidate_limit)
-        top_similarity = hits[0].similarity if hits else 0.0
-        relevant_hits = [hit for hit in hits if _vector_hit_is_relevant(question, hit)]
-        if relevant_hits:
-            chosen_hit = relevant_hits[0]
-            steps.append(
-                TraceStep(
-                    kind="vector_lookup",
-                    detail=_vector_trace_detail(
-                        top_k=candidate_limit,
-                        top_similarity=top_similarity,
-                        chosen_hit=chosen_hit,
-                    ),
-                )
-            )
-            answer = chosen_hit.text
-            source = ["vector"]
-            confidence = chosen_hit.similarity
-        else:
-            steps.append(
-                TraceStep(
-                    kind="vector_lookup",
-                    detail=_vector_trace_detail(
-                        top_k=candidate_limit,
-                        top_similarity=top_similarity,
-                        chosen_hit=None,
-                    ),
-                )
-            )
-            response = _build_no_hit_response(final_route, steps)
-            response = _maybe_writeback(
-                question=question,
-                response=response,
-                writeback=writeback,
+    if hit is None:
+        secondary_route = _secondary_fallback_route(decision.route, decision.secondary)
+        if secondary_route is not None:
+            _append_fallback(steps, source_route=decision.route, target_route=secondary_route)
+            final_route = secondary_route
+            hit = _try_route(
+                secondary_route,
+                question,
                 wiki_store=wiki_store,
+                graph_store=graph_store,
+                vector_store=vector_store,
+                steps=steps,
             )
-            return response
+
+    if hit is None and final_route != "vector":
+        _append_fallback(steps, source_route=final_route, target_route="vector")
+        final_route = "vector"
+        hit = _try_vector(question, vector_store=vector_store, steps=steps)
+
+    if hit is None:
+        response = _build_no_hit_response(final_route, steps)
+        response = _maybe_writeback(
+            question=question,
+            response=response,
+            writeback=writeback,
+            wiki_store=wiki_store,
+        )
+        return response
+
+    answer, source, confidence = hit
 
     response = QueryResponse(
         answer=answer,

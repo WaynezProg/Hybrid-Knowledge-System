@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+import hks.commands.query as query_command
 import hks.ingest.extractor as extractor
 import hks.ingest.normalizer as normalizer
 from hks.cli import app
@@ -58,6 +59,30 @@ def test_query_relation_uses_graph(cli_runner, ingested_runtime) -> None:
     assert payload["trace"]["route"] == "graph"
     assert payload["source"] == ["graph"]
     assert "checkout service" in payload["answer"]
+
+
+@pytest.mark.integration
+@pytest.mark.us2
+def test_query_graph_miss_uses_secondary_wiki(
+    cli_runner, ingested_runtime, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(query_command, "answer_query", lambda *_args, **_kwargs: None)
+
+    result = cli_runner.invoke(app, ["query", "impact Atlas", "--writeback=no"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["trace"]["route"] == "wiki"
+    assert payload["source"] == ["wiki"]
+    assert any(
+        step["kind"] == "graph_lookup" and step["detail"] == {"hit": False}
+        for step in payload["trace"]["steps"]
+    )
+    assert any(
+        step["kind"] == "fallback"
+        and step["detail"] == {"from": "graph", "to": "wiki", "reason": "graph-miss"}
+        for step in payload["trace"]["steps"]
+    )
 
 
 @pytest.mark.integration

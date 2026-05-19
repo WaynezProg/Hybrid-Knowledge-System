@@ -21,6 +21,7 @@ class RoutingRule:
     target_route: Route
     keywords_zh: tuple[str, ...]
     keywords_en: tuple[str, ...]
+    secondary_route: Route | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +93,14 @@ def load_rules(ks_root: Path | str | None = None) -> RoutingRuleSet:
                 code="ROUTING_RULES_INVALID",
                 details=[f"rule={raw_rule.get('id')} target_route={target_route}"],
             )
+        secondary_route = cast(Route | None, raw_rule.get("secondary"))
+        if secondary_route is not None and secondary_route not in {"wiki", "graph", "vector"}:
+            raise KSError(
+                "routing rules secondary route 非法",
+                exit_code=ExitCode.GENERAL,
+                code="ROUTING_RULES_INVALID",
+                details=[f"rule={raw_rule.get('id')} secondary={secondary_route}"],
+            )
 
         priority = int(raw_rule["priority"])
         if priority in seen_priorities:
@@ -120,6 +129,7 @@ def load_rules(ks_root: Path | str | None = None) -> RoutingRuleSet:
                 target_route=target_route,
                 keywords_zh=zh,
                 keywords_en=en,
+                secondary_route=secondary_route,
             )
         )
 

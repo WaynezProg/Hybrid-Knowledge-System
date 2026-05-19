@@ -19,6 +19,7 @@ rules:
   - id: relation
     priority: 20
     target_route: graph
+    secondary: wiki
     keywords:
       zh:
         - 影響

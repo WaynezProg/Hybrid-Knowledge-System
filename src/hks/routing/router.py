@@ -16,6 +16,7 @@ class RouteDecision:
     route: Route
     steps: list[TraceStep]
     matched_rule_id: str | None = None
+    secondary: Route | None = None
 
 
 def route(query: str, rules: RoutingRuleSet) -> RouteDecision:
@@ -28,8 +29,9 @@ def route(query: str, rules: RoutingRuleSet) -> RouteDecision:
     query_embedding = embeddings[0]
     best_rule_id = "default"
     best_route = rules.default_route
+    best_secondary: Route | None = None
     best_score = -1.0
-    first_lexical_match: tuple[str, Route] | None = None
+    first_lexical_match: tuple[str, Route, Route | None] | None = None
     ranked_scores: list[dict[str, object]] = []
 
     lowered_query = query.lower()
@@ -50,15 +52,17 @@ def route(query: str, rules: RoutingRuleSet) -> RouteDecision:
         if score > best_score:
             best_rule_id = rule.id
             best_route = rule.target_route
+            best_secondary = rule.secondary_route
             best_score = score
         if lexical_hits and first_lexical_match is None:
-            first_lexical_match = (rule.id, rule.target_route)
+            first_lexical_match = (rule.id, rule.target_route, rule.secondary_route)
 
     if first_lexical_match is not None:
-        best_rule_id, best_route = first_lexical_match
+        best_rule_id, best_route, best_secondary = first_lexical_match
     elif best_score <= 0:
         best_rule_id = "default"
         best_route = rules.default_route
+        best_secondary = None
 
     ranked_scores.sort(key=lambda item: cast(float, item["score"]), reverse=True)
     return RouteDecision(
@@ -71,10 +75,12 @@ def route(query: str, rules: RoutingRuleSet) -> RouteDecision:
                     "backend": backend_name,
                     "rule_id": best_rule_id,
                     "target_route": best_route,
+                    "secondary_route": best_secondary,
                     "scores": ranked_scores[:3],
                 },
             )
         ],
+        secondary=best_secondary,
     )
 
 

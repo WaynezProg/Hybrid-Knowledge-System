@@ -36,6 +36,7 @@ def test_router_matches_summary_rule() -> None:
     decision = route("請給我摘要", rules)
 
     assert decision.route == "wiki"
+    assert decision.secondary is None
     assert decision.matched_rule_id == "summary"
     assert decision.steps[0].kind == "routing_model"
 

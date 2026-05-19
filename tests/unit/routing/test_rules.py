@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from hks.errors import KSError
 from hks.routing.rules import load_rules
 
 
@@ -61,3 +62,65 @@ rules:
 
     rules = load_rules()
     assert rules.rules[0].target_route == "graph"
+
+
+@pytest.mark.unit
+def test_load_rules_parses_optional_secondary_route(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rules_path = tmp_path / "routing_rules.yaml"
+    rules_path.write_text(
+        """
+version: 1
+default_route: vector
+rules:
+  - id: relation
+    priority: 1
+    target_route: graph
+    secondary: wiki
+    keywords:
+      zh: [影響]
+      en: [impact]
+  - id: detail
+    priority: 2
+    target_route: vector
+    keywords:
+      zh: [細節]
+      en: [detail]
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HKS_ROUTING_RULES", str(rules_path))
+
+    rules = load_rules()
+
+    assert rules.rules[0].secondary_route == "wiki"
+    assert rules.rules[1].secondary_route is None
+
+
+@pytest.mark.unit
+def test_load_rules_rejects_invalid_secondary_route(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    rules_path = tmp_path / "routing_rules.yaml"
+    rules_path.write_text(
+        """
+version: 1
+default_route: vector
+rules:
+  - id: relation
+    priority: 1
+    target_route: graph
+    secondary: page_tree
+    keywords:
+      zh: [影響]
+      en: [impact]
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HKS_ROUTING_RULES", str(rules_path))
+
+    with pytest.raises(KSError, match="secondary route"):
+        load_rules()
