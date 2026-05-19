@@ -2378,7 +2378,7 @@ git commit -m "feat(graph): tree-aware extraction with section entities"
 - Modify: `src/hks/graph/extract.py`
 - Test: `tests/unit/graph/test_new_relations.py`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```python
 # tests/unit/graph/test_new_relations.py
@@ -2418,18 +2418,18 @@ class TestNewRelationTypes:
         assert "succeeds" in relation_types
 ```
 
-- [ ] **Step 2: Add new regex patterns**
+- [x] **Step 2: Add new regex patterns**
 
 Add bilingual patterns for `causes`, `contradicts`, `succeeds` following the existing pattern structure in `extract.py`.
 
-- [ ] **Step 3: Add entity type contextual heuristics**
+- [x] **Step 3: Add entity type contextual heuristics**
 
 After regex extraction:
 - Entity in tree node title → bias toward `Project`/`Document`
 - Entity as `causes`/`impacts` subject → bias toward `Event`
 - Entity with multiple `depends_on` inbound → bias toward `System`/`Concept`
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 ```bash
 git commit -m "feat(graph): add causes/contradicts/succeeds relations + entity heuristics"
