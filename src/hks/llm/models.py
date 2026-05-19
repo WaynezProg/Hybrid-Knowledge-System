@@ -12,12 +12,30 @@ type ProviderCredentialStatus = Literal["not_required", "present", "missing"]
 type ValidationStatus = Literal["valid", "invalid"]
 type ArtifactStatus = Literal["valid", "invalid", "partial"]
 type EntityType = Literal["Person", "Project", "Document", "Event", "Concept"]
-type RelationType = Literal["owns", "depends_on", "impacts", "references", "belongs_to"]
+type RelationType = Literal[
+    "owns",
+    "depends_on",
+    "impacts",
+    "references",
+    "belongs_to",
+    "causes",
+    "contradicts",
+    "succeeds",
+]
 type FindingSeverity = Literal["error", "warning", "info"]
 
 ENTITY_TYPES: frozenset[str] = frozenset(("Person", "Project", "Document", "Event", "Concept"))
 RELATION_TYPES: frozenset[str] = frozenset(
-    ("owns", "depends_on", "impacts", "references", "belongs_to")
+    (
+        "owns",
+        "depends_on",
+        "impacts",
+        "references",
+        "belongs_to",
+        "causes",
+        "contradicts",
+        "succeeds",
+    )
 )
 SCHEMA_VERSION = 1
 DEFAULT_PROMPT_VERSION = "llm-extraction-v1"

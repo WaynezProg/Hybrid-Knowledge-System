@@ -167,7 +167,16 @@
         "candidate_id": { "type": "string", "minLength": 1 },
         "type": {
           "type": "string",
-          "enum": ["owns", "depends_on", "impacts", "references", "belongs_to"]
+          "enum": [
+            "owns",
+            "depends_on",
+            "impacts",
+            "references",
+            "belongs_to",
+            "causes",
+            "contradicts",
+            "succeeds"
+          ]
         },
         "source_candidate_id": { "type": "string", "minLength": 1 },
         "target_candidate_id": { "type": "string", "minLength": 1 },

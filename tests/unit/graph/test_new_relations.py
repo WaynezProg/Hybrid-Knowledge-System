@@ -9,6 +9,15 @@ from hks.graph.store import GraphStore
 from hks.page_tree.model import PageTree, TreeNode
 
 
+def _edge_labels(result, relation: str) -> list[tuple[str, str]]:
+    nodes = {node.id: node.label for node in result.nodes}
+    return [
+        (nodes[edge.source], nodes[edge.target])
+        for edge in result.edges
+        if edge.relation == relation
+    ]
+
+
 class TestNewRelationTypes:
     def test_causes_relation(self) -> None:
         result = extract_document_graph(
@@ -32,16 +41,25 @@ class TestNewRelationTypes:
         )
         relation_types = {edge.relation for edge in result.edges}
         assert "contradicts" in relation_types
+        assert ("實際數據", "預期") in _edge_labels(result, "contradicts")
+        assert ("actual data", "projections") in _edge_labels(result, "contradicts")
 
     def test_succeeds_relation(self) -> None:
-        result = extract_document_graph(
-            relpath="t.md",
-            title="T",
-            body="Phase 1 之後接續 Phase 2。Phase 1 followed by Phase 2.",
-            wiki_slug="t",
-        )
-        relation_types = {edge.relation for edge in result.edges}
-        assert "succeeds" in relation_types
+        bodies = [
+            "Phase 1 之後接續 Phase 2。",
+            "Phase 1 followed by Phase 2.",
+            "Phase 1 precedes Phase 2.",
+        ]
+        for body in bodies:
+            result = extract_document_graph(
+                relpath="t.md",
+                title="T",
+                body=body,
+                wiki_slug="t",
+            )
+            relation_types = {edge.relation for edge in result.edges}
+            assert "succeeds" in relation_types
+            assert _edge_labels(result, "succeeds") == [("Phase 2", "Phase 1")]
 
 
 def test_graph_query_prefers_and_renders_new_relation_types(tmp_ks_root) -> None:
@@ -77,13 +95,40 @@ def test_graph_query_prefers_and_renders_new_relation_types(tmp_ks_root) -> None
     succeed = answer_query("what follows Phase 1", store)
     assert succeed is not None
     assert succeed.relations == ["succeeds"]
-    assert "接續" in succeed.answer
+    assert "Phase 2 接續 Phase 1" in succeed.answer
     succeed_alias = answer_query("what succeeds Phase 1", store)
     assert succeed_alias is not None
     assert succeed_alias.relations == ["succeeds"]
     succeed_zh = answer_query("Phase 1 後續接續什麼", store)
     assert succeed_zh is not None
     assert succeed_zh.relations == ["succeeds"]
+
+
+def test_succeeds_query_renders_precedes_direction(tmp_ks_root) -> None:
+    artifacts = extract_document_graph(
+        relpath="sequence.md",
+        title="Sequence",
+        body="Phase 1 precedes Phase 2.",
+        wiki_slug="sequence",
+    )
+    store = GraphStore(runtime_paths(tmp_ks_root))
+    store.replace_document("sequence.md", artifacts)
+
+    result = answer_query("what succeeds Phase 1", store)
+    assert result is not None
+    assert result.relations == ["succeeds"]
+    assert result.answer == "Phase 2 接續 Phase 1"
+
+
+def test_abbreviation_before_entity_does_not_split_label() -> None:
+    result = extract_document_graph(
+        relpath="owner.md",
+        title="Owner",
+        body="Dr. Alice owns Atlas.",
+        wiki_slug="owner",
+    )
+
+    assert ("Dr. Alice", "Atlas") in _edge_labels(result, "owns")
 
 
 def test_causes_and_impacts_subjects_use_event_default() -> None:

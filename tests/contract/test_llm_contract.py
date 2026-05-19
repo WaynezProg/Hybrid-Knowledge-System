@@ -58,7 +58,7 @@ def _summary_detail() -> dict[str, object]:
         "relation_candidates": [
             {
                 "candidate_id": "r1",
-                "type": "references",
+                "type": "causes",
                 "source_candidate_id": "e1",
                 "target_candidate_id": "e2",
                 "confidence": 0.7,

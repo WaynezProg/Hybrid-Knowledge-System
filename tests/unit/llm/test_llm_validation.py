@@ -40,6 +40,28 @@ def test_validation_rejects_unsupported_entity_type() -> None:
     assert exc_info.value.exit_code == 65
 
 
+def test_validation_accepts_new_graph_relation_types() -> None:
+    request = build_request(source_relpath="project-atlas.txt")
+    for relation_type in ("causes", "contradicts", "succeeds"):
+        payload = provider_for(request).extract(request, content="Project Atlas")
+        payload["relation_candidates"][0]["type"] = relation_type
+
+        result = validate_provider_output(payload, request=request, source=_source())
+
+        assert result.relation_candidates[0].type == relation_type
+
+
+def test_validation_rejects_unsupported_relation_type() -> None:
+    request = build_request(source_relpath="project-atlas.txt")
+    payload = provider_for(request).extract(request, content="Project Atlas")
+    payload["relation_candidates"][0]["type"] = "blocks"
+
+    with pytest.raises(KSError) as exc_info:
+        validate_provider_output(payload, request=request, source=_source())
+
+    assert exc_info.value.exit_code == 65
+
+
 def test_validation_ignores_side_effect_text_with_finding() -> None:
     request = build_request(source_relpath="project-atlas.txt", provider="fake-side-effect")
     result = validate_provider_output(

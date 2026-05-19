@@ -275,7 +275,7 @@ MCP 暴露 `hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_
 * provider 預設 `fake`，用於 deterministic tests / agent smoke
 * hosted/network provider 必須由 `HKS_LLM_NETWORK_OPT_IN=1` 與 provider-specific credential gate 開啟，CLI/MCP/HTTP request body 不提供 opt-in toggle
 * entity candidates 限定 `Person / Project / Document / Event / Concept`
-* relation candidates 限定 `owns / depends_on / impacts / references / belongs_to`
+* relation candidates 限定 `owns / depends_on / impacts / references / belongs_to / causes / contradicts / succeeds`
 
 MCP 暴露 `hks_llm_classify`；HTTP facade 暴露 `/llm/classify`。
 

@@ -18,24 +18,41 @@ from hks.graph.store import (
 )
 from hks.page_tree.model import PageTree, TreeNode
 
-_RELATION_PATTERNS: tuple[tuple[RelationType, str], ...] = (
-    ("causes", r"(?P<left>.+?)(?:導致|造成|引發|使得?)(?P<right>.+)"),
-    ("causes", r"(?P<left>.+?)\s+causes?\s+(?P<right>.+)"),
-    ("contradicts", r"(?P<left>.+?)(?:與|和)?(?P<right>.+?)(?:矛盾|衝突)"),
-    ("contradicts", r"(?P<left>.+?)\s+(?:contradicts?|conflicts with)\s+(?P<right>.+)"),
-    ("succeeds", r"(?P<left>.+?)(?:之後)?(?:接續|接著|後續是)(?P<right>.+)"),
-    ("succeeds", r"(?P<left>.+?)\s+(?:followed by|is followed by|precedes)\s+(?P<right>.+)"),
-    ("impacts", r"(?P<left>.+?)(?:會|將|直接)?影響(?P<right>.+)"),
-    ("impacts", r"(?P<left>.+?)\s+affects?\s+(?P<right>.+)"),
-    ("depends_on", r"(?P<left>.+?)依賴(?P<right>.+)"),
-    ("depends_on", r"(?P<left>.+?)\s+depends on\s+(?P<right>.+)"),
-    ("references", r"(?P<left>.+?)(?:引用|參考)(?P<right>.+)"),
-    ("references", r"(?P<left>.+?)\s+references\s+(?P<right>.+)"),
-    ("belongs_to", r"(?P<left>.+?)(?:屬於|隸屬於)(?P<right>.+)"),
-    ("belongs_to", r"(?P<left>.+?)\s+belongs to\s+(?P<right>.+)"),
-    ("owns", r"(?P<left>.+?)(?:擁有|負責)(?P<right>.+)"),
-    ("owns", r"(?P<left>.+?)\s+owns\s+(?P<right>.+)"),
+type RelationPattern = tuple[RelationType, str, bool]
+
+_RELATION_PATTERNS: tuple[RelationPattern, ...] = (
+    ("causes", r"(?P<left>.+?)(?:導致|造成|引發|使得?)(?P<right>.+)", False),
+    ("causes", r"(?P<left>.+?)\s+causes?\s+(?P<right>.+)", False),
+    (
+        "contradicts",
+        r"(?P<left>[^，,。；;!?！？]+?)(?:與|和)(?P<right>[^，,。；;!?！？]+?)(?:矛盾|衝突)",
+        False,
+    ),
+    (
+        "contradicts",
+        r"(?:.*\b(?:however|but)\s+)?(?P<left>[^.，,;；]+?)\s+"
+        r"(?:contradicts?|conflicts with)\s+(?P<right>[^.，,;；]+)",
+        False,
+    ),
+    ("succeeds", r"(?P<left>.+?)\s+succeeds\s+(?P<right>.+)", False),
+    ("succeeds", r"(?P<left>.+?)(?:之後)?(?:接續|接著|後續是)(?P<right>.+)", True),
+    ("succeeds", r"(?P<left>.+?)\s+(?:followed by|is followed by)\s+(?P<right>.+)", True),
+    ("succeeds", r"(?P<left>.+?)\s+precedes\s+(?P<right>.+)", True),
+    ("impacts", r"(?P<left>.+?)(?:會|將|直接)?影響(?P<right>.+)", False),
+    ("impacts", r"(?P<left>.+?)\s+affects?\s+(?P<right>.+)", False),
+    ("depends_on", r"(?P<left>.+?)依賴(?P<right>.+)", False),
+    ("depends_on", r"(?P<left>.+?)\s+depends on\s+(?P<right>.+)", False),
+    ("references", r"(?P<left>.+?)(?:引用|參考)(?P<right>.+)", False),
+    ("references", r"(?P<left>.+?)\s+references\s+(?P<right>.+)", False),
+    ("belongs_to", r"(?P<left>.+?)(?:屬於|隸屬於)(?P<right>.+)", False),
+    ("belongs_to", r"(?P<left>.+?)\s+belongs to\s+(?P<right>.+)", False),
+    ("owns", r"(?P<left>.+?)(?:擁有|負責)(?P<right>.+)", False),
+    ("owns", r"(?P<left>.+?)\s+owns\s+(?P<right>.+)", False),
 )
+_SENTENCE_BOUNDARY_RE = re.compile(
+    r"[\n。！？!?;；]|(?<=[A-Za-z0-9]\.)\s+(?=[A-Z\u4e00-\u9fff])"
+)
+_ABBREVIATION_SUFFIXES = ("Dr.", "Mr.", "Ms.", "Mrs.", "Prof.", "Sr.", "Jr.", "St.", "U.S.", "U.K.")
 
 
 def extract_document_graph(
@@ -120,7 +137,7 @@ def _extract_relations(
 ) -> None:
     for sentence in _sentence_candidates(body):
         evidence = f"{evidence_prefix}{sentence}" if evidence_prefix else sentence
-        for relation, pattern in _RELATION_PATTERNS:
+        for relation, pattern, reverse in _RELATION_PATTERNS:
             match = re.search(pattern, sentence, flags=re.IGNORECASE)
             if match is None:
                 continue
@@ -134,7 +151,7 @@ def _extract_relations(
                     source_label,
                     default="Concept",
                     relation=relation,
-                    role="source",
+                    role="target" if reverse else "source",
                     tree_title=tree_title,
                 ),
                 relpath=relpath,
@@ -171,22 +188,24 @@ def _extract_relations(
                         target,
                         default="Concept",
                         relation=relation,
-                        role="target",
+                        role="source" if reverse else "target",
                         tree_title=tree_title,
                     ),
                     relpath=relpath,
                 )
+                edge_source = target_node if reverse else source_node
+                edge_target = source_node if reverse else target_node
                 edge_id = make_edge_id(
                     relation=relation,
-                    source_id=source_node.id,
-                    target_id=target_node.id,
+                    source_id=edge_source.id,
+                    target_id=edge_target.id,
                     source_relpath=relpath,
                 )
                 edges[edge_id] = GraphEdge(
                     id=edge_id,
                     relation=relation,
-                    source=source_node.id,
-                    target=target_node.id,
+                    source=edge_source.id,
+                    target=edge_target.id,
                     source_relpath=relpath,
                     evidence=evidence,
                 )
@@ -212,7 +231,7 @@ def _extract_relations(
 
 def _sentence_candidates(body: str) -> list[str]:
     stripped = body.replace("\r\n", "\n").replace("\r", "\n")
-    parts = re.split(r"[\n。！？!?;；]|(?<=[A-Za-z]\.)\s+(?=[A-Z\u4e00-\u9fff])", stripped)
+    parts = _sentence_parts(stripped)
     candidates: list[str] = []
     for part in parts:
         text = part.strip()
@@ -233,6 +252,8 @@ def _sentence_candidates(body: str) -> list[str]:
                     "contradicts",
                     "接續",
                     "followed by",
+                    "precedes",
+                    "succeeds",
                 )
             )
             > 1
@@ -246,11 +267,33 @@ def _sentence_candidates(body: str) -> list[str]:
     return candidates
 
 
+def _sentence_parts(text: str) -> list[str]:
+    parts: list[str] = []
+    start = 0
+    for match in _SENTENCE_BOUNDARY_RE.finditer(text):
+        if match.group().isspace() and _ends_with_abbreviation(text[: match.start()]):
+            continue
+        part = text[start : match.start()].strip()
+        if part:
+            parts.append(part)
+        start = match.end()
+    tail = text[start:].strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def _ends_with_abbreviation(text: str) -> bool:
+    stripped = text.rstrip()
+    return any(stripped.endswith(suffix) for suffix in _ABBREVIATION_SUFFIXES)
+
+
 def _clean_label(raw: str) -> str:
     cleaned = raw.strip()
     cleaned = re.sub(r"^[#*\-\d.\s]+", "", cleaned)
     cleaned = re.sub(r"^[A-Za-z][A-Za-z ]{0,30}:\s*", "", cleaned)
     cleaned = re.sub(r"^(?:因為|由於|because)\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^(?:但|但是|然而)\s*", "", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned)
     cleaned = cleaned.strip(" ,:：()[]{}\"'。；;.")
     return cleaned
