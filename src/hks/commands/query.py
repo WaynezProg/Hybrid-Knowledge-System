@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import cast
 
 from hks.core.manifest import Manifest, resume_or_rebuild, utc_now_iso
@@ -22,6 +23,14 @@ from hks.writeback.gate import WritebackFlag, decide
 from hks.writeback.writer import WritebackContext, commit
 
 type QueryHit = tuple[str, list[Route], float]
+
+
+@dataclass(slots=True)
+class Candidate:
+    text: str
+    source_route: Route
+    score: float
+    metadata: dict[str, object]
 
 
 def _lexical_terms(text: str) -> set[str]:
@@ -166,6 +175,123 @@ def _has_wiki_secondary_intent(question: str) -> bool:
         keyword in lowered
         for keyword in ("summary", "overview", "摘要", "總結", "重點", "說明")
     )
+
+
+def _collect_wiki_candidates(
+    question: str,
+    *,
+    wiki_store: WikiStore,
+) -> tuple[list[Candidate], list[TraceStep]]:
+    steps: list[TraceStep] = []
+    candidates: list[Candidate] = []
+
+    page = wiki_store.search(question)
+    if page is not None:
+        steps.append(
+            TraceStep(
+                kind="wiki_lookup",
+                detail={"slug": page.slug, "hit": True, "source_relpath": page.source_relpath},
+            )
+        )
+        candidates.append(
+            Candidate(
+                text=f"{page.title}: {page.summary}",
+                source_route="wiki",
+                score=1.0,
+                metadata={"source_relpath": page.source_relpath, "slug": page.slug},
+            )
+        )
+    else:
+        overview = wiki_store.overview()
+        if overview and _has_wiki_secondary_intent(question):
+            steps.append(
+                TraceStep(kind="wiki_lookup", detail={"slug": None, "hit": True, "mode": "overview"})
+            )
+            candidates.append(
+                Candidate(text=overview, source_route="wiki", score=0.7, metadata={})
+            )
+        else:
+            steps.append(TraceStep(kind="wiki_lookup", detail={"hit": False}))
+
+    return candidates, steps
+
+
+def _collect_graph_candidates(
+    question: str,
+    *,
+    graph_store: GraphStore,
+) -> tuple[list[Candidate], list[TraceStep]]:
+    steps: list[TraceStep] = []
+    candidates: list[Candidate] = []
+
+    graph_result = answer_query(question, graph_store)
+    if graph_result is None:
+        steps.append(TraceStep(kind="graph_lookup", detail={"hit": False}))
+        return candidates, steps
+
+    steps.append(
+        TraceStep(
+            kind="graph_lookup",
+            detail=_graph_trace_detail(
+                relpaths=graph_result.relpaths,
+                node_ids=graph_result.node_ids,
+                edge_ids=graph_result.edge_ids,
+                relations=graph_result.relations,
+            ),
+        )
+    )
+    candidates.append(
+        Candidate(
+            text=graph_result.answer,
+            source_route="graph",
+            score=graph_result.confidence,
+            metadata={"relpaths": graph_result.relpaths},
+        )
+    )
+    return candidates, steps
+
+
+def _collect_vector_candidates(
+    question: str,
+    *,
+    vector_store: VectorStore,
+    manifest: Manifest,
+) -> tuple[list[Candidate], list[TraceStep]]:
+    steps: list[TraceStep] = []
+    candidates: list[Candidate] = []
+
+    candidate_limit = max(5, min(50, vector_store.count()))
+    hits = vector_store.search(question, top_k=candidate_limit)
+    top_similarity = hits[0].similarity if hits else 0.0
+
+    relevant_hits = [hit for hit in hits if _vector_hit_is_relevant(question, hit)]
+    tree_store = TreeStore(vector_store.paths)
+
+    for hit in relevant_hits[:5]:
+        metadata: dict[str, object] = dict(hit.metadata)
+        section_ctx = _vector_section_context(
+            chosen_hit=hit, manifest=manifest, tree_store=tree_store
+        )
+        metadata.update(section_ctx)
+        candidates.append(
+            Candidate(
+                text=hit.text,
+                source_route="vector",
+                score=hit.similarity,
+                metadata=metadata,
+            )
+        )
+
+    detail = _vector_trace_detail(
+        top_k=candidate_limit,
+        top_similarity=top_similarity,
+        chosen_hit=relevant_hits[0] if relevant_hits else None,
+        manifest=manifest,
+        tree_store=tree_store,
+    )
+    steps.append(TraceStep(kind="vector_lookup", detail=detail))
+
+    return candidates, steps
 
 
 def _try_wiki(
