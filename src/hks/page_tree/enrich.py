@@ -109,13 +109,98 @@ def _llm_restructure(
     provider: str,
     model: str | None,
 ) -> PageTree:
-    _ = (tree, source_text, model)
-    raise NotImplementedError(f"LLM restructure not yet implemented for provider={provider}")
+    from hks.llm.providers import _openai_chat
+    from hks.core.config import config_value
+
+    api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError(f"LLM restructure requires API key for provider={provider}")
+    endpoint = config_value("HKS_LLM_PROVIDER_OPENAI_ENDPOINT") or "https://api.openai.com/v1"
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a document structure analyzer. Given a document's full text, "
+                "split it into 2-5 logical sections. Return JSON: "
+                '{"sections": [{"title": "...", "start_offset": N, "end_offset": N}]}'
+            ),
+        },
+        {"role": "user", "content": source_text[:8000]},
+    ]
+    result = _openai_chat(
+        api_key=api_key,
+        endpoint=endpoint,
+        model=model or "gpt-4o-mini",
+        messages=messages,
+        timeout=60,
+    )
+    sections = result.get("sections", [])
+    if not sections:
+        return _fake_restructure(tree, source_text)
+
+    nodes: list[TreeNode] = []
+    for index, section in enumerate(sections):
+        start = int(section.get("start_offset", 0))
+        end = int(section.get("end_offset", len(source_text)))
+        title = str(section.get("title", f"Section {index + 1}"))
+        text_slice = source_text[start:end]
+        summary = (
+            _llm_summarize(text_slice, title, provider, model)
+            if text_slice.strip()
+            else f"Summary of: {title}"
+        )
+        nodes.append(
+            TreeNode(
+                node_id=f"llm-n{index + 1}",
+                title=title,
+                level=1,
+                start_offset=start,
+                end_offset=end,
+                children=[],
+                summary=summary,
+            )
+        )
+
+    return PageTree(
+        source_relpath=tree.source_relpath,
+        source_format=tree.source_format,
+        doc_title=tree.doc_title,
+        root_nodes=nodes,
+        build_method="llm",
+        built_at=utc_now_iso(),
+        total_nodes=_count_nodes(nodes),
+        source_sha256=tree.source_sha256,
+    )
 
 
 def _llm_summarize(text: str, title: str, provider: str, model: str | None) -> str:
-    _ = (text, title, model)
-    raise NotImplementedError(f"LLM summarize not yet implemented for provider={provider}")
+    from hks.llm.providers import _openai_chat
+    from hks.core.config import config_value
+
+    api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
+    if not api_key:
+        raise ValueError(f"LLM summarize requires API key for provider={provider}")
+    endpoint = config_value("HKS_LLM_PROVIDER_OPENAI_ENDPOINT") or "https://api.openai.com/v1"
+
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "Summarize the following document section in one concise sentence. "
+                'Return JSON: {"summary": "..."}'
+            ),
+        },
+        {"role": "user", "content": f"Section: {title}\n\n{text[:4000]}"},
+    ]
+    result = _openai_chat(
+        api_key=api_key,
+        endpoint=endpoint,
+        model=model or "gpt-4o-mini",
+        messages=messages,
+        timeout=30,
+    )
+    return str(result.get("summary", f"Summary of: {title}"))
 
 
 def _count_nodes(nodes: list[TreeNode]) -> int:
