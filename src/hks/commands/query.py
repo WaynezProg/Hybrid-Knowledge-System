@@ -22,8 +22,6 @@ from hks.storage.wiki import LogEntry, WikiStore
 from hks.writeback.gate import WritebackFlag, decide
 from hks.writeback.writer import WritebackContext, commit
 
-type QueryHit = tuple[str, list[Route], float]
-
 
 @dataclass(slots=True)
 class Candidate:
@@ -216,7 +214,10 @@ def _collect_wiki_candidates(
         overview = wiki_store.overview()
         if overview and _has_wiki_secondary_intent(question):
             steps.append(
-                TraceStep(kind="wiki_lookup", detail={"slug": None, "hit": True, "mode": "overview"})
+                TraceStep(
+                    kind="wiki_lookup",
+                    detail={"slug": None, "hit": True, "mode": "overview"},
+                )
             )
             candidates.append(
                 Candidate(text=overview, source_route="wiki", score=0.7, metadata={})
@@ -342,8 +343,8 @@ def _llm_rerank(
     question: str,
     candidates: list[Candidate],
 ) -> list[Candidate]:
-    from hks.llm.providers import _openai_chat
     from hks.core.config import config_value
+    from hks.llm.providers import _openai_chat
 
     api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
     if not api_key:
@@ -416,154 +417,6 @@ def _rerank_candidates(
         return ranked, "llm-rerank"
     ranked = _rrf_rerank(candidates)
     return ranked, "rrf"
-
-
-def _try_wiki(
-    question: str,
-    *,
-    wiki_store: WikiStore,
-    steps: list[TraceStep],
-    require_secondary_intent: bool = False,
-) -> QueryHit | None:
-    if require_secondary_intent and not _has_wiki_secondary_intent(question):
-        steps.append(
-            TraceStep(
-                kind="wiki_lookup",
-                detail={"hit": False, "reason": "secondary-intent-miss"},
-            )
-        )
-        return None
-
-    page = wiki_store.search(question)
-    if page is not None:
-        steps.append(
-            TraceStep(
-                kind="wiki_lookup",
-                detail={"slug": page.slug, "hit": True, "source_relpath": page.source_relpath},
-            )
-        )
-        return (f"{page.title}: {page.summary}", ["wiki"], 1.0)
-
-    overview = wiki_store.overview()
-    if overview and _has_wiki_secondary_intent(question):
-        steps.append(
-            TraceStep(
-                kind="wiki_lookup",
-                detail={"slug": None, "hit": True, "mode": "overview"},
-            )
-        )
-        return (overview, ["wiki"], 1.0)
-
-    steps.append(TraceStep(kind="wiki_lookup", detail={"hit": False}))
-    return None
-
-
-def _try_graph(
-    question: str,
-    *,
-    graph_store: GraphStore,
-    steps: list[TraceStep],
-) -> QueryHit | None:
-    graph_result = answer_query(question, graph_store)
-    if graph_result is None:
-        steps.append(TraceStep(kind="graph_lookup", detail={"hit": False}))
-        return None
-
-    steps.append(
-        TraceStep(
-            kind="graph_lookup",
-            detail=_graph_trace_detail(
-                relpaths=graph_result.relpaths,
-                node_ids=graph_result.node_ids,
-                edge_ids=graph_result.edge_ids,
-                relations=graph_result.relations,
-            ),
-        )
-    )
-    return (graph_result.answer, ["graph"], graph_result.confidence)
-
-
-def _try_vector(
-    question: str,
-    *,
-    vector_store: VectorStore,
-    manifest: Manifest,
-    steps: list[TraceStep],
-) -> QueryHit | None:
-    candidate_limit = max(5, min(50, vector_store.count()))
-    hits = vector_store.search(question, top_k=candidate_limit)
-    top_similarity = hits[0].similarity if hits else 0.0
-    chosen_hit = _choose_vector_hit(question, hits)
-    if chosen_hit is not None:
-        steps.append(
-            TraceStep(
-                kind="vector_lookup",
-                detail=_vector_trace_detail(
-                    top_k=candidate_limit,
-                    top_similarity=top_similarity,
-                    chosen_hit=chosen_hit,
-                    manifest=manifest,
-                    tree_store=TreeStore(vector_store.paths),
-                ),
-            )
-        )
-        return (chosen_hit.text, ["vector"], chosen_hit.similarity)
-
-    steps.append(
-        TraceStep(
-            kind="vector_lookup",
-            detail=_vector_trace_detail(
-                top_k=candidate_limit,
-                top_similarity=top_similarity,
-                chosen_hit=None,
-                manifest=manifest,
-                tree_store=TreeStore(vector_store.paths),
-            ),
-        )
-    )
-    return None
-
-
-def _try_route(
-    target_route: Route,
-    question: str,
-    *,
-    wiki_store: WikiStore,
-    graph_store: GraphStore,
-    vector_store: VectorStore,
-    manifest: Manifest,
-    steps: list[TraceStep],
-    require_wiki_secondary_intent: bool = False,
-) -> QueryHit | None:
-    if target_route == "wiki":
-        return _try_wiki(
-            question,
-            wiki_store=wiki_store,
-            steps=steps,
-            require_secondary_intent=require_wiki_secondary_intent,
-        )
-    if target_route == "graph":
-        return _try_graph(question, graph_store=graph_store, steps=steps)
-    return _try_vector(question, vector_store=vector_store, manifest=manifest, steps=steps)
-
-
-def _secondary_fallback_route(primary: Route, secondary: Route | None) -> Route | None:
-    if secondary is None or secondary in {primary, "vector"}:
-        return None
-    return secondary
-
-
-def _append_fallback(steps: list[TraceStep], *, source_route: Route, target_route: Route) -> None:
-    steps.append(
-        TraceStep(
-            kind="fallback",
-            detail={
-                "from": source_route,
-                "to": target_route,
-                "reason": f"{source_route}-miss",
-            },
-        )
-    )
 
 
 def run(question: str, *, writeback: str = "auto") -> QueryResponse:

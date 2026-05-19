@@ -109,8 +109,8 @@ def _llm_restructure(
     provider: str,
     model: str | None,
 ) -> PageTree:
-    from hks.llm.providers import _openai_chat
     from hks.core.config import config_value
+    from hks.llm.providers import _openai_chat
 
     api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
     if not api_key:
@@ -175,8 +175,8 @@ def _llm_restructure(
 
 
 def _llm_summarize(text: str, title: str, provider: str, model: str | None) -> str:
-    from hks.llm.providers import _openai_chat
     from hks.core.config import config_value
+    from hks.llm.providers import _openai_chat
 
     api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
     if not api_key:

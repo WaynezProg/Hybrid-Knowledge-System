@@ -116,7 +116,12 @@ class OpenAIProvider:
 
         messages = [
             {"role": "system", "content": EXTRACTION_PROMPT_TEMPLATE},
-            {"role": "user", "content": build_prompt(source_relpath=request.source_relpath, content=content)},
+            {
+                "role": "user",
+                "content": build_prompt(
+                    source_relpath=request.source_relpath, content=content
+                ),
+            },
         ]
         return _openai_chat(
             api_key=self.api_key,
