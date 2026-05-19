@@ -13,6 +13,7 @@ from hks.graph.store import (
     make_edge_id,
     make_node_id,
 )
+from hks.page_tree.model import PageTree, TreeNode
 
 _RELATION_PATTERNS: tuple[tuple[RelationType, str], ...] = (
     ("impacts", r"(?P<left>.+?)(?:會|將|直接)?影響(?P<right>.+)"),
@@ -34,6 +35,7 @@ def extract_document_graph(
     title: str,
     body: str,
     wiki_slug: str,
+    page_tree: PageTree | None = None,
 ) -> GraphDocumentArtifacts:
     nodes: dict[str, GraphNode] = {}
     edges: dict[str, GraphEdge] = {}
@@ -45,7 +47,64 @@ def extract_document_graph(
         wiki_slug=wiki_slug,
     )
 
+    if page_tree is not None:
+        for tree_node in page_tree.flat_nodes():
+            section_node = _register_node(
+                nodes,
+                label=tree_node.title,
+                entity_type="Document",
+                relpath=relpath,
+            )
+            if section_node.id != document_node.id:
+                edge_id = make_edge_id(
+                    relation="belongs_to",
+                    source_id=section_node.id,
+                    target_id=document_node.id,
+                    source_relpath=relpath,
+                )
+                edges.setdefault(
+                    edge_id,
+                    GraphEdge(
+                        id=edge_id,
+                        relation="belongs_to",
+                        source=section_node.id,
+                        target=document_node.id,
+                        source_relpath=relpath,
+                        evidence=f"Section: {_section_path(page_tree, tree_node)}",
+                    ),
+                )
+            _extract_relations(
+                nodes=nodes,
+                edges=edges,
+                relpath=relpath,
+                document_node=document_node,
+                body=body[tree_node.start_offset : tree_node.end_offset],
+                evidence_prefix=f"Section: {_section_path(page_tree, tree_node)} | ",
+            )
+    else:
+        _extract_relations(
+            nodes=nodes,
+            edges=edges,
+            relpath=relpath,
+            document_node=document_node,
+            body=body,
+            evidence_prefix=None,
+        )
+
+    return GraphDocumentArtifacts(nodes=list(nodes.values()), edges=list(edges.values()))
+
+
+def _extract_relations(
+    *,
+    nodes: dict[str, GraphNode],
+    edges: dict[str, GraphEdge],
+    relpath: str,
+    document_node: GraphNode,
+    body: str,
+    evidence_prefix: str | None,
+) -> None:
     for sentence in _sentence_candidates(body):
+        evidence = f"{evidence_prefix}{sentence}" if evidence_prefix else sentence
         for relation, pattern in _RELATION_PATTERNS:
             match = re.search(pattern, sentence, flags=re.IGNORECASE)
             if match is None:
@@ -77,7 +136,7 @@ def extract_document_graph(
                     source=document_node.id,
                     target=source_node.id,
                     source_relpath=relpath,
-                    evidence=sentence,
+                    evidence=evidence,
                 ),
             )
             for target_label in _split_targets(match.group("right")):
@@ -102,7 +161,7 @@ def extract_document_graph(
                     source=source_node.id,
                     target=target_node.id,
                     source_relpath=relpath,
-                    evidence=sentence,
+                    evidence=evidence,
                 )
                 doc_edge_id = make_edge_id(
                     relation="references",
@@ -118,12 +177,10 @@ def extract_document_graph(
                         source=document_node.id,
                         target=target_node.id,
                         source_relpath=relpath,
-                        evidence=sentence,
+                        evidence=evidence,
                     ),
                 )
             break
-
-    return GraphDocumentArtifacts(nodes=list(nodes.values()), edges=list(edges.values()))
 
 
 def _sentence_candidates(body: str) -> list[str]:
@@ -178,6 +235,10 @@ def _infer_entity_type(label: str, *, default: EntityType) -> EntityType:
     if any(keyword in lowered for keyword in ("spec", "document", "analysis", "summary", "report")):
         return "Document"
     return default
+
+
+def _section_path(page_tree: PageTree, node: TreeNode) -> str:
+    return page_tree.section_path(node.node_id) or node.title
 
 
 def _register_node(

@@ -467,6 +467,7 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                     title=extracted.title,
                     body=normalized_text,
                     wiki_slug=page.slug,
+                    page_tree=page_tree,
                 )
                 graph_store.replace_document(relpath, graph_artifacts)
                 graph_node_ids = [node.id for node in graph_artifacts.nodes]
