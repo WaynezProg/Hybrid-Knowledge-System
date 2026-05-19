@@ -82,7 +82,7 @@ def extract_document_graph(
                 entity_type="Document",
                 relpath=relpath,
             )
-            if section_node.id != document_node.id:
+            if section_node.id != document_node.id and section_node.label != document_node.label:
                 edge_id = make_edge_id(
                     relation="belongs_to",
                     source_id=section_node.id,
@@ -293,7 +293,6 @@ def _clean_label(raw: str) -> str:
     cleaned = re.sub(r"^[#*\-\d.\s]+", "", cleaned)
     cleaned = re.sub(r"^[A-Za-z][A-Za-z ]{0,30}:\s*", "", cleaned)
     cleaned = re.sub(r"^(?:因為|由於|because)\s+", "", cleaned, flags=re.IGNORECASE)
-    cleaned = re.sub(r"^(?:and|or)\s+", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"^(?:但|但是|然而)\s*", "", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned)
     cleaned = cleaned.strip(" ,:：()[]{}\"'。；;.")
@@ -305,7 +304,11 @@ def _split_targets(raw: str) -> list[str]:
     if not value:
         return []
     parts = re.split(r"\s*(?:與|和|及|、| and |,)\s*", value, flags=re.IGNORECASE)
-    return [part for part in parts if part]
+    return [
+        re.sub(r"^(?:and|or)\s+", "", part.strip(), flags=re.IGNORECASE)
+        for part in parts
+        if part.strip()
+    ]
 
 
 def _infer_contextual_entity_type(

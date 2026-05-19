@@ -93,8 +93,11 @@ def test_document_title_section_does_not_create_self_belongs_to_edge() -> None:
         page_tree=tree,
     )
 
+    nodes = {node.id: node.label for node in result.nodes}
     assert not any(
-        edge.relation == "belongs_to" and edge.source == edge.target
+        edge.relation == "belongs_to"
+        and nodes[edge.source] == "Doc"
+        and nodes[edge.target] == "Doc"
         for edge in result.edges
     )
 

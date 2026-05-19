@@ -43,6 +43,12 @@ def test_nested_entity_names_remain_single_labels() -> None:
     )
 
 
+def test_leading_or_in_source_label_is_preserved() -> None:
+    result = _extract("Or Platform impacts Billing API.")
+
+    assert ("Or Platform", "Billing API") in _labels_for_relation(result, "impacts")
+
+
 def test_empty_body_only_creates_document_node() -> None:
     result = _extract("")
 

@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import NamedTuple
 
-import fitz
 import pytest
 from typer.testing import CliRunner
 
@@ -110,6 +109,8 @@ def _create_pdf_pages(
     *,
     toc: list[list[int | str]] | None = None,
 ) -> None:
+    import fitz
+
     doc = fitz.open()
     try:
         for blocks in pages:

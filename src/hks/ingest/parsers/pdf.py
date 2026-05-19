@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from collections import Counter
 from pathlib import Path
-
-import fitz
+from typing import TYPE_CHECKING
 
 from hks.core.config import config_value
 from hks.errors import ExitCode, KSError
 from hks.ingest.models import ParsedDocument
 from hks.ingest.office_common import Segment
+
+if TYPE_CHECKING:
+    import fitz
 
 
 def max_file_mb() -> int:
@@ -28,7 +30,7 @@ def parse(path: Path) -> ParsedDocument:
         )
 
     try:
-        doc = fitz.open(path)
+        doc = _open_pdf(path)
     except Exception as exc:
         raise _pdf_read_error(path, exc) from exc
 
@@ -47,6 +49,12 @@ def parse(path: Path) -> ParsedDocument:
         doc.close()
 
     return ParsedDocument(title=path.stem, body=body, format="pdf", segments=segments)
+
+
+def _open_pdf(path: Path) -> fitz.Document:
+    import fitz
+
+    return fitz.open(path)
 
 
 def _segments_from_toc(doc: fitz.Document, toc: list[list[object]]) -> list[Segment]:
