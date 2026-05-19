@@ -6,13 +6,17 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from slugify import slugify
 
 from hks.core.manifest import utc_now_iso
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.ingest.office_common import SkippedSegment
+
+if TYPE_CHECKING:
+    from hks.page_tree.model import PageTree
+    from hks.page_tree.store import TreeStore
 
 type Origin = Literal["ingest", "writeback", "llm_wiki"]
 type Route = Literal["wiki", "graph", "vector"]
@@ -307,33 +311,19 @@ class WikiStore:
             return []
         return [page for page in self.list_pages() if page.source_relpath in wanted]
 
-    def search(self, query: str) -> WikiPage | None:
+    def search(self, query: str, *, tree_store: TreeStore | None = None) -> WikiPage | None:
         pages = self.list_pages()
         if not pages:
             return None
 
         lowered_query = query.lower()
         terms = re.findall(r"[A-Za-z0-9\u4e00-\u9fff]{2,}", lowered_query)
+        tree_scores = self._tree_search_scores(lowered_query, terms, tree_store)
         best_score = 0
         best_page: WikiPage | None = None
         for page in pages:
-            title = page.title.lower()
-            summary = page.summary.lower()
-            body = page.body.lower()
-            score = 0
-            if lowered_query and lowered_query in title:
-                score += 8
-            if lowered_query and lowered_query in summary:
-                score += 6
-            if lowered_query and lowered_query in body:
-                score += 4
-            for term in terms:
-                if term in title:
-                    score += 4
-                if term in summary:
-                    score += 3
-                if term in body:
-                    score += 1
+            score = self._wiki_search_score(page, lowered_query, terms)
+            score += tree_scores.get(page.source_relpath, 0)
             if score > best_score:
                 best_score = score
                 best_page = page
@@ -344,3 +334,69 @@ class WikiStore:
         if any(keyword in query for keyword in ("摘要", "總結", "summary", "overview")):
             return pages[0]
         return None
+
+    def _wiki_search_score(self, page: WikiPage, lowered_query: str, terms: list[str]) -> int:
+        title = page.title.lower()
+        summary = page.summary.lower()
+        body = page.body.lower()
+        score = 0
+        if lowered_query and lowered_query in title:
+            score += 8
+        if lowered_query and lowered_query in summary:
+            score += 6
+        if lowered_query and lowered_query in body:
+            score += 4
+        for term in terms:
+            if term in title:
+                score += 4
+            if term in summary:
+                score += 3
+            if term in body:
+                score += 1
+        return score
+
+    def _tree_search_scores(
+        self,
+        lowered_query: str,
+        terms: list[str],
+        tree_store: TreeStore | None,
+    ) -> dict[str, int]:
+        if tree_store is None:
+            return {}
+
+        try:
+            slugs = tree_store.list_slugs()
+        except Exception:
+            return {}
+
+        scores: dict[str, int] = {}
+        for slug in slugs:
+            try:
+                tree = tree_store.load(slug)
+            except Exception:
+                continue
+            score = self._page_tree_search_score(tree, lowered_query, terms)
+            if score > 0:
+                scores[tree.source_relpath] = max(scores.get(tree.source_relpath, 0), score)
+        return scores
+
+    def _page_tree_search_score(
+        self,
+        tree: PageTree,
+        lowered_query: str,
+        terms: list[str],
+    ) -> int:
+        score = 0
+        for node in tree.flat_nodes():
+            title = node.title.lower()
+            summary = node.summary.lower()
+            if lowered_query and lowered_query in title:
+                score += 8
+            if lowered_query and lowered_query in summary:
+                score += 6
+            for term in terms:
+                if term in title:
+                    score += 4
+                if term in summary:
+                    score += 3
+        return score
