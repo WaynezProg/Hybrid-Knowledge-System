@@ -79,8 +79,7 @@ def test_query_graph_miss_uses_secondary_wiki(
         for step in payload["trace"]["steps"]
     )
     assert any(
-        step["kind"] == "fallback"
-        and step["detail"] == {"from": "graph", "to": "wiki", "reason": "graph-miss"}
+        step["kind"] == "merge"
         for step in payload["trace"]["steps"]
     )
 

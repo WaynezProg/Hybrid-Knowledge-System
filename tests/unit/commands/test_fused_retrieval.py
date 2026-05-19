@@ -120,3 +120,49 @@ class TestCollectVectorCandidates:
         )
 
         assert len(candidates) == 0
+
+
+from hks.commands.query import _rrf_rerank, _rerank_candidates
+
+
+class TestRRFRerank:
+    def test_ranks_by_reciprocal_fusion(self) -> None:
+        candidates = [
+            Candidate(text="wiki hit", source_route="wiki", score=1.0, metadata={}),
+            Candidate(text="vector hit", source_route="vector", score=0.9, metadata={}),
+            Candidate(text="graph hit", source_route="graph", score=0.7, metadata={}),
+        ]
+
+        ranked = _rrf_rerank(candidates)
+
+        assert len(ranked) == 3
+        assert ranked[0].score >= ranked[1].score >= ranked[2].score
+
+    def test_empty_candidates(self) -> None:
+        assert _rrf_rerank([]) == []
+
+    def test_single_candidate(self) -> None:
+        candidates = [
+            Candidate(text="only one", source_route="wiki", score=1.0, metadata={}),
+        ]
+
+        ranked = _rrf_rerank(candidates)
+
+        assert len(ranked) == 1
+        assert ranked[0].text == "only one"
+
+
+class TestRerankCandidates:
+    def test_uses_rrf_when_no_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        candidates = [
+            Candidate(text="a", source_route="wiki", score=1.0, metadata={}),
+            Candidate(text="b", source_route="vector", score=0.5, metadata={}),
+        ]
+
+        ranked, strategy = _rerank_candidates("question", candidates)
+
+        assert strategy == "rrf"
+        assert len(ranked) == 2
