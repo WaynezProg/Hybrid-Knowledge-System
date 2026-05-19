@@ -1783,11 +1783,11 @@ git commit -m "feat(page_tree): LLM tree enrichment with fake provider"
 - Modify: `src/hks/core/schema.py:16-33`
 - Test: `tests/integration/test_pageindex_cli.py`
 
-- [ ] **Step 1: Add `pageindex_summary` to TraceKind**
+- [x] **Step 1: Add `pageindex_summary` to TraceKind**
 
 In `src/hks/core/schema.py`, add `"pageindex_summary"` to the `TraceKind` literal type.
 
-- [ ] **Step 2: Create pageindex command module**
+- [x] **Step 2: Create pageindex command module**
 
 ```python
 # src/hks/commands/pageindex.py
@@ -1885,7 +1885,7 @@ def run_enrich(
     )
 ```
 
-- [ ] **Step 3: Register in cli.py**
+- [x] **Step 3: Register in cli.py**
 
 In `src/hks/cli.py`, add:
 ```python
@@ -1914,7 +1914,7 @@ def pageindex_enrich(
     typer.echo(result.to_json())
 ```
 
-- [ ] **Step 4: Write integration test**
+- [x] **Step 4: Write integration test**
 
 ```python
 # tests/integration/test_pageindex_cli.py
@@ -1985,12 +1985,12 @@ class TestPageindexEnrich:
         assert tree.build_method == "llm"
 ```
 
-- [ ] **Step 5: Run tests**
+- [x] **Step 5: Run tests**
 
 Run: `uv run pytest tests/integration/test_pageindex_cli.py -v`
 Expected: all PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/hks/commands/pageindex.py src/hks/cli.py src/hks/core/schema.py tests/integration/test_pageindex_cli.py
