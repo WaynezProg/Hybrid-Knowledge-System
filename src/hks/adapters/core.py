@@ -21,6 +21,8 @@ from hks.adapters.models import (
     FIX_MODES,
     GRAPHIFY_MODES,
     LLM_MODES,
+    PAGEINDEX_MODES,
+    PAGEINDEX_PROVIDERS,
     PPTX_NOTES_MODES,
     SEVERITY_THRESHOLDS,
     SOURCE_FORMATS,
@@ -33,6 +35,8 @@ from hks.adapters.models import (
     FixMode,
     GraphifyMode,
     LlmMode,
+    PageIndexMode,
+    PageIndexProvider,
     PptxNotesMode,
     SeverityThreshold,
     WatchMode,
@@ -45,6 +49,7 @@ from hks.commands import graphify as graphify_command
 from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
 from hks.commands import llm as llm_command
+from hks.commands import pageindex as pageindex_command
 from hks.commands import query as query_command
 from hks.commands import source as source_command
 from hks.commands import watch as watch_command
@@ -605,6 +610,50 @@ def hks_coord_status(
         agent_id=agent_id,
         resource_key=resource_key,
         include_stale=include_stale,
+        ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_pageindex_show(
+    *,
+    source_relpath: str,
+    ks_root: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    return _run_command(
+        pageindex_command.run_show,
+        source_relpath=source_relpath,
+        ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def hks_pageindex_enrich(
+    *,
+    source_relpath: str | None = None,
+    mode: str = "preview",
+    provider: str = "fake",
+    model: str | None = None,
+    force: bool = False,
+    ks_root: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    normalized_mode = cast(
+        PageIndexMode,
+        _require_choice(mode, PAGEINDEX_MODES, field="mode", request_id=request_id),
+    )
+    normalized_provider = cast(
+        PageIndexProvider,
+        _require_choice(provider, PAGEINDEX_PROVIDERS, field="provider", request_id=request_id),
+    )
+    return _run_command(
+        pageindex_command.run_enrich,
+        source_relpath=source_relpath,
+        mode=normalized_mode,
+        provider=normalized_provider,
+        model=model,
+        force=force,
         ks_root=ks_root,
         request_id=request_id,
     )

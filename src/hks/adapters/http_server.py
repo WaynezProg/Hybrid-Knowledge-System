@@ -82,6 +82,18 @@ async def lint_endpoint(request: Request) -> Response:
     return await _adapter_response(request, core.hks_lint)
 
 
+async def pageindex_show_endpoint(request: Request) -> Response:
+    return _response(
+        core.hks_pageindex_show,
+        source_relpath=request.path_params["relpath"],
+        ks_root=request.query_params.get("ks_root"),
+    )
+
+
+async def pageindex_enrich_endpoint(request: Request) -> Response:
+    return await _adapter_response(request, core.hks_pageindex_enrich)
+
+
 async def llm_classify_endpoint(request: Request) -> Response:
     return await _adapter_response(request, core.hks_llm_classify)
 
@@ -179,6 +191,8 @@ def create_app() -> Starlette:
             Route("/query", query_endpoint, methods=["POST"]),
             Route("/ingest", ingest_endpoint, methods=["POST"]),
             Route("/lint", lint_endpoint, methods=["POST"]),
+            Route("/pageindex/enrich", pageindex_enrich_endpoint, methods=["POST"]),
+            Route("/pageindex/{relpath:path}", pageindex_show_endpoint, methods=["GET"]),
             Route("/llm/classify", llm_classify_endpoint, methods=["POST"]),
             Route("/wiki/synthesize", wiki_synthesize_endpoint, methods=["POST"]),
             Route("/graphify/build", graphify_build_endpoint, methods=["POST"]),

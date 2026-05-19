@@ -4,14 +4,17 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping
 from json import JSONDecodeError
 from pathlib import Path
+from typing import Any, cast
 
 from hks.core.lock import file_lock
 from hks.core.manifest import load_manifest
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.errors import ExitCode, KSError
 from hks.graph.store import GraphPayload, GraphStore
+from hks.ingest.normalizer import normalize_text
 from hks.lint.checks import run_checks
 from hks.lint.fixer import apply_fixes, plan_fixes
 from hks.lint.models import (
@@ -22,6 +25,8 @@ from hks.lint.models import (
     SeverityThreshold,
     WikiPageRecord,
 )
+from hks.page_tree.model import PageTree
+from hks.page_tree.store import TreeStore
 from hks.storage.vector import VectorStore
 from hks.storage.wiki import WikiPage
 from hks.workspace.registry import load_registry, registry_path
@@ -79,7 +84,9 @@ def _build_snapshot(paths: RuntimePaths) -> RuntimeSnapshot:
         ) from exc
     try:
         graph = _load_graph(paths)
-        vector_ids = set(VectorStore(paths).list_ids())
+        vector_store = VectorStore(paths)
+        vector_ids = set(vector_store.list_ids())
+        vector_metadatas = _load_vector_metadatas(vector_store)
     except KSError:
         raise
     except Exception as exc:
@@ -114,6 +121,10 @@ def _build_snapshot(paths: RuntimePaths) -> RuntimeSnapshot:
         workspace_registry_errors=_load_workspace_registry_errors(),
         workspace_root_issues=_load_workspace_root_issues(),
         workspace_duplicate_roots=_load_workspace_duplicate_roots(),
+        page_tree_slugs=_page_tree_slugs(paths),
+        page_trees=_load_page_trees(paths),
+        source_text_by_relpath=_source_text_by_relpath(paths, manifest.entries),
+        vector_metadatas=vector_metadatas,
     )
 
 
@@ -155,6 +166,56 @@ def _raw_source_relpaths(paths: RuntimePaths) -> set[str]:
         path.relative_to(paths.raw_sources).as_posix()
         for path in paths.raw_sources.rglob("*")
         if path.is_file()
+    }
+
+
+def _page_tree_slugs(paths: RuntimePaths) -> set[str]:
+    if not paths.page_trees.exists():
+        return set()
+    return {path.stem for path in paths.page_trees.glob("*.json") if path.is_file()}
+
+
+def _load_page_trees(paths: RuntimePaths) -> dict[str, PageTree]:
+    if not paths.page_trees.exists():
+        return {}
+    store = TreeStore(paths)
+    trees: dict[str, PageTree] = {}
+    for slug in sorted(_page_tree_slugs(paths)):
+        try:
+            trees[slug] = store.load(slug)
+        except Exception:
+            continue
+    return trees
+
+
+def _source_text_by_relpath(
+    paths: RuntimePaths,
+    manifest_entries: Mapping[str, object],
+) -> dict[str, str]:
+    texts: dict[str, str] = {}
+    wiki_pages = _load_wiki_pages(paths)
+    for relpath in manifest_entries:
+        bodies = [
+            record.page.body
+            for record in wiki_pages.values()
+            if record.page.origin == "ingest" and record.page.source_relpath == relpath
+        ]
+        if bodies:
+            texts[relpath] = normalize_text("\n\n".join(bodies))
+            continue
+        raw_path = paths.raw_sources / relpath
+        if raw_path.suffix.lower() in {".txt", ".md"} and raw_path.exists():
+            texts[relpath] = normalize_text(raw_path.read_text(encoding="utf-8", errors="replace"))
+    return texts
+
+
+def _load_vector_metadatas(store: VectorStore) -> dict[str, dict[str, object]]:
+    result = cast(dict[str, Any], store.collection.get(include=["metadatas"]))
+    ids = [str(chunk_id) for chunk_id in result.get("ids", [])]
+    metadatas = result.get("metadatas") or []
+    return {
+        chunk_id: dict(metadata or {})
+        for chunk_id, metadata in zip(ids, metadatas, strict=False)
     }
 
 

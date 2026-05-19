@@ -15,6 +15,8 @@ type FixMode = Literal["none", "plan", "apply"]
 type LlmMode = Literal["preview", "store"]
 type WikiSynthesisMode = Literal["preview", "store", "apply"]
 type GraphifyMode = Literal["preview", "store"]
+type PageIndexMode = Literal["preview", "store"]
+type PageIndexProvider = Literal["fake", "openai"]
 type WatchMode = Literal["dry-run", "execute"]
 type WatchProfile = Literal["scan-only", "ingest-only", "derived-refresh", "wiki-apply", "full"]
 type SourceFormatFilter = Literal["txt", "md", "pdf", "docx", "xlsx", "pptx", "png", "jpg", "jpeg"]
@@ -26,6 +28,8 @@ FIX_MODES: frozenset[str] = frozenset(("none", "plan", "apply"))
 LLM_MODES: frozenset[str] = frozenset(("preview", "store"))
 WIKI_SYNTHESIS_MODES: frozenset[str] = frozenset(("preview", "store", "apply"))
 GRAPHIFY_MODES: frozenset[str] = frozenset(("preview", "store"))
+PAGEINDEX_MODES: frozenset[str] = frozenset(("preview", "store"))
+PAGEINDEX_PROVIDERS: frozenset[str] = frozenset(("fake", "openai"))
 WATCH_MODES: frozenset[str] = frozenset(("dry-run", "execute"))
 WATCH_PROFILES: frozenset[str] = frozenset(
     ("scan-only", "ingest-only", "derived-refresh", "wiki-apply", "full")

@@ -6,6 +6,7 @@ from hks.core.manifest import DerivedArtifacts, ManifestEntry
 from hks.graph.store import GraphEdge, GraphNode, GraphPayload
 from hks.lint.checks import run_checks
 from hks.lint.models import RuntimeSnapshot, WikiPageRecord
+from hks.page_tree.model import PageTree, TreeNode
 from hks.storage.wiki import WikiPage
 
 
@@ -16,6 +17,7 @@ def _entry(
     vector_ids: list[str] | None = None,
     graph_nodes: list[str] | None = None,
     graph_edges: list[str] | None = None,
+    page_tree: str | None = None,
     parser_fingerprint: str = "*",
 ) -> ManifestEntry:
     return ManifestEntry(
@@ -30,6 +32,7 @@ def _entry(
             vector_ids=vector_ids or [],
             graph_nodes=graph_nodes or [],
             graph_edges=graph_edges or [],
+            page_tree=page_tree,
         ),
     )
 
@@ -46,6 +49,28 @@ def _page(slug: str, source_relpath: str) -> WikiPageRecord:
             origin="ingest",
             updated_at="2026-04-26T00:00:00+00:00",
         ),
+    )
+
+
+def _tree(relpath: str, *, end_offset: int = 4) -> PageTree:
+    return PageTree(
+        source_relpath=relpath,
+        source_format="txt",
+        doc_title=relpath,
+        root_nodes=[
+            TreeNode(
+                node_id="n1",
+                title="Root",
+                level=1,
+                start_offset=0,
+                end_offset=end_offset,
+                children=[],
+            )
+        ],
+        build_method="rule",
+        built_at="2026-05-19T00:00:00+00:00",
+        total_nodes=1,
+        source_sha256="0" * 64,
     )
 
 
@@ -139,3 +164,56 @@ def test_run_checks_reports_core_category_set() -> None:
         "graph_drift",
         "fingerprint_drift",
     } <= categories
+
+
+@pytest.mark.unit
+def test_run_checks_reports_tree_missing_and_orphan() -> None:
+    snapshot = RuntimeSnapshot(
+        manifest_entries={"doc.txt": _entry("doc.txt", page_tree="missing-tree")},
+        raw_source_relpaths={"doc.txt"},
+        wiki_pages={},
+        wiki_index_slugs=[],
+        vector_ids=set(),
+        graph=GraphPayload(),
+        page_tree_slugs={"orphan-tree"},
+    )
+
+    by_category = {finding.category: finding for finding in run_checks(snapshot)}
+
+    assert by_category["tree_missing"].severity == "warning"
+    assert by_category["tree_missing"].target == "missing-tree"
+    assert by_category["tree_orphan"].severity == "warning"
+    assert by_category["tree_orphan"].target == "orphan-tree"
+
+
+@pytest.mark.unit
+def test_run_checks_reports_tree_offset_mismatch_and_chunk_gap() -> None:
+    snapshot = RuntimeSnapshot(
+        manifest_entries={
+            "doc.txt": _entry("doc.txt", vector_ids=["doc:0", "doc:1"], page_tree="doc")
+        },
+        raw_source_relpaths={"doc.txt"},
+        wiki_pages={},
+        wiki_index_slugs=[],
+        vector_ids={"doc:0", "doc:1"},
+        graph=GraphPayload(),
+        page_tree_slugs={"doc"},
+        page_trees={"doc": _tree("doc.txt", end_offset=50)},
+        source_text_by_relpath={"doc.txt": "tiny"},
+        vector_metadatas={
+            "doc:0": {"source_relpath": "doc.txt", "chunk_idx": 0},
+            "doc:1": {"source_relpath": "doc.txt", "chunk_idx": 1, "tree_node_id": "missing"},
+        },
+    )
+
+    findings = run_checks(snapshot)
+    by_category = {finding.category: finding for finding in findings}
+
+    assert by_category["tree_offset_mismatch"].severity == "info"
+    assert by_category["tree_offset_mismatch"].target == "doc:n1"
+    gap_targets = {
+        finding.target
+        for finding in findings
+        if finding.category == "tree_node_chunk_gap"
+    }
+    assert gap_targets == {"doc:0", "doc:1"}

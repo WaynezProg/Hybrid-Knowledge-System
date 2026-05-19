@@ -21,6 +21,7 @@ from hks.ingest.fingerprint import (
     compute_parser_fingerprint,
 )
 from hks.lint.models import Finding, FindingCategory, RuntimeSnapshot
+from hks.page_tree.model import PageTree
 
 
 def run_checks(snapshot: RuntimeSnapshot) -> list[Finding]:
@@ -35,6 +36,7 @@ def run_checks(snapshot: RuntimeSnapshot) -> list[Finding]:
     findings.extend(check_graphify(snapshot))
     findings.extend(check_watch(snapshot))
     findings.extend(check_workspace_registry(snapshot))
+    findings.extend(check_page_trees(snapshot))
     return sorted(
         findings,
         key=lambda finding: (finding.category, finding.target, finding.message),
@@ -487,3 +489,147 @@ def check_workspace_registry(snapshot: RuntimeSnapshot) -> list[Finding]:
             )
         )
     return findings
+
+
+def check_page_trees(snapshot: RuntimeSnapshot) -> list[Finding]:
+    findings: list[Finding] = []
+    referenced = {
+        entry.derived.page_tree
+        for entry in snapshot.manifest_entries.values()
+        if entry.derived.page_tree is not None
+    }
+
+    for relpath, entry in sorted(snapshot.manifest_entries.items()):
+        tree_slug = entry.derived.page_tree
+        if tree_slug is None:
+            continue
+        if tree_slug not in snapshot.page_tree_slugs:
+            findings.append(
+                Finding.make(
+                    "tree_missing",
+                    tree_slug,
+                    f"manifest entry `{relpath}` references missing page tree `{tree_slug}`",
+                    details={"relpath": relpath},
+                )
+            )
+
+    for slug in sorted(snapshot.page_tree_slugs - referenced):
+        findings.append(
+            Finding.make(
+                "tree_orphan",
+                slug,
+                f"page tree `{slug}` exists but no manifest entry references it",
+            )
+        )
+
+    for relpath, entry in sorted(snapshot.manifest_entries.items()):
+        tree_slug = entry.derived.page_tree
+        if tree_slug is None:
+            continue
+        tree = snapshot.page_trees.get(tree_slug)
+        if tree is None:
+            continue
+        findings.extend(_tree_offset_findings(snapshot, relpath, tree_slug, tree))
+        findings.extend(_tree_chunk_gap_findings(snapshot, relpath, entry.derived.vector_ids, tree))
+
+    return findings
+
+
+def _tree_offset_findings(
+    snapshot: RuntimeSnapshot,
+    relpath: str,
+    tree_slug: str,
+    tree: PageTree,
+) -> list[Finding]:
+    source_text = snapshot.source_text_by_relpath.get(relpath)
+    if source_text is None:
+        return []
+    text_len = len(source_text)
+    findings: list[Finding] = []
+    for node in tree.flat_nodes():
+        if node.end_offset > text_len:
+            findings.append(
+                Finding.make(
+                    "tree_offset_mismatch",
+                    f"{tree_slug}:{node.node_id}",
+                    (
+                        f"page tree node `{node.node_id}` end_offset exceeds "
+                        f"normalized text length for `{relpath}`"
+                    ),
+                    details={
+                        "relpath": relpath,
+                        "tree_slug": tree_slug,
+                        "node_id": node.node_id,
+                        "end_offset": node.end_offset,
+                        "normalized_text_length": text_len,
+                    },
+                )
+            )
+    return findings
+
+
+def _tree_chunk_gap_findings(
+    snapshot: RuntimeSnapshot,
+    relpath: str,
+    vector_ids: list[str],
+    tree: PageTree,
+) -> list[Finding]:
+    node_ids = {node.node_id for node in tree.flat_nodes()}
+    findings: list[Finding] = []
+    for vector_id in vector_ids:
+        metadata = snapshot.vector_metadatas.get(vector_id)
+        if metadata is None:
+            continue
+        if str(metadata.get("source_relpath", "")) != relpath:
+            continue
+        tree_node_id = metadata.get("tree_node_id")
+        if not isinstance(tree_node_id, str) or not tree_node_id:
+            findings.append(
+                Finding.make(
+                    "tree_node_chunk_gap",
+                    vector_id,
+                    f"vector chunk `{vector_id}` has no matching page tree node metadata",
+                    details={"relpath": relpath, "reason": "missing_tree_node_id"},
+                )
+            )
+            continue
+        if tree_node_id not in node_ids:
+            findings.append(
+                Finding.make(
+                    "tree_node_chunk_gap",
+                    vector_id,
+                    (
+                        f"vector chunk `{vector_id}` references missing "
+                        f"page tree node `{tree_node_id}`"
+                    ),
+                    details={
+                        "relpath": relpath,
+                        "tree_node_id": tree_node_id,
+                        "reason": "unknown_tree_node_id",
+                    },
+                )
+            )
+            continue
+        offset = _metadata_offset(metadata)
+        if offset is not None and tree.find_node_for_offset(offset) is None:
+            findings.append(
+                Finding.make(
+                    "tree_node_chunk_gap",
+                    vector_id,
+                    f"vector chunk `{vector_id}` offset does not fall inside a page tree node",
+                    details={"relpath": relpath, "offset": offset, "reason": "offset_gap"},
+                )
+            )
+    return findings
+
+
+def _metadata_offset(metadata: dict[str, object]) -> int | None:
+    for key in ("start_offset", "chunk_start_offset", "chunk_offset", "offset"):
+        value = metadata.get(key)
+        if isinstance(value, int):
+            return value
+        if isinstance(value, float) and value.is_integer():
+            return int(value)
+        if isinstance(value, str) and value.isdigit():
+            return int(value)
+    return None

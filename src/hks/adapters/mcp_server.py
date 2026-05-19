@@ -76,6 +76,39 @@ def create_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
+    def hks_pageindex_show(
+        source_relpath: str,
+        ks_root: str | None = None,
+    ) -> Any:
+        """Show the page tree for a specific source."""
+        try:
+            return core.hks_pageindex_show(source_relpath=source_relpath, ks_root=ks_root)
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_pageindex_enrich(
+        source_relpath: str | None = None,
+        mode: str = "preview",
+        provider: str = "fake",
+        model: str | None = None,
+        force: bool = False,
+        ks_root: str | None = None,
+    ) -> Any:
+        """Enrich page trees with LLM summaries."""
+        try:
+            return core.hks_pageindex_enrich(
+                source_relpath=source_relpath,
+                mode=mode,
+                provider=provider,
+                model=model,
+                force=force,
+                ks_root=ks_root,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
     def hks_llm_classify(
         source_relpath: str,
         mode: str = "preview",
