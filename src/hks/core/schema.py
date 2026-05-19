@@ -30,6 +30,7 @@ type TraceKind = Literal[
     "graphify_summary",
     "watch_summary",
     "catalog_summary",
+    "pageindex_summary",
 ]
 
 

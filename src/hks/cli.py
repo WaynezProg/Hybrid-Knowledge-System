@@ -16,6 +16,7 @@ from hks.commands import graphify as graphify_command
 from hks.commands import ingest as ingest_command
 from hks.commands import lint as lint_command
 from hks.commands import llm as llm_command
+from hks.commands import pageindex as pageindex_command
 from hks.commands import query as query_command
 from hks.commands import source as source_command
 from hks.commands import watch as watch_command
@@ -35,6 +36,7 @@ llm_app = typer.Typer(add_completion=False, no_args_is_help=True)
 wiki_app = typer.Typer(add_completion=False, no_args_is_help=True)
 graphify_app = typer.Typer(add_completion=False, no_args_is_help=True)
 watch_app = typer.Typer(add_completion=False, no_args_is_help=True)
+pageindex_app = typer.Typer(add_completion=False, no_args_is_help=True)
 source_app = typer.Typer(add_completion=False, no_args_is_help=True)
 workspace_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_session_app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -48,6 +50,7 @@ app.add_typer(llm_app, name="llm")
 app.add_typer(wiki_app, name="wiki")
 app.add_typer(graphify_app, name="graphify")
 app.add_typer(watch_app, name="watch")
+app.add_typer(pageindex_app, name="pageindex")
 app.add_typer(source_app, name="source")
 app.add_typer(workspace_app, name="workspace")
 
@@ -83,6 +86,11 @@ class GraphifyMode(StrEnum):
 class WatchMode(StrEnum):
     dry_run = "dry-run"
     execute = "execute"
+
+
+class PageindexMode(StrEnum):
+    preview = "preview"
+    store = "store"
 
 
 class WatchProfile(StrEnum):
@@ -584,6 +592,41 @@ def watch_run(
 @watch_app.command("status")
 def watch_status() -> None:
     run_command("watch status", watch_command.run_status)
+
+
+@pageindex_app.command("show")
+def pageindex_show(
+    source_relpath: Annotated[str, typer.Argument(help="Ingested source relpath.")],
+) -> None:
+    run_command("pageindex show", pageindex_command.run_show, source_relpath=source_relpath)
+
+
+@pageindex_app.command("enrich")
+def pageindex_enrich(
+    source_relpath: Annotated[
+        str | None,
+        typer.Option("--source-relpath", help="Ingested source relpath. Omit to enrich all."),
+    ] = None,
+    mode: Annotated[
+        PageindexMode,
+        typer.Option("--mode", case_sensitive=False, help="Enrichment mode."),
+    ] = PageindexMode.preview,
+    provider: Annotated[str, typer.Option("--provider", help="LLM provider id.")] = "fake",
+    model: Annotated[str | None, typer.Option("--model", help="Provider model id.")] = None,
+    force: Annotated[
+        bool,
+        typer.Option("--force", help="Re-enrich trees already built by llm."),
+    ] = False,
+) -> None:
+    run_command(
+        "pageindex enrich",
+        pageindex_command.run_enrich,
+        source_relpath=source_relpath,
+        mode=mode.value,
+        provider=provider,
+        model=model,
+        force=force,
+    )
 
 
 @app.command(
