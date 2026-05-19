@@ -2007,7 +2007,7 @@ git commit -m "feat(cli): add ks pageindex show|enrich commands"
 - Modify: `src/hks/adapters/mcp_server.py`
 - Modify: `src/hks/adapters/http_server.py`
 
-- [ ] **Step 1: Add tree lint rules**
+- [x] **Step 1: Add tree lint rules**
 
 Find the lint rules registration in `src/hks/lint/`. Add four new rules:
 
@@ -2018,7 +2018,7 @@ Find the lint rules registration in `src/hks/lint/`. Add four new rules:
 
 Follow the existing lint rule pattern exactly.
 
-- [ ] **Step 2: Add adapter functions in core.py**
+- [x] **Step 2: Add adapter functions in core.py**
 
 In `src/hks/adapters/core.py`, add:
 
@@ -2058,7 +2058,7 @@ def hks_pageindex_enrich(
     )
 ```
 
-- [ ] **Step 3: Register MCP tools in mcp_server.py**
+- [x] **Step 3: Register MCP tools in mcp_server.py**
 
 ```python
 @server.tool()
@@ -2091,16 +2091,16 @@ def hks_pageindex_enrich(
         return _error_result(error)
 ```
 
-- [ ] **Step 4: Add HTTP routes in http_server.py**
+- [x] **Step 4: Add HTTP routes in http_server.py**
 
 Follow existing route pattern to add `GET /pageindex/{relpath}` and `POST /pageindex/enrich`.
 
-- [ ] **Step 5: Run lint and adapter tests**
+- [x] **Step 5: Run lint and adapter tests**
 
 Run: `uv run pytest tests/ -k "lint or mcp or http" -v`
 Expected: all PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/hks/lint/ src/hks/adapters/core.py src/hks/adapters/mcp_server.py src/hks/adapters/http_server.py
