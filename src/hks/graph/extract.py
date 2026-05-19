@@ -49,8 +49,9 @@ def extract_document_graph(
 
     if page_tree is not None:
         for tree_node in page_tree.flat_nodes():
-            section_node = _register_node(
+            section_node = _register_section_node(
                 nodes,
+                tree_node=tree_node,
                 label=tree_node.title,
                 entity_type="Document",
                 relpath=relpath,
@@ -73,14 +74,15 @@ def extract_document_graph(
                         evidence=f"Section: {_section_path(page_tree, tree_node)}",
                     ),
                 )
-            _extract_relations(
-                nodes=nodes,
-                edges=edges,
-                relpath=relpath,
-                document_node=document_node,
-                body=body[tree_node.start_offset : tree_node.end_offset],
-                evidence_prefix=f"Section: {_section_path(page_tree, tree_node)} | ",
-            )
+            for start, end in _non_child_ranges(tree_node, body_len=len(body)):
+                _extract_relations(
+                    nodes=nodes,
+                    edges=edges,
+                    relpath=relpath,
+                    document_node=document_node,
+                    body=body[start:end],
+                    evidence_prefix=f"Section: {_section_path(page_tree, tree_node)} | ",
+                )
     else:
         _extract_relations(
             nodes=nodes,
@@ -239,6 +241,57 @@ def _infer_entity_type(label: str, *, default: EntityType) -> EntityType:
 
 def _section_path(page_tree: PageTree, node: TreeNode) -> str:
     return page_tree.section_path(node.node_id) or node.title
+
+
+def _non_child_ranges(node: TreeNode, *, body_len: int) -> list[tuple[int, int]]:
+    start = _clamp_offset(node.start_offset, body_len)
+    end = _clamp_offset(node.end_offset, body_len)
+    if start >= end:
+        return []
+
+    ranges: list[tuple[int, int]] = []
+    cursor = start
+    for child in sorted(node.children, key=lambda item: item.start_offset):
+        child_start = _clamp_offset(child.start_offset, body_len)
+        child_end = _clamp_offset(child.end_offset, body_len)
+        if child_end <= cursor or child_start >= end:
+            continue
+        if cursor < child_start:
+            ranges.append((cursor, min(child_start, end)))
+        cursor = max(cursor, min(child_end, end))
+    if cursor < end:
+        ranges.append((cursor, end))
+    return ranges
+
+
+def _clamp_offset(offset: int, body_len: int) -> int:
+    return max(0, min(offset, body_len))
+
+
+def _register_section_node(
+    nodes: dict[str, GraphNode],
+    *,
+    tree_node: TreeNode,
+    label: str,
+    entity_type: EntityType,
+    relpath: str,
+) -> GraphNode:
+    scoped_label = f"{relpath}#{tree_node.node_id}#{label}"
+    node = GraphNode(
+        id=make_node_id(entity_type, scoped_label),
+        type=entity_type,
+        label=label,
+        aliases=[label],
+        source_relpaths=[relpath],
+        wiki_slugs=[],
+    )
+    existing = nodes.get(node.id)
+    if existing is None:
+        nodes[node.id] = node
+        return node
+    existing.aliases = sorted(set(existing.aliases) | {label})
+    existing.source_relpaths = sorted(set(existing.source_relpaths) | {relpath})
+    return existing
 
 
 def _register_node(
