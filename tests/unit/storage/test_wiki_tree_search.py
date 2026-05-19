@@ -134,3 +134,51 @@ class TestTreeAssistedSearch:
 
         assert result is not None
         assert result.title == "Finance Report"
+
+    def test_tree_match_limits_wiki_scoring_to_matched_sources(self, tmp_path: Path) -> None:
+        paths = runtime_paths(tmp_path / "ks")
+        wiki_store = WikiStore(paths)
+        tree_store = TreeStore(paths)
+
+        wiki_store.write_page(
+            title="Revenue Breakdown Revenue Breakdown",
+            summary="Revenue breakdown revenue breakdown revenue breakdown",
+            body="Revenue breakdown revenue breakdown revenue breakdown",
+            source_relpath="generic.pdf",
+            origin="ingest",
+        )
+        wiki_store.write_page(
+            title="Finance Report",
+            summary="Quarterly results",
+            body="Operating margin notes.",
+            source_relpath="finance.pdf",
+            origin="ingest",
+        )
+        tree_store.save(
+            "finance.pdf",
+            PageTree(
+                source_relpath="finance.pdf",
+                source_format="pdf",
+                doc_title="Finance Report",
+                root_nodes=[
+                    TreeNode(
+                        node_id="n1",
+                        title="Revenue Breakdown",
+                        level=1,
+                        start_offset=0,
+                        end_offset=100,
+                        children=[],
+                        summary="Tree-level revenue breakdown.",
+                    )
+                ],
+                build_method="rule",
+                built_at="2026-05-19T00:00:00Z",
+                total_nodes=1,
+                source_sha256="x",
+            ),
+        )
+
+        result = wiki_store.search("revenue breakdown", tree_store=tree_store)
+
+        assert result is not None
+        assert result.source_relpath == "finance.pdf"

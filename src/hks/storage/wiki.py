@@ -319,9 +319,15 @@ class WikiStore:
         lowered_query = query.lower()
         terms = re.findall(r"[A-Za-z0-9\u4e00-\u9fff]{2,}", lowered_query)
         tree_scores = self._tree_search_scores(lowered_query, terms, tree_store)
+        candidate_pages = pages
+        if tree_scores:
+            matched_relpaths = set(tree_scores)
+            candidate_pages = [
+                page for page in pages if page.source_relpath in matched_relpaths
+            ]
         best_score = 0
         best_page: WikiPage | None = None
-        for page in pages:
+        for page in candidate_pages:
             score = self._wiki_search_score(page, lowered_query, terms)
             score += tree_scores.get(page.source_relpath, 0)
             if score > best_score:
