@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+
 from hks.core.manifest import utc_now_iso
 from hks.page_tree.model import PageTree, TreeNode
 
@@ -60,7 +62,7 @@ def _fill_summaries(
                 end_offset=node.end_offset,
                 children=_fill_summaries(node.children, source_text, provider, model),
                 summary=summary,
-                metadata=dict(node.metadata),
+                metadata=copy.deepcopy(node.metadata),
             )
         )
     return enriched

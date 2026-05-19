@@ -98,6 +98,46 @@ class TestEnrichTree:
         assert tree.root_nodes[0].metadata["kind"] == "chapter"
         assert enriched.root_nodes[0].metadata["kind"] == "changed"
 
+    def test_fake_provider_deep_copies_nested_metadata(self) -> None:
+        tree = PageTree(
+            source_relpath="doc.md",
+            source_format="md",
+            doc_title="Doc",
+            root_nodes=[
+                TreeNode(
+                    node_id="n1",
+                    title="Chapter",
+                    level=1,
+                    start_offset=0,
+                    end_offset=10,
+                    children=[
+                        TreeNode(
+                            node_id="n1.1",
+                            title="Section",
+                            level=2,
+                            start_offset=0,
+                            end_offset=5,
+                            children=[],
+                        )
+                    ],
+                    metadata={"labels": ["original"], "nested": {"kind": "chapter"}},
+                )
+            ],
+            build_method="rule",
+            built_at="2026-05-19T00:00:00Z",
+            total_nodes=2,
+            source_sha256="abc",
+        )
+
+        enriched = enrich_tree(tree, "x" * 10, provider="fake", force=True)
+        enriched.root_nodes[0].metadata["labels"].append("changed")
+        enriched.root_nodes[0].metadata["nested"]["kind"] = "changed"
+
+        assert tree.root_nodes[0].metadata == {
+            "labels": ["original"],
+            "nested": {"kind": "chapter"},
+        }
+
     def test_degenerate_tree_restructured(self) -> None:
         tree = _degenerate_tree()
 
