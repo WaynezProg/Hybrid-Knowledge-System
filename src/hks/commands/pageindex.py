@@ -5,8 +5,11 @@ from __future__ import annotations
 from hks.core.manifest import resume_or_rebuild
 from hks.core.paths import runtime_paths
 from hks.core.schema import QueryResponse, Route, Trace, TraceStep
+from hks.errors import ExitCode, KSError
 from hks.page_tree.enrich import enrich_tree
 from hks.page_tree.store import TreeStore
+
+PAGEINDEX_ENRICH_MODES = {"preview", "store"}
 
 
 def _summary_response(
@@ -63,6 +66,14 @@ def run_enrich(
     model: str | None = None,
     force: bool = False,
 ) -> QueryResponse:
+    if mode not in PAGEINDEX_ENRICH_MODES:
+        raise KSError(
+            f"invalid mode: {mode}",
+            exit_code=ExitCode.USAGE,
+            code="USAGE",
+            hint="mode must be one of: preview, store",
+        )
+
     paths = runtime_paths()
     store = TreeStore(paths)
     manifest = resume_or_rebuild(paths)

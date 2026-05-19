@@ -14,6 +14,7 @@ from hks.cli import app
 from hks.core.manifest import load_manifest
 from hks.core.paths import runtime_paths
 from hks.core.schema import validate
+from hks.errors import ExitCode, KSError
 from hks.ingest.pipeline import ingest
 from hks.page_tree.store import TreeStore
 
@@ -115,6 +116,20 @@ def test_run_enrich_missing_target_counts_skipped(tmp_path: Path) -> None:
     assert detail["enriched"] == 0
     assert detail["skipped"] == 1
     assert detail["targets"] == ["missing.md"]
+
+
+@pytest.mark.integration
+def test_run_enrich_invalid_mode_is_usage_error_without_mutation(tmp_path: Path) -> None:
+    ingest(_write_source(tmp_path))
+
+    from hks.commands.pageindex import run_enrich
+
+    before = _tree_for("doc.md").to_dict()
+    with pytest.raises(KSError) as exc_info:
+        run_enrich(source_relpath="doc.md", mode="bogus", provider="fake")
+
+    assert exc_info.value.exit_code == ExitCode.USAGE
+    assert _tree_for("doc.md").to_dict() == before
 
 
 @pytest.mark.integration
