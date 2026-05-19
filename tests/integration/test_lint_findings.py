@@ -118,3 +118,43 @@ def test_lint_graph_corruption_returns_general(cli_runner, working_docs, tmp_ks_
     assert result.stderr.splitlines()[0].startswith("[ks:lint] error:")
     payload = json.loads(result.stdout)
     assert payload["trace"]["steps"][0]["kind"] == "error"
+
+
+@pytest.mark.integration
+def test_lint_does_not_report_tree_chunk_gap_for_markdown_preamble(
+    cli_runner,
+    tmp_path: Path,
+) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "preamble.md").write_text(
+        "Opening preamble before any heading.\n\n"
+        "## First Section\n\n"
+        "Section body belongs to the first heading.\n",
+        encoding="utf-8",
+    )
+    _ingest(cli_runner, docs)
+
+    payload = _lint(cli_runner, "--severity-threshold", "info")
+    categories = {finding["category"] for finding in _findings(payload)}
+
+    assert "tree_node_chunk_gap" not in categories
+
+
+@pytest.mark.integration
+def test_lint_reports_corrupt_page_tree(cli_runner, working_docs, tmp_ks_root: Path) -> None:
+    _ingest(cli_runner, working_docs)
+    paths = runtime_paths(tmp_ks_root)
+    manifest = load_manifest(paths.manifest)
+    tree_slug = next(
+        entry.derived.page_tree
+        for entry in manifest.entries.values()
+        if entry.derived.page_tree is not None
+    )
+    assert tree_slug is not None
+    (paths.page_trees / f"{tree_slug}.json").write_text("{not json", encoding="utf-8")
+
+    payload = _lint(cli_runner)
+    by_category = {finding["category"]: finding for finding in _findings(payload)}
+
+    assert by_category["tree_corrupt"]["severity"] == "error"

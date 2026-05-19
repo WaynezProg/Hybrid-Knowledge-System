@@ -15,6 +15,8 @@ def test_http_openapi_contract_has_expected_paths_and_schemas() -> None:
         "/query",
         "/ingest",
         "/lint",
+        "/pageindex/{relpath}",
+        "/pageindex/enrich",
         "/coord/session",
         "/coord/lease",
         "/coord/handoff",
@@ -22,7 +24,8 @@ def test_http_openapi_contract_has_expected_paths_and_schemas() -> None:
     }
 
     for path in spec["paths"]:
-        operation = spec["paths"][path]["post"]
+        method = "get" if path == "/pageindex/{relpath}" else "post"
+        operation = spec["paths"][path][method]
         assert "200" in operation["responses"]
         assert "400" in operation["responses"]
         assert "500" in operation["responses"]
@@ -32,6 +35,8 @@ def test_http_openapi_contract_has_expected_paths_and_schemas() -> None:
         "HksQueryInput",
         "HksIngestInput",
         "HksLintInput",
+        "HksPageIndexShowInput",
+        "HksPageIndexEnrichInput",
         "HksCoordSessionInput",
         "HksCoordLeaseInput",
         "HksCoordHandoffInput",

@@ -16,16 +16,31 @@
   "properties": {
     "findings": {
       "type": "array",
-      "items": { "$ref": "#/$defs/finding" }
+      "items": {
+        "$ref": "#/$defs/finding"
+      }
     },
     "severity_counts": {
       "type": "object",
-      "required": ["error", "warning", "info"],
+      "required": [
+        "error",
+        "warning",
+        "info"
+      ],
       "additionalProperties": false,
       "properties": {
-        "error": { "type": "integer", "minimum": 0 },
-        "warning": { "type": "integer", "minimum": 0 },
-        "info": { "type": "integer", "minimum": 0 }
+        "error": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warning": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "info": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "category_counts": {
@@ -64,21 +79,32 @@
           "workspace_registry_corrupt",
           "workspace_registry_invalid",
           "workspace_root_missing",
-          "workspace_duplicate_root"
+          "workspace_duplicate_root",
+          "tree_missing",
+          "tree_orphan",
+          "tree_offset_mismatch",
+          "tree_node_chunk_gap",
+          "tree_corrupt"
         ]
       }
     },
     "fixes_planned": {
       "type": "array",
-      "items": { "$ref": "#/$defs/fixAction" }
+      "items": {
+        "$ref": "#/$defs/fixAction"
+      }
     },
     "fixes_applied": {
       "type": "array",
-      "items": { "$ref": "#/$defs/fixAction" }
+      "items": {
+        "$ref": "#/$defs/fixAction"
+      }
     },
     "fixes_skipped": {
       "type": "array",
-      "items": { "$ref": "#/$defs/fixSkip" }
+      "items": {
+        "$ref": "#/$defs/fixSkip"
+      }
     }
   },
   "$defs": {
@@ -113,20 +139,38 @@
         "workspace_registry_corrupt",
         "workspace_registry_invalid",
         "workspace_root_missing",
-        "workspace_duplicate_root"
+        "workspace_duplicate_root",
+        "tree_missing",
+        "tree_orphan",
+        "tree_offset_mismatch",
+        "tree_node_chunk_gap",
+        "tree_corrupt"
       ]
     },
     "severity": {
       "type": "string",
-      "enum": ["error", "warning", "info"]
+      "enum": [
+        "error",
+        "warning",
+        "info"
+      ]
     },
     "finding": {
       "type": "object",
-      "required": ["category", "severity", "target", "message"],
+      "required": [
+        "category",
+        "severity",
+        "target",
+        "message"
+      ],
       "additionalProperties": false,
       "properties": {
-        "category": { "$ref": "#/$defs/category" },
-        "severity": { "$ref": "#/$defs/severity" },
+        "category": {
+          "$ref": "#/$defs/category"
+        },
+        "severity": {
+          "$ref": "#/$defs/severity"
+        },
         "target": {
           "type": "string",
           "minLength": 1
@@ -144,7 +188,11 @@
     },
     "fixAction": {
       "type": "object",
-      "required": ["action", "target", "outcome"],
+      "required": [
+        "action",
+        "target",
+        "outcome"
+      ],
       "additionalProperties": false,
       "properties": {
         "action": {
@@ -162,7 +210,11 @@
         },
         "outcome": {
           "type": "string",
-          "enum": ["planned", "success", "apply_failed"]
+          "enum": [
+            "planned",
+            "success",
+            "apply_failed"
+          ]
         },
         "details": {
           "type": "object",
@@ -172,10 +224,16 @@
     },
     "fixSkip": {
       "type": "object",
-      "required": ["category", "reason", "message"],
+      "required": [
+        "category",
+        "reason",
+        "message"
+      ],
       "additionalProperties": false,
       "properties": {
-        "category": { "$ref": "#/$defs/category" },
+        "category": {
+          "$ref": "#/$defs/category"
+        },
         "reason": {
           "type": "string",
           "enum": [

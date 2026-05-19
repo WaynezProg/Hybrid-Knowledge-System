@@ -123,6 +123,7 @@ def _build_snapshot(paths: RuntimePaths) -> RuntimeSnapshot:
         workspace_duplicate_roots=_load_workspace_duplicate_roots(),
         page_tree_slugs=_page_tree_slugs(paths),
         page_trees=_load_page_trees(paths),
+        page_tree_errors=_load_page_tree_errors(paths),
         source_text_by_relpath=_source_text_by_relpath(paths, manifest.entries),
         vector_metadatas=vector_metadatas,
     )
@@ -186,6 +187,19 @@ def _load_page_trees(paths: RuntimePaths) -> dict[str, PageTree]:
         except Exception:
             continue
     return trees
+
+
+def _load_page_tree_errors(paths: RuntimePaths) -> dict[str, str]:
+    if not paths.page_trees.exists():
+        return {}
+    store = TreeStore(paths)
+    errors: dict[str, str] = {}
+    for slug in sorted(_page_tree_slugs(paths)):
+        try:
+            store.load(slug)
+        except Exception as exc:
+            errors[slug] = str(exc)
+    return errors
 
 
 def _source_text_by_relpath(

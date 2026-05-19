@@ -45,6 +45,7 @@ type FindingCategory = Literal[
     "tree_orphan",
     "tree_offset_mismatch",
     "tree_node_chunk_gap",
+    "tree_corrupt",
 ]
 type FixActionKind = Literal[
     "rebuild_index",
@@ -96,6 +97,7 @@ FINDING_SEVERITY: dict[FindingCategory, Severity] = {
     "tree_orphan": "warning",
     "tree_offset_mismatch": "info",
     "tree_node_chunk_gap": "info",
+    "tree_corrupt": "error",
 }
 
 SEVERITY_RANK: dict[Severity, int] = {"info": 0, "warning": 1, "error": 2}
@@ -207,6 +209,7 @@ class RuntimeSnapshot:
     workspace_duplicate_roots: dict[str, list[str]] = field(default_factory=dict)
     page_tree_slugs: set[str] = field(default_factory=set)
     page_trees: dict[str, PageTree] = field(default_factory=dict)
+    page_tree_errors: dict[str, str] = field(default_factory=dict)
     source_text_by_relpath: dict[str, str] = field(default_factory=dict)
     vector_metadatas: dict[str, dict[str, Any]] = field(default_factory=dict)
 

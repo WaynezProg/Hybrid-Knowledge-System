@@ -522,6 +522,16 @@ def check_page_trees(snapshot: RuntimeSnapshot) -> list[Finding]:
             )
         )
 
+    for slug, error in sorted(snapshot.page_tree_errors.items()):
+        findings.append(
+            Finding.make(
+                "tree_corrupt",
+                slug,
+                f"page tree `{slug}` cannot be parsed",
+                details={"error": error},
+            )
+        )
+
     for relpath, entry in sorted(snapshot.manifest_entries.items()):
         tree_slug = entry.derived.page_tree
         if tree_slug is None:
@@ -575,6 +585,10 @@ def _tree_chunk_gap_findings(
     tree: PageTree,
 ) -> list[Finding]:
     node_ids = {node.node_id for node in tree.flat_nodes()}
+    source_text = snapshot.source_text_by_relpath.get(relpath)
+    has_complete_coverage = (
+        source_text is not None and _tree_covers_text(tree, source_len=len(source_text))
+    )
     findings: list[Finding] = []
     for vector_id in vector_ids:
         metadata = snapshot.vector_metadatas.get(vector_id)
@@ -584,6 +598,8 @@ def _tree_chunk_gap_findings(
             continue
         tree_node_id = metadata.get("tree_node_id")
         if not isinstance(tree_node_id, str) or not tree_node_id:
+            if not has_complete_coverage:
+                continue
             findings.append(
                 Finding.make(
                     "tree_node_chunk_gap",
@@ -611,7 +627,11 @@ def _tree_chunk_gap_findings(
             )
             continue
         offset = _metadata_offset(metadata)
-        if offset is not None and tree.find_node_for_offset(offset) is None:
+        if (
+            offset is not None
+            and has_complete_coverage
+            and tree.find_node_for_offset(offset) is None
+        ):
             findings.append(
                 Finding.make(
                     "tree_node_chunk_gap",
@@ -621,6 +641,24 @@ def _tree_chunk_gap_findings(
                 )
             )
     return findings
+
+
+def _tree_covers_text(tree: PageTree, *, source_len: int) -> bool:
+    if source_len <= 0:
+        return False
+    intervals = sorted(
+        (max(0, node.start_offset), min(source_len, node.end_offset))
+        for node in tree.flat_nodes()
+        if node.end_offset > 0 and node.start_offset < source_len
+    )
+    cursor = 0
+    for start, end in intervals:
+        if start > cursor:
+            return False
+        cursor = max(cursor, end)
+        if cursor >= source_len:
+            return True
+    return False
 
 
 def _metadata_offset(metadata: dict[str, object]) -> int | None:

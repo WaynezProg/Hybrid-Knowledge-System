@@ -90,6 +90,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdapterError'
+  /pageindex/{relpath}:
+    get:
+      summary: Show a PageIndex tree for one source
+      parameters:
+        - name: relpath
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: ks_root
+          in: query
+          required: false
+          schema:
+            type: [string, 'null']
+      responses:
+        '200':
+          description: Schema-valid HKS pageindex response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Adapter error envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+        '500':
+          description: Adapter error envelope for runtime failures
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+  /pageindex/enrich:
+    post:
+      summary: Enrich PageIndex trees with LLM summaries
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HksPageIndexEnrichInput'
+      responses:
+        '200':
+          description: Schema-valid HKS pageindex enrich response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QueryResponse'
+        '400':
+          description: Adapter error envelope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
+        '500':
+          description: Adapter error envelope for runtime failures
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdapterError'
   /coord/session:
     post:
       summary: Start, heartbeat, or close a coordination session
@@ -250,6 +312,39 @@ components:
           type: string
           enum: [none, plan, apply]
           default: none
+        ks_root:
+          type: [string, 'null']
+    HksPageIndexShowInput:
+      type: object
+      required: [source_relpath]
+      additionalProperties: false
+      properties:
+        source_relpath:
+          type: string
+          minLength: 1
+        ks_root:
+          type: [string, 'null']
+    HksPageIndexEnrichInput:
+      type: object
+      additionalProperties: false
+      properties:
+        source_relpath:
+          type: [string, 'null']
+          minLength: 1
+        mode:
+          type: string
+          enum: [preview, store]
+          default: preview
+        provider:
+          type: string
+          enum: [fake, openai]
+          default: fake
+        model:
+          type: [string, 'null']
+          minLength: 1
+        force:
+          type: boolean
+          default: false
         ks_root:
           type: [string, 'null']
     HksCoordSessionInput:

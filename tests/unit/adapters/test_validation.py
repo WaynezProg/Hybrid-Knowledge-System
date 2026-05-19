@@ -13,6 +13,9 @@ from hks.adapters.models import AdapterToolError
         (core.hks_ingest, {"path": "/tmp/source", "pptx_notes": "all"}, "pptx_notes"),
         (core.hks_lint, {"severity_threshold": "fatal"}, "severity_threshold"),
         (core.hks_lint, {"fix": "force"}, "fix"),
+        (core.hks_pageindex_show, {"source_relpath": ""}, "source_relpath"),
+        (core.hks_pageindex_enrich, {"mode": "apply"}, "mode"),
+        (core.hks_pageindex_enrich, {"provider": "unknown"}, "provider"),
     ],
 )
 def test_usage_validation_errors_return_adapter_tool_error(callable_, kwargs, field: str) -> None:

@@ -45,3 +45,32 @@ def test_lint_detail_schema_rejects_unknown_category() -> None:
 
     with pytest.raises(jsonschema.ValidationError):
         validate_lint_detail(detail)
+
+
+@pytest.mark.contract
+def test_lint_detail_schema_accepts_page_tree_categories() -> None:
+    categories = [
+        "tree_missing",
+        "tree_orphan",
+        "tree_offset_mismatch",
+        "tree_node_chunk_gap",
+        "tree_corrupt",
+    ]
+    detail = {
+        "findings": [
+            {
+                "category": category,
+                "severity": "error" if category == "tree_corrupt" else "warning",
+                "target": category,
+                "message": category,
+            }
+            for category in categories
+        ],
+        "severity_counts": {"error": 1, "warning": 4, "info": 0},
+        "category_counts": {category: 1 for category in categories},
+        "fixes_planned": [],
+        "fixes_applied": [],
+        "fixes_skipped": [],
+    }
+
+    assert validate_lint_detail(detail) == detail

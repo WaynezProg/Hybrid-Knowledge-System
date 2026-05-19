@@ -25,6 +25,11 @@ def test_mcp_tool_input_contract_accepts_expected_payloads() -> None:
         "hks_lint",
         {"strict": True, "severity_threshold": "warning", "fix": "plan"},
     )
+    validate_tool_input("hks_pageindex_show", {"source_relpath": "doc.md"})
+    validate_tool_input(
+        "hks_pageindex_enrich",
+        {"source_relpath": "doc.md", "mode": "store", "provider": "fake", "force": True},
+    )
 
 
 @pytest.mark.contract
@@ -34,6 +39,9 @@ def test_mcp_tool_input_contract_rejects_unknown_fields_and_bad_choices() -> Non
 
     with pytest.raises(jsonschema.ValidationError):
         validate_tool_input("hks_lint", {"severity_threshold": "fatal"})
+
+    with pytest.raises(jsonschema.ValidationError):
+        validate_tool_input("hks_pageindex_enrich", {"provider": "unknown"})
 
 
 @pytest.mark.contract

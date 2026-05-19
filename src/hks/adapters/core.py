@@ -621,6 +621,14 @@ def hks_pageindex_show(
     ks_root: str | None = None,
     request_id: str | None = None,
 ) -> dict[str, Any]:
+    payload = {"source_relpath": source_relpath, "ks_root": ks_root}
+    try:
+        validate_tool_input(
+            "hks_pageindex_show",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
     return _run_command(
         pageindex_command.run_show,
         source_relpath=source_relpath,
@@ -639,6 +647,21 @@ def hks_pageindex_enrich(
     ks_root: str | None = None,
     request_id: str | None = None,
 ) -> dict[str, Any]:
+    payload = {
+        "source_relpath": source_relpath,
+        "mode": mode,
+        "provider": provider,
+        "model": model,
+        "force": force,
+        "ks_root": ks_root,
+    }
+    try:
+        validate_tool_input(
+            "hks_pageindex_enrich",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
     normalized_mode = cast(
         PageIndexMode,
         _require_choice(mode, PAGEINDEX_MODES, field="mode", request_id=request_id),
