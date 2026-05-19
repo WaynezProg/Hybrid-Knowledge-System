@@ -1346,7 +1346,7 @@ git commit -m "feat(pdf): rewrite PDF parser with PyMuPDF TOC + font-size headin
 - Modify: `src/hks/ingest/pipeline.py`
 - Test: `tests/integration/test_ingest_tree.py`
 
-- [ ] **Step 1: Write failing integration test**
+- [x] **Step 1: Write failing integration test**
 
 ```python
 # tests/integration/test_ingest_tree.py
@@ -1425,12 +1425,12 @@ class TestIngestProducesTree:
         )
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `uv run pytest tests/integration/test_ingest_tree.py -v`
 Expected: FAIL — tree not produced
 
-- [ ] **Step 3: Modify pipeline.py to build tree and attach node_ids**
+- [x] **Step 3: Modify pipeline.py to build tree and attach node_ids**
 
 In `src/hks/ingest/pipeline.py`, make these changes:
 
@@ -1517,17 +1517,17 @@ def _estimate_chunk_offset(full_text: str, chunks: list[str], idx: int) -> int:
     return pos if pos >= 0 else offset
 ```
 
-- [ ] **Step 4: Run integration test to verify it passes**
+- [x] **Step 4: Run integration test to verify it passes**
 
 Run: `uv run pytest tests/integration/test_ingest_tree.py -v`
 Expected: all PASS
 
-- [ ] **Step 5: Run full test suite for regression**
+- [x] **Step 5: Run full test suite for regression**
 
 Run: `uv run pytest tests/ -x --timeout=120`
 Expected: all PASS
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/hks/ingest/pipeline.py tests/integration/test_ingest_tree.py
