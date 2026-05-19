@@ -83,7 +83,7 @@ Codex、Claude、OpenClaw 或其他 agent 可以透過 CLI、MCP 或 loopback HT
 - **FR-004**: The feature MUST add a versioned `trace.steps[kind="llm_extraction_summary"]` detail schema under this spec's contracts.
 - **FR-005**: LLM extraction output MUST include classification labels, summary candidate, key facts, entity candidates, relation candidates, confidence, evidence, source fingerprint, prompt version, provider id, model id, and validation status.
 - **FR-006**: Entity candidates MUST be normalized to the stable HKS entity type set: `Person`, `Project`, `Document`, `Event`, `Concept`; unsupported types MUST be rejected or mapped with explicit evidence.
-- **FR-007**: Relation candidates MUST be normalized to the stable HKS relation set: `owns`, `depends_on`, `impacts`, `references`, `belongs_to`; unsupported relations MUST be rejected or mapped with explicit evidence.
+- **FR-007**: Relation candidates MUST be normalized to the stable HKS relation set: `owns`, `depends_on`, `impacts`, `references`, `belongs_to`, `causes`, `contradicts`, `succeeds`; unsupported relations MUST be rejected or mapped with explicit evidence.
 - **FR-008**: Default mode MUST be preview/read-only and MUST NOT mutate `wiki/`, `graph/graph.json`, `vector/db/`, existing manifest entries, or write-back pages.
 - **FR-009**: System MUST support an explicit store mode that writes a versioned extraction artifact under `$KS_ROOT/llm/extractions/` without applying it to wiki / graph / vector.
 - **FR-010**: Stored extraction artifacts MUST be idempotent by source fingerprint, parser fingerprint, prompt version, provider id, and model id unless caller explicitly requests a new run.

@@ -92,7 +92,7 @@ Represents a candidate graph relation.
 Fields:
 
 - `candidate_id`: stable id inside one extraction result.
-- `type`: one of `owns`, `depends_on`, `impacts`, `references`, `belongs_to`.
+- `type`: one of `owns`, `depends_on`, `impacts`, `references`, `belongs_to`, `causes`, `contradicts`, `succeeds`.
 - `source_candidate_id`: entity candidate id.
 - `target_candidate_id`: entity candidate id.
 - `confidence`: relation confidence.

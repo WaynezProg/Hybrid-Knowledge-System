@@ -26,7 +26,7 @@
 
 ## Decision 3: Output is normalized into HKS graph schema candidate types
 
-**Decision**: Entity candidates are limited to `Person`, `Project`, `Document`, `Event`, `Concept`; relation candidates are limited to `owns`, `depends_on`, `impacts`, `references`, `belongs_to`.
+**Decision**: Entity candidates are limited to `Person`, `Project`, `Document`, `Event`, `Concept`; relation candidates are limited to `owns`, `depends_on`, `impacts`, `references`, `belongs_to`, `causes`, `contradicts`, `succeeds`.
 
 **Rationale**: Current HKS graph schema is intentionally small and stable. Letting each provider invent labels would break graph queries and downstream Graphify input.
 
