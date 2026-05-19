@@ -2196,7 +2196,7 @@ git commit -m "feat(wiki): tree-assisted search with summary scan"
 - Modify: `config/routing_rules.yaml`
 - Test: `tests/unit/routing/test_fusion.py`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```python
 # tests/unit/routing/test_fusion.py
@@ -2229,7 +2229,7 @@ class TestMultiLayerFusion:
         assert decision.secondary == "wiki"
 ```
 
-- [ ] **Step 2: Add `secondary` to RouteDecision and RoutingRule**
+- [x] **Step 2: Add `secondary` to RouteDecision and RoutingRule**
 
 In `router.py`:
 ```python
@@ -2253,15 +2253,15 @@ class RoutingRule:
     secondary_route: Route | None = None  # new
 ```
 
-- [ ] **Step 3: Update routing_rules.yaml**
+- [x] **Step 3: Update routing_rules.yaml**
 
 Add `secondary` to relevant rules, e.g. graph rules get `secondary: wiki`.
 
-- [ ] **Step 4: Update query command to use secondary fallback**
+- [x] **Step 4: Update query command to use secondary fallback**
 
 In `src/hks/commands/query.py`, when primary route misses, try `decision.secondary` before falling back to vector.
 
-- [ ] **Step 5: Run tests, commit**
+- [x] **Step 5: Run tests, commit**
 
 ```bash
 git commit -m "feat(routing): multi-layer fusion with primary + secondary route"
