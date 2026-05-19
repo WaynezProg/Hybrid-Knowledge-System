@@ -148,3 +148,51 @@ def test_rollback_after_tree_save_removes_new_page_tree_and_manifest_entry(
     assert not (paths.page_trees / "rollback.json").exists()
     if paths.manifest.exists():
         assert "rollback.md" not in load_manifest(paths.manifest).entries
+
+
+@pytest.mark.integration
+def test_failed_update_preserves_existing_artifacts(
+    tmp_path: Path,
+    tmp_ks_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "stable.md"
+    source.write_text("# Stable\n\nOriginal content.", encoding="utf-8")
+    ingest(source)
+
+    paths = runtime_paths(tmp_ks_root)
+    manifest = load_manifest(paths.manifest)
+    old_entry = manifest.entries["stable.md"]
+    assert old_entry.derived.page_tree is not None
+    old_raw = (paths.raw_sources / "stable.md").read_text(encoding="utf-8")
+    old_page_path = paths.wiki_pages / f"{old_entry.derived.wiki_pages[0]}.md"
+    old_page = old_page_path.read_text(encoding="utf-8")
+    old_tree = TreeStore(paths).load(old_entry.derived.page_tree)
+    old_graph = paths.graph_file.read_text(encoding="utf-8")
+    client = chromadb.PersistentClient(path=str(paths.vector_db))
+    collection = client.get_collection(COLLECTION_NAME)
+    old_vectors = collection.get(ids=old_entry.derived.vector_ids, include=["metadatas"])
+    assert set(old_vectors["ids"]) == set(old_entry.derived.vector_ids)
+
+    source.write_text("# Stable\n\nUpdated content.", encoding="utf-8")
+
+    def fail_replace_document(self: GraphStore, relpath: str, artifacts: Any) -> None:
+        raise RuntimeError("forced update graph failure")
+
+    monkeypatch.setattr(GraphStore, "replace_document", fail_replace_document)
+
+    with pytest.raises(RuntimeError, match="forced update graph failure"):
+        ingest(source)
+
+    restored_manifest = load_manifest(paths.manifest)
+    restored_entry = restored_manifest.entries["stable.md"]
+    assert restored_entry.sha256 == old_entry.sha256
+    assert restored_entry.derived.wiki_pages == old_entry.derived.wiki_pages
+    assert restored_entry.derived.page_tree == old_entry.derived.page_tree
+    assert restored_entry.derived.vector_ids == old_entry.derived.vector_ids
+    assert (paths.raw_sources / "stable.md").read_text(encoding="utf-8") == old_raw
+    assert old_page_path.read_text(encoding="utf-8") == old_page
+    assert TreeStore(paths).load(old_entry.derived.page_tree).to_dict() == old_tree.to_dict()
+    assert paths.graph_file.read_text(encoding="utf-8") == old_graph
+    restored_vectors = collection.get(ids=old_entry.derived.vector_ids, include=["metadatas"])
+    assert set(restored_vectors["ids"]) == set(old_entry.derived.vector_ids)

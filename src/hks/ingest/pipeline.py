@@ -370,16 +370,6 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                 )
                 continue
 
-            if existing:
-                delete_artifacts(
-                    wiki_store=wiki_store,
-                    graph_store=graph_store,
-                    vector_store=vector_store,
-                    relpath=relpath,
-                    wiki_pages=existing.derived.wiki_pages,
-                    vector_ids=existing.derived.vector_ids,
-                )
-
             extracted = extractor.extract(
                 relpath=relpath,
                 sha256=sha256,
@@ -528,11 +518,15 @@ def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> Inges
                     graph_store.graph_path.unlink()
                 raise
 
+            assert page_slug is not None
+            assert tree_slug is not None
             if existing_tree_slug is not None and existing_tree_slug != tree_slug:
                 tree_store.delete(existing_tree_slug)
-            if existing and existing.derived.vector_ids:
+            if existing:
                 stale_vector_ids = sorted(set(existing.derived.vector_ids) - set(vector_ids))
                 vector_store.delete(stale_vector_ids)
+                stale_wiki_pages = sorted(set(existing.derived.wiki_pages) - {page_slug})
+                wiki_store.delete_pages(stale_wiki_pages)
 
             result_status: FileStatus = "updated" if existing else "created"
             if existing:
