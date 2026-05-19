@@ -349,7 +349,7 @@ def _looks_like_document(label: str) -> bool:
 
 def _infer_entity_type(label: str, *, default: EntityType) -> EntityType:
     lowered = label.lower()
-    if any(keyword in label for keyword in ("專案", "Atlas", "Borealis")):
+    if "專案" in label:
         return "Project"
     if "project " in lowered and "service" not in lowered:
         return "Project"

@@ -36,11 +36,25 @@ def _lexical_terms(text: str) -> set[str]:
 
 
 def _vector_hit_is_relevant(question: str, hit: SearchHit) -> bool:
+    if _lexical_terms(question):
+        return _vector_hit_lexical_score(question, hit) > 0
+    return hit.similarity >= 0.2
+
+
+def _vector_hit_lexical_score(question: str, hit: SearchHit) -> int:
     query_terms = _lexical_terms(question)
     text_terms = _lexical_terms(hit.text)
-    if query_terms:
-        return bool(query_terms & text_terms)
-    return hit.similarity >= 0.2
+    return len(query_terms & text_terms)
+
+
+def _choose_vector_hit(question: str, hits: list[SearchHit]) -> SearchHit | None:
+    relevant_hits = [hit for hit in hits if _vector_hit_is_relevant(question, hit)]
+    if not relevant_hits:
+        return None
+    return max(
+        relevant_hits,
+        key=lambda hit: (_vector_hit_lexical_score(question, hit), hit.similarity),
+    )
 
 
 def _build_no_hit_response(route: Route, steps: list[TraceStep]) -> QueryResponse:
@@ -229,9 +243,8 @@ def _try_vector(
     candidate_limit = max(5, min(50, vector_store.count()))
     hits = vector_store.search(question, top_k=candidate_limit)
     top_similarity = hits[0].similarity if hits else 0.0
-    relevant_hits = [hit for hit in hits if _vector_hit_is_relevant(question, hit)]
-    if relevant_hits:
-        chosen_hit = relevant_hits[0]
+    chosen_hit = _choose_vector_hit(question, hits)
+    if chosen_hit is not None:
         steps.append(
             TraceStep(
                 kind="vector_lookup",

@@ -7,7 +7,7 @@ from pathlib import Path
 from hks.core.manifest import atomic_write
 from hks.core.paths import RuntimePaths
 from hks.page_tree.model import PageTree
-from hks.storage.wiki import WikiStore
+from hks.storage.wiki import slug_base
 
 
 class TreeStore:
@@ -19,9 +19,8 @@ class TreeStore:
         self._dir.mkdir(parents=True, exist_ok=True)
 
     def _slug_for(self, relpath: str) -> str:
-        wiki_store = WikiStore(self.paths)
         relpath_without_suffix = Path(relpath).with_suffix("").as_posix()
-        return wiki_store.slug_base(relpath_without_suffix)
+        return slug_base(relpath_without_suffix)
 
     def _validate_slug(self, slug: str) -> None:
         if (

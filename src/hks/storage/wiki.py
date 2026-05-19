@@ -43,6 +43,25 @@ MAX_SLUG_CHARS = 96
 SLUG_HASH_CHARS = 8
 
 
+def slug_base(value: str, *, fallback: str = "untitled") -> str:
+    slug = slugify(value, separator="-")
+    slug = re.sub(r"-{2,}", "-", slug).strip("-")
+    return fit_slug(slug or fallback, digest_source=value or fallback)
+
+
+def fit_slug(slug: str, *, digest_source: str | None = None) -> str:
+    slug = re.sub(r"-{2,}", "-", slug).strip("-") or "untitled"
+    if len(slug) <= MAX_SLUG_CHARS:
+        return slug
+    digest = hashlib.sha1(
+        (digest_source or slug).encode("utf-8"),
+        usedforsecurity=False,
+    ).hexdigest()[:SLUG_HASH_CHARS]
+    prefix_limit = MAX_SLUG_CHARS - SLUG_HASH_CHARS - 1
+    prefix = slug[:prefix_limit].rstrip("-") or "untitled"
+    return f"{prefix}-{digest}"
+
+
 def _frontmatter_scalar(value: str) -> str:
     return " ".join(value.split())
 
@@ -190,21 +209,10 @@ class WikiStore:
         self.log_path.touch(exist_ok=True)
 
     def slug_base(self, value: str, *, fallback: str = "untitled") -> str:
-        slug = slugify(value, separator="-")
-        slug = re.sub(r"-{2,}", "-", slug).strip("-")
-        return self._fit_slug(slug or fallback, digest_source=value or fallback)
+        return slug_base(value, fallback=fallback)
 
     def _fit_slug(self, slug: str, *, digest_source: str | None = None) -> str:
-        slug = re.sub(r"-{2,}", "-", slug).strip("-") or "untitled"
-        if len(slug) <= MAX_SLUG_CHARS:
-            return slug
-        digest = hashlib.sha1(
-            (digest_source or slug).encode("utf-8"),
-            usedforsecurity=False,
-        ).hexdigest()[:SLUG_HASH_CHARS]
-        prefix_limit = MAX_SLUG_CHARS - SLUG_HASH_CHARS - 1
-        prefix = slug[:prefix_limit].rstrip("-") or "untitled"
-        return f"{prefix}-{digest}"
+        return fit_slug(slug, digest_source=digest_source)
 
     def _slug_with_suffix(self, base: str, suffix: str) -> str:
         suffix_part = f"-{suffix}"

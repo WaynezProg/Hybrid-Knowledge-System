@@ -197,3 +197,16 @@ def test_multiple_depends_on_inbound_targets_use_concept() -> None:
     assert len(release_nodes) == 1
     assert release_nodes[0].type == "Concept"
     assert sum(1 for edge in result.edges if edge.target == release_nodes[0].id) >= 2
+
+
+def test_fixture_project_names_do_not_imply_project_type_without_context() -> None:
+    result = extract_document_graph(
+        relpath="fixtures.md",
+        title="Fixtures",
+        body="Atlas owns Borealis.",
+        wiki_slug="fixtures",
+    )
+
+    nodes_by_label = {node.label: node for node in result.nodes}
+    assert nodes_by_label["Atlas"].type == "Concept"
+    assert nodes_by_label["Borealis"].type == "Concept"
