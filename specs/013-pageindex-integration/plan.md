@@ -2275,11 +2275,11 @@ git commit -m "feat(routing): multi-layer fusion with primary + secondary route"
 - Modify: `src/hks/commands/query.py`
 - Test: `tests/integration/test_query_section_path.py`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 Test that query response includes `section_path` and `page_range` when vector chunks have `tree_node_id`.
 
-- [ ] **Step 2: Implement section_path in query response**
+- [x] **Step 2: Implement section_path in query response**
 
 In `query.py`, after vector retrieval returns chunks with `tree_node_id` metadata:
 1. Load the PageTree for each source
@@ -2287,7 +2287,7 @@ In `query.py`, after vector retrieval returns chunks with `tree_node_id` metadat
 3. Read `page_start`/`page_end` from node metadata
 4. Add to response trace detail
 
-- [ ] **Step 3: Run tests, commit**
+- [x] **Step 3: Run tests, commit**
 
 ```bash
 git commit -m "feat(query): add section_path and page_range to vector hit responses"
