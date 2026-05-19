@@ -68,7 +68,7 @@ def test_query_graph_miss_uses_secondary_wiki(
 ) -> None:
     monkeypatch.setattr(query_command, "answer_query", lambda *_args, **_kwargs: None)
 
-    result = cli_runner.invoke(app, ["query", "impact Atlas", "--writeback=no"])
+    result = cli_runner.invoke(app, ["query", "影響 Atlas 說明", "--writeback=no"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)

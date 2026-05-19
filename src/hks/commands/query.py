@@ -94,12 +94,30 @@ def _graph_trace_detail(
     }
 
 
+def _has_wiki_secondary_intent(question: str) -> bool:
+    lowered = question.lower()
+    return any(
+        keyword in lowered
+        for keyword in ("summary", "overview", "摘要", "總結", "重點", "說明")
+    )
+
+
 def _try_wiki(
     question: str,
     *,
     wiki_store: WikiStore,
     steps: list[TraceStep],
+    require_secondary_intent: bool = False,
 ) -> QueryHit | None:
+    if require_secondary_intent and not _has_wiki_secondary_intent(question):
+        steps.append(
+            TraceStep(
+                kind="wiki_lookup",
+                detail={"hit": False, "reason": "secondary-intent-miss"},
+            )
+        )
+        return None
+
     page = wiki_store.search(question)
     if page is not None:
         steps.append(
@@ -111,10 +129,7 @@ def _try_wiki(
         return (f"{page.title}: {page.summary}", ["wiki"], 1.0)
 
     overview = wiki_store.overview()
-    if overview and any(
-        keyword in question.lower()
-        for keyword in ("summary", "overview", "摘要", "總結", "重點", "說明")
-    ):
+    if overview and _has_wiki_secondary_intent(question):
         steps.append(
             TraceStep(
                 kind="wiki_lookup",
@@ -197,9 +212,15 @@ def _try_route(
     graph_store: GraphStore,
     vector_store: VectorStore,
     steps: list[TraceStep],
+    require_wiki_secondary_intent: bool = False,
 ) -> QueryHit | None:
     if target_route == "wiki":
-        return _try_wiki(question, wiki_store=wiki_store, steps=steps)
+        return _try_wiki(
+            question,
+            wiki_store=wiki_store,
+            steps=steps,
+            require_secondary_intent=require_wiki_secondary_intent,
+        )
     if target_route == "graph":
         return _try_graph(question, graph_store=graph_store, steps=steps)
     return _try_vector(question, vector_store=vector_store, steps=steps)
@@ -272,6 +293,7 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
                 graph_store=graph_store,
                 vector_store=vector_store,
                 steps=steps,
+                require_wiki_secondary_intent=secondary_route == "wiki",
             )
 
     if hit is None and final_route != "vector":

@@ -35,3 +35,5 @@ def test_office_queries_validate_against_phase2_contract(
     validate(relation_payload)
     assert relation_payload["trace"]["route"] in {"graph", "vector"}
     assert relation_payload["source"] in (["graph"], ["vector"])
+    assert relation_payload["trace"]["route"] != "wiki"
+    assert relation_payload["source"] != ["wiki"]
