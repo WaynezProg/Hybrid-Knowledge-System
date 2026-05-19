@@ -39,7 +39,7 @@ _RELATION_PATTERNS: tuple[RelationPattern, ...] = (
     ("succeeds", r"(?P<left>.+?)\s+(?:followed by|is followed by)\s+(?P<right>.+)", True),
     ("succeeds", r"(?P<left>.+?)\s+precedes\s+(?P<right>.+)", True),
     ("impacts", r"(?P<left>.+?)(?:會|將|直接)?影響(?P<right>.+)", False),
-    ("impacts", r"(?P<left>.+?)\s+affects?\s+(?P<right>.+)", False),
+    ("impacts", r"(?P<left>.+?)\s+(?:affects?|impacts?)\s+(?P<right>.+)", False),
     ("depends_on", r"(?P<left>.+?)依賴(?P<right>.+)", False),
     ("depends_on", r"(?P<left>.+?)\s+depends on\s+(?P<right>.+)", False),
     ("references", r"(?P<left>.+?)(?:引用|參考)(?P<right>.+)", False),
@@ -293,6 +293,7 @@ def _clean_label(raw: str) -> str:
     cleaned = re.sub(r"^[#*\-\d.\s]+", "", cleaned)
     cleaned = re.sub(r"^[A-Za-z][A-Za-z ]{0,30}:\s*", "", cleaned)
     cleaned = re.sub(r"^(?:因為|由於|because)\s+", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"^(?:and|or)\s+", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"^(?:但|但是|然而)\s*", "", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned)
     cleaned = cleaned.strip(" ,:：()[]{}\"'。；;.")

@@ -3,8 +3,11 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
+import fitz
 import pytest
 from typer.testing import CliRunner
 
@@ -20,6 +23,104 @@ _OFFICE_SENTINEL = PROJECT_ROOT / "tests" / "fixtures" / "valid" / "docx" / "pla
 _IMAGE_SENTINEL = (
     PROJECT_ROOT / "tests" / "fixtures" / "valid" / "image" / "atlas-dependency.png"
 )
+
+
+class GeneratedPdfFixtures(NamedTuple):
+    with_toc: Path
+    no_toc_headings: Path
+    plain_text: Path
+
+
+@dataclass(frozen=True)
+class PdfTextBlock:
+    text: str
+    point: tuple[int, int]
+    font_size: int
+
+
+def create_pdf_fixture_set(target_dir: Path) -> GeneratedPdfFixtures:
+    target_dir.mkdir(parents=True, exist_ok=True)
+    with_toc = target_dir / "with-toc.pdf"
+    no_toc_headings = target_dir / "no-toc-headings.pdf"
+    plain_text = target_dir / "plain-text.pdf"
+
+    _create_pdf_with_toc(with_toc)
+    _create_pdf_with_font_headings(no_toc_headings)
+    _create_pdf_pages(
+        plain_text,
+        [
+            [
+                PdfTextBlock(
+                    text="Just text. " * 20,
+                    point=(72, 72),
+                    font_size=11,
+                )
+            ]
+        ],
+    )
+    return GeneratedPdfFixtures(
+        with_toc=with_toc,
+        no_toc_headings=no_toc_headings,
+        plain_text=plain_text,
+    )
+
+
+@pytest.fixture()
+def generated_pdf_fixtures(tmp_path: Path) -> GeneratedPdfFixtures:
+    return create_pdf_fixture_set(tmp_path / "pdf-fixtures")
+
+
+def _create_pdf_with_toc(path: Path) -> None:
+    _create_pdf_pages(
+        path,
+        [
+            [
+                PdfTextBlock("Chapter 1: Introduction", (72, 72), 18),
+                PdfTextBlock("Some introductory text here.", (72, 120), 11),
+            ],
+            [
+                PdfTextBlock("Chapter 2: Methods", (72, 72), 18),
+                PdfTextBlock("Methodology description.", (72, 120), 11),
+            ],
+        ],
+        toc=[
+            [1, "Chapter 1: Introduction", 1],
+            [1, "Chapter 2: Methods", 2],
+        ],
+    )
+
+
+def _create_pdf_with_font_headings(path: Path) -> None:
+    _create_pdf_pages(
+        path,
+        [
+            [
+                PdfTextBlock("Big Heading", (72, 72), 24),
+                PdfTextBlock("Normal body text. " * 10, (72, 120), 11),
+                PdfTextBlock("Another Heading", (72, 300), 24),
+                PdfTextBlock("More body text. " * 10, (72, 348), 11),
+            ]
+        ],
+    )
+
+
+def _create_pdf_pages(
+    path: Path,
+    pages: list[list[PdfTextBlock]],
+    *,
+    toc: list[list[int | str]] | None = None,
+) -> None:
+    doc = fitz.open()
+    try:
+        for blocks in pages:
+            page = doc.new_page()
+            for block in blocks:
+                page.insert_text(block.point, block.text, fontsize=block.font_size)
+        if toc is not None:
+            doc.set_toc(toc)
+        doc.save(path)
+    finally:
+        doc.close()
 
 
 def _cached_model_snapshot(model_name: str) -> Path | None:
