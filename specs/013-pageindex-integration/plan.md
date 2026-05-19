@@ -2304,7 +2304,7 @@ git commit -m "feat(query): add section_path and page_range to vector hit respon
 - Modify: `src/hks/ingest/pipeline.py:440-445`
 - Test: `tests/unit/graph/test_tree_aware_extract.py`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```python
 # tests/unit/graph/test_tree_aware_extract.py
@@ -2342,7 +2342,7 @@ class TestTreeAwareExtraction:
         assert "belongs_to" in edge_types or "references" in edge_types
 ```
 
-- [ ] **Step 2: Add `page_tree` parameter to extract_document_graph**
+- [x] **Step 2: Add `page_tree` parameter to extract_document_graph**
 
 ```python
 def extract_document_graph(
@@ -2360,11 +2360,11 @@ When `page_tree` is provided:
 - Run regex extraction per-section (within `start_offset:end_offset`)
 - Add section context to edge evidence
 
-- [ ] **Step 3: Pass page_tree in pipeline.py**
+- [x] **Step 3: Pass page_tree in pipeline.py**
 
 Update the `extract_document_graph()` call in pipeline.py to include `page_tree=page_tree`.
 
-- [ ] **Step 4: Run tests, commit**
+- [x] **Step 4: Run tests, commit**
 
 ```bash
 git commit -m "feat(graph): tree-aware extraction with section entities"
