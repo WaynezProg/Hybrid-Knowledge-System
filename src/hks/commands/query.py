@@ -7,12 +7,13 @@ import sys
 from collections.abc import Sequence
 from typing import cast
 
-from hks.core.manifest import resume_or_rebuild, utc_now_iso
+from hks.core.manifest import Manifest, resume_or_rebuild, utc_now_iso
 from hks.core.paths import runtime_paths
 from hks.core.schema import QueryResponse, Route, Trace, TraceStep
 from hks.errors import ExitCode, KSError
 from hks.graph.query import answer_query
 from hks.graph.store import GraphStore
+from hks.page_tree.store import TreeStore
 from hks.routing.router import route as route_query
 from hks.routing.rules import load_rules
 from hks.storage.vector import SearchHit, VectorStore
@@ -56,6 +57,8 @@ def _vector_trace_detail(
     top_k: int,
     top_similarity: float,
     chosen_hit: SearchHit | None,
+    manifest: Manifest | None = None,
+    tree_store: TreeStore | None = None,
 ) -> dict[str, object]:
     detail: dict[str, object] = {
         "top_k": top_k,
@@ -75,7 +78,52 @@ def _vector_trace_detail(
     ):
         if key in chosen_hit.metadata:
             detail[key] = chosen_hit.metadata[key]
+    if manifest is not None and tree_store is not None:
+        detail.update(
+            _vector_section_context(
+                chosen_hit=chosen_hit,
+                manifest=manifest,
+                tree_store=tree_store,
+            )
+        )
     return detail
+
+
+def _vector_section_context(
+    *,
+    chosen_hit: SearchHit,
+    manifest: Manifest,
+    tree_store: TreeStore,
+) -> dict[str, object]:
+    relpath = chosen_hit.metadata.get("source_relpath")
+    node_id = chosen_hit.metadata.get("tree_node_id")
+    if not isinstance(relpath, str) or not isinstance(node_id, str):
+        return {}
+
+    entry = manifest.entries.get(relpath)
+    tree_slug = entry.derived.page_tree if entry is not None else None
+    if tree_slug is None:
+        return {}
+
+    try:
+        tree = tree_store.load(tree_slug)
+    except Exception:
+        return {}
+
+    section_path = tree.section_path(node_id)
+    node = next(
+        (candidate for candidate in tree.flat_nodes() if candidate.node_id == node_id),
+        None,
+    )
+    if section_path is None or node is None:
+        return {}
+
+    context: dict[str, object] = {"section_path": section_path}
+    page_start = node.metadata.get("page_start")
+    page_end = node.metadata.get("page_end")
+    if isinstance(page_start, int) and isinstance(page_end, int):
+        context["page_range"] = {"start": page_start, "end": page_end}
+    return context
 
 
 def _graph_trace_detail(
@@ -171,6 +219,7 @@ def _try_vector(
     question: str,
     *,
     vector_store: VectorStore,
+    manifest: Manifest,
     steps: list[TraceStep],
 ) -> QueryHit | None:
     candidate_limit = max(5, min(50, vector_store.count()))
@@ -186,6 +235,8 @@ def _try_vector(
                     top_k=candidate_limit,
                     top_similarity=top_similarity,
                     chosen_hit=chosen_hit,
+                    manifest=manifest,
+                    tree_store=TreeStore(vector_store.paths),
                 ),
             )
         )
@@ -198,6 +249,8 @@ def _try_vector(
                 top_k=candidate_limit,
                 top_similarity=top_similarity,
                 chosen_hit=None,
+                manifest=manifest,
+                tree_store=TreeStore(vector_store.paths),
             ),
         )
     )
@@ -211,6 +264,7 @@ def _try_route(
     wiki_store: WikiStore,
     graph_store: GraphStore,
     vector_store: VectorStore,
+    manifest: Manifest,
     steps: list[TraceStep],
     require_wiki_secondary_intent: bool = False,
 ) -> QueryHit | None:
@@ -223,7 +277,7 @@ def _try_route(
         )
     if target_route == "graph":
         return _try_graph(question, graph_store=graph_store, steps=steps)
-    return _try_vector(question, vector_store=vector_store, steps=steps)
+    return _try_vector(question, vector_store=vector_store, manifest=manifest, steps=steps)
 
 
 def _secondary_fallback_route(primary: Route, secondary: Route | None) -> Route | None:
@@ -278,6 +332,7 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
         wiki_store=wiki_store,
         graph_store=graph_store,
         vector_store=vector_store,
+        manifest=manifest,
         steps=steps,
     )
 
@@ -292,6 +347,7 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
                 wiki_store=wiki_store,
                 graph_store=graph_store,
                 vector_store=vector_store,
+                manifest=manifest,
                 steps=steps,
                 require_wiki_secondary_intent=secondary_route == "wiki",
             )
@@ -299,7 +355,12 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
     if hit is None and final_route != "vector":
         _append_fallback(steps, source_route=final_route, target_route="vector")
         final_route = "vector"
-        hit = _try_vector(question, vector_store=vector_store, steps=steps)
+        hit = _try_vector(
+            question,
+            vector_store=vector_store,
+            manifest=manifest,
+            steps=steps,
+        )
 
     if hit is None:
         response = _build_no_hit_response(final_route, steps)
