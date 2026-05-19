@@ -2117,7 +2117,7 @@ git commit -m "feat(adapters): add pageindex lint rules + MCP/HTTP endpoints"
 - Modify: `src/hks/storage/wiki.py:310-346`
 - Test: `tests/unit/storage/test_wiki_tree_search.py`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```python
 # tests/unit/storage/test_wiki_tree_search.py
@@ -2170,7 +2170,7 @@ class TestTreeAssistedSearch:
         assert result.title == "Finance Report"
 ```
 
-- [ ] **Step 2: Implement tree-assisted search**
+- [x] **Step 2: Implement tree-assisted search**
 
 Modify `WikiStore.search()` to accept optional `tree_store: TreeStore | None = None`. When provided:
 
@@ -2178,7 +2178,7 @@ Modify `WikiStore.search()` to accept optional `tree_store: TreeStore | None = N
 2. Stage 2: only score wiki pages whose `source_relpath` matched in Stage 1
 3. Combine tree score and wiki score
 
-- [ ] **Step 3: Run tests, commit**
+- [x] **Step 3: Run tests, commit**
 
 Run: `uv run pytest tests/unit/storage/test_wiki_tree_search.py tests/ -k wiki -v`
 
