@@ -322,9 +322,9 @@ class WikiStore:
         candidate_pages = pages
         if tree_scores:
             matched_relpaths = set(tree_scores)
-            candidate_pages = [
-                page for page in pages if page.source_relpath in matched_relpaths
-            ]
+            matched_pages = [page for page in pages if page.source_relpath in matched_relpaths]
+            if matched_pages:
+                candidate_pages = matched_pages
         best_score = 0
         best_page: WikiPage | None = None
         for page in candidate_pages:

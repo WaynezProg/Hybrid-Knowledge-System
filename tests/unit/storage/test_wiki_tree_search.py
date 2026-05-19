@@ -182,3 +182,44 @@ class TestTreeAssistedSearch:
 
         assert result is not None
         assert result.source_relpath == "finance.pdf"
+
+    def test_stale_tree_match_does_not_suppress_wiki_search(self, tmp_path: Path) -> None:
+        paths = runtime_paths(tmp_path / "ks")
+        wiki_store = WikiStore(paths)
+        tree_store = TreeStore(paths)
+
+        wiki_store.write_page(
+            title="Revenue Playbook",
+            summary="Revenue breakdown guidance",
+            body="Use product-line revenue breakdown for planning.",
+            source_relpath="playbook.md",
+            origin="ingest",
+        )
+        tree_store.save(
+            "deleted.pdf",
+            PageTree(
+                source_relpath="deleted.pdf",
+                source_format="pdf",
+                doc_title="Deleted Report",
+                root_nodes=[
+                    TreeNode(
+                        node_id="n1",
+                        title="Revenue Breakdown",
+                        level=1,
+                        start_offset=0,
+                        end_offset=100,
+                        children=[],
+                        summary="Stale tree summary matching revenue breakdown.",
+                    )
+                ],
+                build_method="rule",
+                built_at="2026-05-19T00:00:00Z",
+                total_nodes=1,
+                source_sha256="x",
+            ),
+        )
+
+        result = wiki_store.search("revenue breakdown", tree_store=tree_store)
+
+        assert result is not None
+        assert result.source_relpath == "playbook.md"
