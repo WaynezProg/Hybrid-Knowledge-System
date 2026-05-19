@@ -2446,11 +2446,11 @@ git commit -m "feat(graph): add causes/contradicts/succeeds relations + entity h
 - Create: `tests/unit/graph/test_extract_edge_cases.py`
 - Create: PDF test fixtures (programmatic)
 
-- [ ] **Step 1: Write commands/ dispatch tests**
+- [x] **Step 1: Write commands/ dispatch tests**
 
 Test that CLI commands parse arguments correctly and call the right `run()` functions. Use Typer's `CliRunner` to test each command without side effects.
 
-- [ ] **Step 2: Write graph/extract.py edge case tests**
+- [x] **Step 2: Write graph/extract.py edge case tests**
 
 Test regex extraction edge cases:
 - Comma-separated targets: "A impacts B, C, and D"
@@ -2459,16 +2459,16 @@ Test regex extraction edge cases:
 - Body with only Chinese text
 - Body with only English text
 
-- [ ] **Step 3: Create PDF fixture generation**
+- [x] **Step 3: Create PDF fixture generation**
 
 Write a `conftest.py` helper that generates the three PDF fixtures programmatically using PyMuPDF (as shown in Task 5's test helpers). These are reusable across all PDF tests.
 
-- [ ] **Step 4: Run full test suite**
+- [x] **Step 4: Run full test suite**
 
 Run: `uv run pytest tests/ -v --tb=short`
 Expected: all PASS, coverage ≥ 80%
 
-- [ ] **Step 5: Run type checking and linting**
+- [x] **Step 5: Run type checking and linting**
 
 ```bash
 uv run mypy src/hks/
@@ -2476,7 +2476,7 @@ uv run ruff check src/hks/
 ```
 Expected: clean
 
-- [ ] **Step 6: Final commit**
+- [x] **Step 6: Final commit**
 
 ```bash
 git commit -m "test: close coverage gaps for commands, graph edge cases, PDF fixtures"
