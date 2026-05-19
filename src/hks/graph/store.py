@@ -14,7 +14,16 @@ from hks.core.manifest import atomic_write
 from hks.core.paths import RuntimePaths, runtime_paths
 
 type EntityType = Literal["Person", "Project", "Document", "Event", "Concept"]
-type RelationType = Literal["owns", "depends_on", "impacts", "references", "belongs_to"]
+type RelationType = Literal[
+    "owns",
+    "depends_on",
+    "impacts",
+    "references",
+    "belongs_to",
+    "causes",
+    "contradicts",
+    "succeeds",
+]
 
 
 @dataclass(slots=True)

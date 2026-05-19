@@ -197,6 +197,9 @@ Source / route 語意對照：
 * `impacts`
 * `references`
 * `belongs_to`
+* `causes`
+* `contradicts`
+* `succeeds`
 
 graph persistence 位於 `/ks/graph/graph.json`。
 

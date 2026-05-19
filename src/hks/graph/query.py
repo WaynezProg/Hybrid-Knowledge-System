@@ -33,7 +33,12 @@ def answer_query(question: str, graph_store: GraphStore | None = None) -> GraphQ
         return None
 
     ranked = sorted(edge_scores.items(), key=lambda item: item[1], reverse=True)
-    top_edges = [payload.edges[edge_id] for edge_id, score in ranked[:3] if score > 0]
+    ranked_edges = [payload.edges[edge_id] for edge_id, score in ranked if score > 0]
+    if desired_relations:
+        desired_edges = [edge for edge in ranked_edges if edge.relation in desired_relations]
+        if desired_edges:
+            ranked_edges = desired_edges
+    top_edges = ranked_edges[:3]
     if not top_edges:
         return None
 
@@ -60,6 +65,18 @@ def _desired_relations(question: str) -> set[RelationType]:
         keyword in lowered for keyword in ("impact", "affect")
     ):
         desired.add("impacts")
+    if any(keyword in question for keyword in ("導致", "造成", "引發", "原因")) or any(
+        keyword in lowered for keyword in ("cause", "because", "reason")
+    ):
+        desired.add("causes")
+    if any(keyword in question for keyword in ("矛盾", "衝突")) or any(
+        keyword in lowered for keyword in ("contradict", "conflict")
+    ):
+        desired.add("contradicts")
+    if any(keyword in question for keyword in ("接續", "後續", "接著")) or any(
+        keyword in lowered for keyword in ("follow", "succeed")
+    ):
+        desired.add("succeeds")
     if any(keyword in question for keyword in ("依賴", "相依")) or any(
         keyword in lowered for keyword in ("depend", "dependency")
     ):
@@ -143,4 +160,10 @@ def _relation_sentence(source_label: str, relation: RelationType, targets: str) 
         return f"{source_label} 參考 {targets}"
     if relation == "belongs_to":
         return f"{source_label} 屬於 {targets}"
+    if relation == "causes":
+        return f"{source_label} 造成 {targets}"
+    if relation == "contradicts":
+        return f"{source_label} 與 {targets} 矛盾"
+    if relation == "succeeds":
+        return f"{source_label} 接續 {targets}"
     return f"{source_label} 擁有 {targets}"

@@ -19,6 +19,12 @@ from hks.graph.store import (
 from hks.page_tree.model import PageTree, TreeNode
 
 _RELATION_PATTERNS: tuple[tuple[RelationType, str], ...] = (
+    ("causes", r"(?P<left>.+?)(?:導致|造成|引發|使得?)(?P<right>.+)"),
+    ("causes", r"(?P<left>.+?)\s+causes?\s+(?P<right>.+)"),
+    ("contradicts", r"(?P<left>.+?)(?:與|和)?(?P<right>.+?)(?:矛盾|衝突)"),
+    ("contradicts", r"(?P<left>.+?)\s+(?:contradicts?|conflicts with)\s+(?P<right>.+)"),
+    ("succeeds", r"(?P<left>.+?)(?:之後)?(?:接續|接著|後續是)(?P<right>.+)"),
+    ("succeeds", r"(?P<left>.+?)\s+(?:followed by|is followed by|precedes)\s+(?P<right>.+)"),
     ("impacts", r"(?P<left>.+?)(?:會|將|直接)?影響(?P<right>.+)"),
     ("impacts", r"(?P<left>.+?)\s+affects?\s+(?P<right>.+)"),
     ("depends_on", r"(?P<left>.+?)依賴(?P<right>.+)"),
@@ -85,6 +91,7 @@ def extract_document_graph(
                     document_node=document_node,
                     body=body[start:end],
                     evidence_prefix=f"Section: {_section_path(page_tree, tree_node)} | ",
+                    tree_title=tree_node.title,
                 )
     else:
         _extract_relations(
@@ -94,8 +101,10 @@ def extract_document_graph(
             document_node=document_node,
             body=body,
             evidence_prefix=None,
+            tree_title=None,
         )
 
+    _apply_contextual_graph_heuristics(nodes, edges)
     return GraphDocumentArtifacts(nodes=list(nodes.values()), edges=list(edges.values()))
 
 
@@ -107,6 +116,7 @@ def _extract_relations(
     document_node: GraphNode,
     body: str,
     evidence_prefix: str | None,
+    tree_title: str | None,
 ) -> None:
     for sentence in _sentence_candidates(body):
         evidence = f"{evidence_prefix}{sentence}" if evidence_prefix else sentence
@@ -120,7 +130,13 @@ def _extract_relations(
             source_node = _register_node(
                 nodes,
                 label=source_label,
-                entity_type=_infer_entity_type(source_label, default="Concept"),
+                entity_type=_infer_contextual_entity_type(
+                    source_label,
+                    default="Concept",
+                    relation=relation,
+                    role="source",
+                    tree_title=tree_title,
+                ),
                 relpath=relpath,
             )
             edges.setdefault(
@@ -151,7 +167,13 @@ def _extract_relations(
                 target_node = _register_node(
                     nodes,
                     label=target,
-                    entity_type=_infer_entity_type(target, default="Concept"),
+                    entity_type=_infer_contextual_entity_type(
+                        target,
+                        default="Concept",
+                        relation=relation,
+                        role="target",
+                        tree_title=tree_title,
+                    ),
                     relpath=relpath,
                 )
                 edge_id = make_edge_id(
@@ -190,14 +212,31 @@ def _extract_relations(
 
 def _sentence_candidates(body: str) -> list[str]:
     stripped = body.replace("\r\n", "\n").replace("\r", "\n")
-    parts = re.split(r"[\n。！？!?;；]", stripped)
+    parts = re.split(r"[\n。！？!?;；]|(?<=[A-Za-z]\.)\s+(?=[A-Z\u4e00-\u9fff])", stripped)
     candidates: list[str] = []
     for part in parts:
         text = part.strip()
         if not text:
             continue
         fragments = [text]
-        if sum(text.count(keyword) for keyword in ("依賴", "depends on", "影響", "affects")) > 1:
+        if (
+            sum(
+                text.count(keyword)
+                for keyword in (
+                    "依賴",
+                    "depends on",
+                    "影響",
+                    "affects",
+                    "導致",
+                    "causes",
+                    "矛盾",
+                    "contradicts",
+                    "接續",
+                    "followed by",
+                )
+            )
+            > 1
+        ):
             fragments = [
                 fragment.strip()
                 for fragment in re.split(r"[，,]", text)
@@ -213,7 +252,7 @@ def _clean_label(raw: str) -> str:
     cleaned = re.sub(r"^[A-Za-z][A-Za-z ]{0,30}:\s*", "", cleaned)
     cleaned = re.sub(r"^(?:因為|由於|because)\s+", "", cleaned, flags=re.IGNORECASE)
     cleaned = re.sub(r"\s+", " ", cleaned)
-    cleaned = cleaned.strip(" ,:：()[]{}\"'。；;")
+    cleaned = cleaned.strip(" ,:：()[]{}\"'。；;.")
     return cleaned
 
 
@@ -225,21 +264,129 @@ def _split_targets(raw: str) -> list[str]:
     return [part for part in parts if part]
 
 
+def _infer_contextual_entity_type(
+    label: str,
+    *,
+    default: EntityType,
+    relation: RelationType,
+    role: str,
+    tree_title: str | None,
+) -> EntityType:
+    if _label_matches_tree_title(label, tree_title):
+        if _looks_like_document(label) or (
+            tree_title is not None and _looks_like_document(tree_title)
+        ):
+            return "Document"
+        return "Project"
+    inferred = _infer_entity_type(label, default=default)
+    if role == "source" and relation in ("causes", "impacts") and inferred == "Concept":
+        return "Event"
+    return inferred
+
+
+def _label_matches_tree_title(label: str, tree_title: str | None) -> bool:
+    if tree_title is None:
+        return False
+    lowered_label = label.lower()
+    lowered_title = tree_title.lower()
+    return lowered_label in lowered_title or lowered_title in lowered_label
+
+
+def _looks_like_document(label: str) -> bool:
+    lowered = label.lower()
+    return any(
+        keyword in lowered
+        for keyword in ("spec", "document", "analysis", "summary", "report", "文件", "報告")
+    )
+
+
 def _infer_entity_type(label: str, *, default: EntityType) -> EntityType:
     lowered = label.lower()
-    if re.fullmatch(r"[A-Z][a-z]+(?: [A-Z][a-z]+)+", label):
-        return "Person"
     if any(keyword in label for keyword in ("專案", "Atlas", "Borealis")):
         return "Project"
     if "project " in lowered and "service" not in lowered:
         return "Project"
-    if any(keyword in label for keyword in ("延遲", "風險", "里程碑", "事故", "事件")):
+    if _looks_like_event(label):
         return "Event"
-    if any(keyword in lowered for keyword in ("delay", "risk", "milestone", "incident", "event")):
-        return "Event"
-    if any(keyword in lowered for keyword in ("spec", "document", "analysis", "summary", "report")):
+    if re.fullmatch(r"[A-Z][a-z]+(?: [A-Z][a-z]+)+", label):
+        return "Person"
+    if _looks_like_document(label):
         return "Document"
     return default
+
+
+def _looks_like_event(label: str) -> bool:
+    lowered = label.lower()
+    if any(keyword in label for keyword in ("延遲", "風險", "里程碑", "事故", "事件")):
+        return True
+    return any(
+        keyword in lowered
+        for keyword in ("delay", "risk", "milestone", "incident", "event", "window")
+    )
+
+
+def _apply_contextual_graph_heuristics(
+    nodes: dict[str, GraphNode],
+    edges: dict[str, GraphEdge],
+) -> None:
+    depends_on_inbound: dict[str, set[str]] = {}
+    for edge in edges.values():
+        if edge.relation == "depends_on":
+            depends_on_inbound.setdefault(edge.target, set()).add(edge.source)
+    for target_id, source_ids in depends_on_inbound.items():
+        if len(source_ids) > 1 and target_id in nodes and nodes[target_id].type != "Concept":
+            _retag_node(nodes, edges, node_id=target_id, entity_type="Concept")
+
+
+def _retag_node(
+    nodes: dict[str, GraphNode],
+    edges: dict[str, GraphEdge],
+    *,
+    node_id: str,
+    entity_type: EntityType,
+) -> None:
+    old_node = nodes[node_id]
+    new_id = make_node_id(entity_type, old_node.label)
+    if new_id == node_id:
+        return
+    existing = nodes.get(new_id)
+    if existing is None:
+        nodes[new_id] = GraphNode(
+            id=new_id,
+            type=entity_type,
+            label=old_node.label,
+            aliases=old_node.aliases,
+            source_relpaths=old_node.source_relpaths,
+            wiki_slugs=old_node.wiki_slugs,
+        )
+    else:
+        existing.aliases = sorted(set(existing.aliases) | set(old_node.aliases) | {old_node.label})
+        existing.source_relpaths = sorted(
+            set(existing.source_relpaths) | set(old_node.source_relpaths)
+        )
+        existing.wiki_slugs = sorted(set(existing.wiki_slugs) | set(old_node.wiki_slugs))
+    nodes.pop(node_id, None)
+
+    rebuilt_edges: dict[str, GraphEdge] = {}
+    for edge in edges.values():
+        source = new_id if edge.source == node_id else edge.source
+        target = new_id if edge.target == node_id else edge.target
+        edge_id = make_edge_id(
+            relation=edge.relation,
+            source_id=source,
+            target_id=target,
+            source_relpath=edge.source_relpath,
+        )
+        rebuilt_edges[edge_id] = GraphEdge(
+            id=edge_id,
+            relation=edge.relation,
+            source=source,
+            target=target,
+            source_relpath=edge.source_relpath,
+            evidence=edge.evidence,
+        )
+    edges.clear()
+    edges.update(rebuilt_edges)
 
 
 def _section_path(page_tree: PageTree, node: TreeNode) -> str:
