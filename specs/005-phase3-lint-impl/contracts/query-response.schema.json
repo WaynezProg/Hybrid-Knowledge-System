@@ -38,6 +38,27 @@
           "items": { "$ref": "#/$defs/traceStep" }
         }
       }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["source_relpath", "route"],
+        "additionalProperties": true,
+        "properties": {
+          "source_relpath": { "type": "string" },
+          "section_path": { "type": "string" },
+          "page_range": {
+            "type": "object",
+            "properties": {
+              "start": { "type": "integer" },
+              "end": { "type": "integer" }
+            }
+          },
+          "quote": { "type": "string", "maxLength": 240 },
+          "route": { "type": "string", "enum": ["wiki", "graph", "vector"] }
+        }
+      }
     }
   },
   "$defs": {
