@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from hks.core.paths import runtime_paths
 from hks.graph.extract import extract_document_graph
+from hks.graph.store import GraphStore
 from hks.page_tree.model import PageTree, TreeNode
 
 
@@ -201,3 +203,69 @@ def test_same_section_title_is_scoped_by_source_and_not_document_id() -> None:
         and edge.target != document_node.id
         for edge in section_result.edges
     )
+
+
+def test_slug_equivalent_relpaths_do_not_merge_section_nodes_in_store(tmp_ks_root) -> None:
+    first = extract_document_graph(
+        relpath="a/b.md",
+        title="Nested Doc",
+        body="Project Atlas affects Billing API.",
+        wiki_slug="a-b",
+        page_tree=PageTree(
+            source_relpath="a/b.md",
+            source_format="md",
+            doc_title="Nested Doc",
+            root_nodes=[
+                TreeNode(
+                    node_id="n1",
+                    title="Risks",
+                    level=2,
+                    start_offset=0,
+                    end_offset=32,
+                    children=[],
+                )
+            ],
+            build_method="rule",
+            built_at="2026-05-19T00:00:00Z",
+            total_nodes=1,
+            source_sha256="x",
+        ),
+    )
+    second = extract_document_graph(
+        relpath="a-b.md",
+        title="Flat Doc",
+        body="Project Borealis affects Search API.",
+        wiki_slug="a-b-flat",
+        page_tree=PageTree(
+            source_relpath="a-b.md",
+            source_format="md",
+            doc_title="Flat Doc",
+            root_nodes=[
+                TreeNode(
+                    node_id="n1",
+                    title="Risks",
+                    level=2,
+                    start_offset=0,
+                    end_offset=36,
+                    children=[],
+                )
+            ],
+            build_method="rule",
+            built_at="2026-05-19T00:00:00Z",
+            total_nodes=1,
+            source_sha256="y",
+        ),
+    )
+
+    store = GraphStore(runtime_paths(tmp_ks_root))
+    store.replace_document("a/b.md", first)
+    store.replace_document("a-b.md", second)
+
+    risks_nodes = [
+        node
+        for node in store.load().nodes.values()
+        if node.label == "Risks" and node.source_relpaths in (["a/b.md"], ["a-b.md"])
+    ]
+    assert len(risks_nodes) == 2
+    assert {node.source_relpaths[0] for node in risks_nodes} == {"a/b.md", "a-b.md"}
+    assert len({node.id for node in risks_nodes}) == 2

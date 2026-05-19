@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
+
+from slugify import slugify
 
 from hks.graph.store import (
     EntityType,
@@ -276,9 +279,13 @@ def _register_section_node(
     entity_type: EntityType,
     relpath: str,
 ) -> GraphNode:
-    scoped_label = f"{relpath}#{tree_node.node_id}#{label}"
     node = GraphNode(
-        id=make_node_id(entity_type, scoped_label),
+        id=_section_node_id(
+            entity_type=entity_type,
+            relpath=relpath,
+            tree_node=tree_node,
+            label=label,
+        ),
         type=entity_type,
         label=label,
         aliases=[label],
@@ -292,6 +299,22 @@ def _register_section_node(
     existing.aliases = sorted(set(existing.aliases) | {label})
     existing.source_relpaths = sorted(set(existing.source_relpaths) | {relpath})
     return existing
+
+
+def _section_node_id(
+    *,
+    entity_type: EntityType,
+    relpath: str,
+    tree_node: TreeNode,
+    label: str,
+) -> str:
+    digest_source = f"{relpath}|{tree_node.node_id}"
+    digest = hashlib.sha1(
+        digest_source.encode("utf-8"),
+        usedforsecurity=False,
+    ).hexdigest()[:12]
+    label_slug = slugify(label, separator="-").strip("-") or "section"
+    return f"{entity_type.lower()}:section-{digest}-{label_slug}"
 
 
 def _register_node(
