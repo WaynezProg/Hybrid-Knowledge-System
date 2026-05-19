@@ -20,7 +20,8 @@ class TreeStore:
 
     def _slug_for(self, relpath: str) -> str:
         wiki_store = WikiStore(self.paths)
-        return wiki_store.slug_base(Path(relpath).stem)
+        relpath_without_suffix = Path(relpath).with_suffix("").as_posix()
+        return wiki_store.slug_base(relpath_without_suffix)
 
     def _validate_slug(self, slug: str) -> None:
         if (

@@ -80,7 +80,21 @@ class TestTreeStore:
 
         slug = store.save("folder/My Report_v2.md", _sample_tree("folder/My Report_v2.md"))
 
-        assert slug == "my-report-v2"
+        assert slug == "folder-my-report-v2"
+
+    def test_slug_is_based_on_relpath_to_avoid_same_basename_collision(
+        self, tmp_path: Path
+    ) -> None:
+        paths = runtime_paths(tmp_path / "ks")
+        store = TreeStore(paths)
+
+        first_slug = store.save("a/report.md", _sample_tree("a/report.md"))
+        second_slug = store.save("b/report.md", _sample_tree("b/report.md"))
+
+        assert first_slug == "a-report"
+        assert second_slug == "b-report"
+        assert store.load(first_slug).source_relpath == "a/report.md"
+        assert store.load(second_slug).source_relpath == "b/report.md"
 
     @pytest.mark.parametrize("slug", ["", ".", "..", "../manifest", "nested/tree", r"nested\\tree"])
     @pytest.mark.parametrize("method", ["load", "delete", "exists"])

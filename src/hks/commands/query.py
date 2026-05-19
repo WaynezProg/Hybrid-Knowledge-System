@@ -101,13 +101,17 @@ def _vector_section_context(
         return {}
 
     entry = manifest.entries.get(relpath)
-    tree_slug = entry.derived.page_tree if entry is not None else None
+    if entry is None:
+        return {}
+    tree_slug = entry.derived.page_tree
     if tree_slug is None:
         return {}
 
     try:
         tree = tree_store.load(tree_slug)
     except Exception:
+        return {}
+    if tree.source_relpath != relpath or tree.source_sha256 != entry.sha256:
         return {}
 
     section_path = tree.section_path(node_id)
