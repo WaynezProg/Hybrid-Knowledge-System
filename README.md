@@ -77,6 +77,14 @@ cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 
 `HKS_EMBEDDING_MODEL=simple` 適合 CI、demo 與 agent smoke test。正式使用可移除此設定，改用預設 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`、把 `HKS_EMBEDDING_MODEL` 指向本機模型目錄，或設定 `HKS_EMBEDDING_MODEL=openai:text-embedding-3-small` 使用 OpenAI Embeddings API。
 
+## Using with Obsidian
+
+`$KS_ROOT/wiki/` 可直接用 Obsidian 的 `Open folder as vault` 開啟；不需要 Obsidian plugin，也不依賴 Obsidian API。`wiki/index.md` 使用標準 Markdown relative links 連到 `wiki/pages/*.md`，`pages/*.md` 會保留 YAML-readable frontmatter。
+
+限制要先講清楚：HKS 的 authoritative source 仍是 `raw_sources/` + `manifest.json`，不是 Obsidian vault。`origin=ingest` 頁面重新 `ks ingest` 會被覆蓋；在 Obsidian 手動修改 wiki 不會更新 `graph/graph.json`、`vector/db/` 或 `page_trees/`。人工筆記建議用 `manual-*.md`，或放在 `$KS_ROOT/wiki/manual/`、`$KS_ROOT/wiki/notes/` 這類獨立資料夾。
+
+完整說明見 [docs/obsidian.md](./docs/obsidian.md)。
+
 ## 怎麼使用
 
 ### Ingest

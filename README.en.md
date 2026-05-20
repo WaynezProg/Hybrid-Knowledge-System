@@ -77,6 +77,14 @@ cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 
 `HKS_EMBEDDING_MODEL=simple` is best for CI, demos, and agent smoke tests. For real use, remove it to use the default `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, or point `HKS_EMBEDDING_MODEL` at a local model directory.
 
+## Using with Obsidian
+
+`$KS_ROOT/wiki/` can be opened directly in Obsidian with `Open folder as vault`; no Obsidian plugin or Obsidian API is required. `wiki/index.md` uses standard Markdown relative links to `wiki/pages/*.md`, and `pages/*.md` keeps YAML-readable frontmatter.
+
+The boundary matters: HKS authoritative source remains `raw_sources/` + `manifest.json`, not the Obsidian vault. `origin=ingest` pages are overwritten when the source is re-ingested; manual edits in Obsidian do not update `graph/graph.json`, `vector/db/`, or `page_trees/`. Put human notes in `manual-*.md`, or in a separate `$KS_ROOT/wiki/manual/` or `$KS_ROOT/wiki/notes/` folder.
+
+See [docs/obsidian.md](./docs/obsidian.md) for the full guide.
+
 ## How To Use It
 
 ### Ingest

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from ruamel.yaml import YAML
 
 from hks.core.paths import runtime_paths
 from hks.storage.wiki import MAX_SLUG_CHARS, WikiStore
@@ -104,3 +105,48 @@ def test_wiki_store_collapses_frontmatter_newlines(tmp_ks_root: Path) -> None:
 
     assert loaded.title == "line one line two"
     assert loaded.summary == "summary one summary two"
+
+
+@pytest.mark.unit
+def test_wiki_frontmatter_quotes_yaml_sensitive_values(tmp_ks_root: Path) -> None:
+    store = WikiStore(runtime_paths(tmp_ks_root))
+
+    page = store.write_page(
+        title="Architecture: Summary",
+        summary="Architecture summary: pricing API and deployment checklist.",
+        body="# Architecture\n\ncontent",
+        source_relpath="architecture-summary.md",
+        origin="ingest",
+        metadata={"note": "owner: platform team"},
+    )
+
+    text = (tmp_ks_root / "wiki" / "pages" / f"{page.slug}.md").read_text(
+        encoding="utf-8"
+    )
+    frontmatter = text.split("---", 2)[1]
+    parsed = YAML(typ="safe").load(frontmatter)
+    loaded = store.load_page(page.slug)
+
+    assert parsed["title"] == "Architecture: Summary"
+    assert parsed["summary"] == "Architecture summary: pricing API and deployment checklist."
+    assert parsed["note"] == "owner: platform team"
+    assert loaded.title == "Architecture: Summary"
+    assert loaded.summary == "Architecture summary: pricing API and deployment checklist."
+    assert loaded.metadata["note"] == "owner: platform team"
+
+
+@pytest.mark.unit
+def test_wiki_index_uses_obsidian_readable_relative_links(tmp_ks_root: Path) -> None:
+    store = WikiStore(runtime_paths(tmp_ks_root))
+
+    store.write_page(
+        title="Project A",
+        summary="summary",
+        body="# Project A\n\nsummary",
+        source_relpath="project-a.md",
+        origin="ingest",
+    )
+
+    index = (tmp_ks_root / "wiki" / "index.md").read_text(encoding="utf-8")
+
+    assert "- [Project A](pages/project-a.md) — summary" in index

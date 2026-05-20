@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -63,7 +64,32 @@ def fit_slug(slug: str, *, digest_source: str | None = None) -> str:
 
 
 def _frontmatter_scalar(value: str) -> str:
-    return " ".join(value.split())
+    normalized = " ".join(value.split())
+    if _requires_quoted_frontmatter_scalar(normalized):
+        return json.dumps(normalized, ensure_ascii=False)
+    return normalized
+
+
+def _requires_quoted_frontmatter_scalar(value: str) -> bool:
+    if value == "":
+        return True
+    if value != value.strip():
+        return True
+    if value[0] in "-?:,[]{}#&*!|>'\"%@`":
+        return True
+    return any(token in value for token in (": ", " #"))
+
+
+def _parse_frontmatter_scalar(value: str) -> str:
+    stripped = value.strip()
+    if stripped.startswith('"') and stripped.endswith('"'):
+        try:
+            parsed = json.loads(stripped)
+        except json.JSONDecodeError:
+            return stripped
+        if isinstance(parsed, str):
+            return parsed
+    return stripped
 
 
 @dataclass(slots=True)
@@ -108,7 +134,7 @@ class WikiPage:
             if not line.strip():
                 continue
             key, value = line.split(":", 1)
-            metadata[key.strip()] = value.strip()
+            metadata[key.strip()] = _parse_frontmatter_scalar(value)
         source_value = metadata.get("source", "")
         if source_value.startswith("raw_sources/"):
             source_value = source_value.removeprefix("raw_sources/")
