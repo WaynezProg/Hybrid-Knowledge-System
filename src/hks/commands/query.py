@@ -14,6 +14,7 @@ from hks.core.schema import QueryResponse, Route, Trace, TraceStep
 from hks.errors import ExitCode, KSError
 from hks.graph.query import answer_query
 from hks.graph.store import GraphStore
+from hks.page_tree.model import TreeNode
 from hks.page_tree.store import TreeStore
 from hks.routing.router import route as route_query
 from hks.routing.rules import load_rules
@@ -46,6 +47,8 @@ def _candidate_evidence(candidate: Candidate) -> list[dict[str, object]]:
         return _wiki_candidate_evidence(candidate)
     if candidate.source_route == "graph":
         return _graph_candidate_evidence(candidate)
+    if candidate.source_route == "page_tree":
+        return _page_tree_candidate_evidence(candidate)
     return _vector_candidate_evidence(candidate)
 
 
@@ -87,6 +90,24 @@ def _vector_candidate_evidence(candidate: Candidate) -> list[dict[str, object]]:
         "source_relpath": relpath,
         "route": "vector",
         "quote": quote,
+    }
+    section_path = _metadata_str(candidate.metadata, "section_path")
+    if section_path is not None:
+        entry["section_path"] = section_path
+    page_range = candidate.metadata.get("page_range")
+    if isinstance(page_range, dict):
+        entry["page_range"] = page_range
+    return [entry]
+
+
+def _page_tree_candidate_evidence(candidate: Candidate) -> list[dict[str, object]]:
+    relpath = _metadata_str(candidate.metadata, "source_relpath")
+    if relpath is None:
+        return []
+    entry: dict[str, object] = {
+        "source_relpath": relpath,
+        "route": "page_tree",
+        "quote": _evidence_quote(candidate.text),
     }
     section_path = _metadata_str(candidate.metadata, "section_path")
     if section_path is not None:
@@ -398,6 +419,74 @@ def _collect_vector_candidates(
     return candidates, steps
 
 
+def _page_tree_node_score(question: str, node: TreeNode) -> float:
+    """Score a page-tree node's relevance to the question using term overlap."""
+    query_terms = _lexical_terms(question)
+    if not query_terms:
+        return 0.0
+    title_overlap = len(query_terms & _lexical_terms(node.title))
+    summary_overlap = len(query_terms & _lexical_terms(node.summary)) if node.summary else 0
+    return title_overlap * 2.0 + summary_overlap * 1.0
+
+
+def _collect_page_tree_candidates(
+    question: str,
+    *,
+    tree_store: TreeStore,
+    manifest: Manifest,
+) -> tuple[list[Candidate], list[TraceStep]]:
+    """Collect candidates from page-tree node titles and summaries."""
+    steps: list[TraceStep] = []
+    candidates: list[Candidate] = []
+
+    for entry in manifest.entries.values():
+        tree_slug = entry.derived.page_tree
+        if tree_slug is None:
+            continue
+        try:
+            tree = tree_store.load(tree_slug)
+        except Exception:
+            continue
+
+        for node in tree.flat_nodes():
+            if not node.summary:
+                continue
+            score = _page_tree_node_score(question, node)
+            if score <= 0:
+                continue
+            text = node.summary
+            section_path = tree.section_path(node.node_id)
+            node_metadata: dict[str, object] = {
+                "source_relpath": tree.source_relpath,
+                "node_id": node.node_id,
+                "section_path": section_path,
+            }
+            page_start = node.metadata.get("page_start")
+            page_end = node.metadata.get("page_end")
+            if isinstance(page_start, int) and isinstance(page_end, int):
+                node_metadata["page_range"] = {"start": page_start, "end": page_end}
+            candidates.append(
+                Candidate(
+                    text=text,
+                    source_route="page_tree",
+                    score=min(score / 10.0, 0.85),
+                    metadata=node_metadata,
+                )
+            )
+
+    candidates.sort(key=lambda c: c.score, reverse=True)
+    candidates = candidates[:5]
+
+    hit = len(candidates) > 0
+    steps.append(
+        TraceStep(
+            kind="page_tree_lookup",
+            detail={"hit": hit, "candidate_count": len(candidates)},
+        )
+    )
+    return candidates, steps
+
+
 def _rrf_rerank(candidates: list[Candidate], *, k: int = 60) -> list[Candidate]:
     if not candidates:
         return []
@@ -558,6 +647,13 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
     )
     all_candidates.extend(vector_candidates)
     steps.extend(vector_steps)
+
+    tree_store = TreeStore(paths)
+    page_tree_candidates, page_tree_steps = _collect_page_tree_candidates(
+        question, tree_store=tree_store, manifest=manifest
+    )
+    all_candidates.extend(page_tree_candidates)
+    steps.extend(page_tree_steps)
 
     if not all_candidates:
         response = _build_no_hit_response(decision.route, steps)

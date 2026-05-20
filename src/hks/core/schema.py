@@ -12,12 +12,13 @@ import jsonschema
 
 from hks.errors import ExitCode
 
-type Route = Literal["wiki", "graph", "vector"]
+type Route = Literal["wiki", "graph", "vector", "page_tree"]
 type TraceKind = Literal[
     "routing_model",
     "wiki_lookup",
     "graph_lookup",
     "vector_lookup",
+    "page_tree_lookup",
     "fallback",
     "merge",
     "writeback",

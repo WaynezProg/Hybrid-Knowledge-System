@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from hks.page_tree.store import TreeStore
 
 type Origin = Literal["ingest", "writeback", "llm_wiki"]
-type Route = Literal["wiki", "graph", "vector"]
+type Route = Literal["wiki", "graph", "vector", "page_tree"]
 type EventType = Literal["ingest", "writeback", "lint", "wiki_synthesis"]
 type EventStatus = Literal[
     "created",

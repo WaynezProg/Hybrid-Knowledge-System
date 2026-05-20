@@ -15,7 +15,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["wiki", "graph", "vector"]
+        "enum": ["wiki", "graph", "vector", "page_tree"]
       },
       "uniqueItems": true
     },
@@ -31,7 +31,7 @@
       "properties": {
         "route": {
           "type": "string",
-          "enum": ["wiki", "graph", "vector"]
+          "enum": ["wiki", "graph", "vector", "page_tree"]
         },
         "steps": {
           "type": "array",
@@ -56,7 +56,7 @@
             }
           },
           "quote": { "type": "string", "maxLength": 240 },
-          "route": { "type": "string", "enum": ["wiki", "graph", "vector"] }
+          "route": { "type": "string", "enum": ["wiki", "graph", "vector", "page_tree"] }
         }
       }
     }
@@ -74,6 +74,7 @@
             "wiki_lookup",
             "graph_lookup",
             "vector_lookup",
+            "page_tree_lookup",
             "fallback",
             "merge",
             "writeback",

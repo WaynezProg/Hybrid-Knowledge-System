@@ -226,7 +226,7 @@ class GraphifyResult:
     mode: GraphifyMode
     graph: GraphifyGraph
     input_fingerprint: str
-    source: list[Literal["wiki", "graph", "vector"]]
+    source: list[Literal["wiki", "graph", "vector", "page_tree"]]
     artifacts: dict[str, Any]
     idempotent_reuse: bool = False
     confidence: float = 1.0

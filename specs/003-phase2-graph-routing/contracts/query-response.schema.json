@@ -15,7 +15,7 @@
       "type": "array",
       "items": {
         "type": "string",
-        "enum": ["wiki", "graph", "vector"]
+        "enum": ["wiki", "graph", "vector", "page_tree"]
       },
       "uniqueItems": true
     },
@@ -31,7 +31,7 @@
       "properties": {
         "route": {
           "type": "string",
-          "enum": ["wiki", "graph", "vector"]
+          "enum": ["wiki", "graph", "vector", "page_tree"]
         },
         "steps": {
           "type": "array",
