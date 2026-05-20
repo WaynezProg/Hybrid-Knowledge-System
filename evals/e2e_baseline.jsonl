@@ -3,3 +3,4 @@
 {"id": "baseline-03", "question": "clause 3.2 text", "expected_answer_not_fallback": true, "expected_answer_contains": "clause"}
 {"id": "baseline-04", "question": "專案總結", "expected_answer_not_fallback": true}
 {"id": "baseline-05", "question": "checkout service 依賴什麼", "expected_answer_not_fallback": true}
+{"id": "baseline-06-page-tree", "question": "Nebula arbitration", "expected_answer_not_fallback": true, "expected_answer_contains": "coordinator approval", "expected_source": "page_tree", "expected_page_tree_hit": true}
