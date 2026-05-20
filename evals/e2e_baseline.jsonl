@@ -1,0 +1,5 @@
+{"id": "baseline-01", "question": "Atlas 摘要", "expected_answer_not_fallback": true, "expected_answer_contains": "Atlas"}
+{"id": "baseline-02", "question": "A 專案延遲影響哪些服務", "expected_answer_not_fallback": true}
+{"id": "baseline-03", "question": "clause 3.2 text", "expected_answer_not_fallback": true, "expected_answer_contains": "clause"}
+{"id": "baseline-04", "question": "專案總結", "expected_answer_not_fallback": true}
+{"id": "baseline-05", "question": "checkout service 依賴什麼", "expected_answer_not_fallback": true}
