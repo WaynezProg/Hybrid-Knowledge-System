@@ -43,10 +43,10 @@ $KS_ROOT/wiki
 
 Obsidian 內手動修改 `$KS_ROOT/wiki/pages/*.md` 不會更新 `graph/graph.json`、`vector/db/` 或 `page_trees/`。如果要更新檢索內容，請修改原始檔後重跑 `ks ingest`，或走 HKS 的 LLM classification / wiki synthesis workflow。
 
-人工筆記不要直接混進 HKS 管理的 ingest page。建議使用：
+人工筆記不要放進 `$KS_ROOT/wiki/pages/`。`WikiStore.list_pages()` 會讀取該目錄所有 `*.md` 並以 HKS frontmatter 解析；不符格式的檔案會導致 runtime error。建議使用：
 
-- `manual-*.md`：放在 `wiki/pages/` 時用明確 prefix 標示人工頁
-- `manual/` 或 `notes/`：放在 `$KS_ROOT/wiki/` 下的獨立資料夾
+- `$KS_ROOT/wiki/manual/`：在同一 vault 內用獨立資料夾放人工筆記
+- `$KS_ROOT/wiki/notes/`：同上，另一種常見命名
 - 獨立 Obsidian vault：如果人工知識會長期維護，請把 HKS wiki 當 read-only reference
 
 人工筆記可連到 HKS pages，例如 `[Project Atlas](../pages/project-atlas.md)`；但 HKS 不會把這些人工連結視為 graph/vector/page_tree 的 authoritative input。

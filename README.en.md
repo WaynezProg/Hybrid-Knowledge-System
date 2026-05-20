@@ -81,7 +81,7 @@ cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 
 `$KS_ROOT/wiki/` can be opened directly in Obsidian with `Open folder as vault`; no Obsidian plugin or Obsidian API is required. `wiki/index.md` uses standard Markdown relative links to `wiki/pages/*.md`, and `pages/*.md` keeps YAML-readable frontmatter.
 
-The boundary matters: HKS authoritative source remains `raw_sources/` + `manifest.json`, not the Obsidian vault. `origin=ingest` pages are overwritten when the source is re-ingested; manual edits in Obsidian do not update `graph/graph.json`, `vector/db/`, or `page_trees/`. Put human notes in `manual-*.md`, or in a separate `$KS_ROOT/wiki/manual/` or `$KS_ROOT/wiki/notes/` folder.
+The boundary matters: HKS authoritative source remains `raw_sources/` + `manifest.json`, not the Obsidian vault. `origin=ingest` pages are overwritten when the source is re-ingested; manual edits in Obsidian do not update `graph/graph.json`, `vector/db/`, or `page_trees/`. Do not put human notes in `wiki/pages/` (HKS reads and parses every `*.md` there); use `$KS_ROOT/wiki/manual/`, `$KS_ROOT/wiki/notes/`, or a separate vault instead.
 
 See [docs/obsidian.md](./docs/obsidian.md) for the full guide.
 
@@ -258,8 +258,8 @@ uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
-- MCP tools: `hks_query`, `hks_ingest`, `hks_source_list`, `hks_source_show`, `hks_workspace_list`, `hks_workspace_register`, `hks_workspace_show`, `hks_workspace_remove`, `hks_workspace_use`, `hks_workspace_query`, `hks_lint`, `hks_llm_classify`, `hks_wiki_synthesize`, `hks_graphify_build`, `hks_watch_scan`, `hks_watch_run`, `hks_watch_status`, `hks_coord_session`, `hks_coord_lease`, `hks_coord_handoff`, `hks_coord_status`
-- HTTP endpoints: `/query`, `/ingest`, `/catalog/sources`, `/catalog/sources/{relpath}`, `/workspaces`, `/workspaces/{workspace_id}`, `/workspaces/{workspace_id}/query`, `/lint`, `/llm/classify`, `/wiki/synthesize`, `/graphify/build`, `/watch/scan`, `/watch/run`, `/watch/status`, `/coord/session`, `/coord/lease`, `/coord/handoff`, `/coord/status`
+- MCP tools: `hks_query`, `hks_ingest`, `hks_source_list`, `hks_source_show`, `hks_workspace_list`, `hks_workspace_register`, `hks_workspace_show`, `hks_workspace_remove`, `hks_workspace_use`, `hks_workspace_query`, `hks_lint`, `hks_llm_classify`, `hks_wiki_synthesize`, `hks_graphify_build`, `hks_pageindex_show`, `hks_pageindex_enrich`, `hks_watch_scan`, `hks_watch_run`, `hks_watch_status`, `hks_coord_session`, `hks_coord_lease`, `hks_coord_handoff`, `hks_coord_status`
+- HTTP endpoints: `/query`, `/ingest`, `/catalog/sources`, `/catalog/sources/{relpath}`, `/workspaces`, `/workspaces/{workspace_id}`, `/workspaces/{workspace_id}/query`, `/lint`, `/llm/classify`, `/wiki/synthesize`, `/graphify/build`, `/pageindex/{relpath}`, `/pageindex/enrich`, `/watch/scan`, `/watch/run`, `/watch/status`, `/coord/session`, `/coord/lease`, `/coord/handoff`, `/coord/status`
 - Successful payloads directly use the existing `ks` top-level JSON shape, with no adapter envelope
 - Error payloads use `{ok:false,error:{code,exit_code,message,details},response?}`
 - The adapter is local-first; Streamable HTTP and the HTTP facade bind to loopback by default
@@ -272,11 +272,17 @@ uv run hks-api --host 127.0.0.1 --port 8766
   "answer": "...",
   "source": ["graph"],
   "confidence": 0.88,
+  "evidence": [
+    {"source_relpath": "atlas.txt", "route": "graph", "quote": "Atlas depends on Mobile Gateway..."}
+  ],
   "trace": {
     "route": "graph",
     "steps": [
       {"kind": "routing_model", "detail": {}},
-      {"kind": "graph_lookup", "detail": {}}
+      {"kind": "wiki_lookup", "detail": {"hit": false}},
+      {"kind": "graph_lookup", "detail": {"hit": true, "relpaths": ["atlas.txt"]}},
+      {"kind": "vector_lookup", "detail": {}},
+      {"kind": "merge", "detail": {"strategy": "rrf", "candidate_count": 3}}
     ]
   }
 }

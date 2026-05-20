@@ -766,5 +766,8 @@ def _build_writeback_context(response: QueryResponse, wiki_store: WikiStore) -> 
                 if isinstance(step.detail.get("relpaths", []), list)
                 else []
             )
+    for evidence_item in response.evidence:
+        if isinstance(evidence_item.get("source_relpath"), str):
+            relpaths.append(cast(str, evidence_item["source_relpath"]))
     related_slugs.extend(page.slug for page in wiki_store.pages_for_source_relpaths(relpaths))
     return WritebackContext(related_slugs=sorted(dict.fromkeys(related_slugs)))

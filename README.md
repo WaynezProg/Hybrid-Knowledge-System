@@ -81,7 +81,7 @@ cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
 
 `$KS_ROOT/wiki/` 可直接用 Obsidian 的 `Open folder as vault` 開啟；不需要 Obsidian plugin，也不依賴 Obsidian API。`wiki/index.md` 使用標準 Markdown relative links 連到 `wiki/pages/*.md`，`pages/*.md` 會保留 YAML-readable frontmatter。
 
-限制要先講清楚：HKS 的 authoritative source 仍是 `raw_sources/` + `manifest.json`，不是 Obsidian vault。`origin=ingest` 頁面重新 `ks ingest` 會被覆蓋；在 Obsidian 手動修改 wiki 不會更新 `graph/graph.json`、`vector/db/` 或 `page_trees/`。人工筆記建議用 `manual-*.md`，或放在 `$KS_ROOT/wiki/manual/`、`$KS_ROOT/wiki/notes/` 這類獨立資料夾。
+限制要先講清楚：HKS 的 authoritative source 仍是 `raw_sources/` + `manifest.json`，不是 Obsidian vault。`origin=ingest` 頁面重新 `ks ingest` 會被覆蓋；在 Obsidian 手動修改 wiki 不會更新 `graph/graph.json`、`vector/db/` 或 `page_trees/`。人工筆記不要放進 `wiki/pages/`（HKS 會讀取並解析該目錄所有 `*.md`），建議放在 `$KS_ROOT/wiki/manual/`、`$KS_ROOT/wiki/notes/`，或使用獨立 vault。
 
 完整說明見 [docs/obsidian.md](./docs/obsidian.md)。
 
@@ -258,8 +258,8 @@ uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
-- MCP tools：`hks_query`、`hks_ingest`、`hks_source_list`、`hks_source_show`、`hks_workspace_list`、`hks_workspace_register`、`hks_workspace_show`、`hks_workspace_remove`、`hks_workspace_use`、`hks_workspace_query`、`hks_lint`、`hks_llm_classify`、`hks_wiki_synthesize`、`hks_graphify_build`、`hks_watch_scan`、`hks_watch_run`、`hks_watch_status`、`hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_coord_status`
-- HTTP endpoints：`/query`、`/ingest`、`/catalog/sources`、`/catalog/sources/{relpath}`、`/workspaces`、`/workspaces/{workspace_id}`、`/workspaces/{workspace_id}/query`、`/lint`、`/llm/classify`、`/wiki/synthesize`、`/graphify/build`、`/watch/scan`、`/watch/run`、`/watch/status`、`/coord/session`、`/coord/lease`、`/coord/handoff`、`/coord/status`
+- MCP tools：`hks_query`、`hks_ingest`、`hks_source_list`、`hks_source_show`、`hks_workspace_list`、`hks_workspace_register`、`hks_workspace_show`、`hks_workspace_remove`、`hks_workspace_use`、`hks_workspace_query`、`hks_lint`、`hks_llm_classify`、`hks_wiki_synthesize`、`hks_graphify_build`、`hks_pageindex_show`、`hks_pageindex_enrich`、`hks_watch_scan`、`hks_watch_run`、`hks_watch_status`、`hks_coord_session`、`hks_coord_lease`、`hks_coord_handoff`、`hks_coord_status`
+- HTTP endpoints：`/query`、`/ingest`、`/catalog/sources`、`/catalog/sources/{relpath}`、`/workspaces`、`/workspaces/{workspace_id}`、`/workspaces/{workspace_id}/query`、`/lint`、`/llm/classify`、`/wiki/synthesize`、`/graphify/build`、`/pageindex/{relpath}`、`/pageindex/enrich`、`/watch/scan`、`/watch/run`、`/watch/status`、`/coord/session`、`/coord/lease`、`/coord/handoff`、`/coord/status`
 - 成功 payload 直接沿用 `ks` 的 top-level JSON shape，不包 adapter envelope
 - 錯誤 payload 使用 `{ok:false,error:{code,exit_code,message,details},response?}`
 - adapter 預設 local-first；Streamable HTTP 與 HTTP facade 預設只允許 loopback host
@@ -273,8 +273,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
   "source": ["graph"],
   "confidence": 0.88,
   "evidence": [
-    {"source_relpath": "atlas.txt", "route": "graph"},
-    {"source_relpath": "atlas.txt", "route": "vector", "section_path": "Chapter 1 > Overview"}
+    {"source_relpath": "atlas.txt", "route": "graph", "quote": "Atlas depends on Mobile Gateway..."}
   ],
   "trace": {
     "route": "graph",
@@ -283,7 +282,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
       {"kind": "wiki_lookup", "detail": {"hit": false}},
       {"kind": "graph_lookup", "detail": {"hit": true, "relpaths": ["atlas.txt"]}},
       {"kind": "vector_lookup", "detail": {}},
-      {"kind": "merge", "detail": {"strategy": "llm", "candidate_count": 3}}
+      {"kind": "merge", "detail": {"strategy": "rrf", "candidate_count": 3}}
     ]
   }
 }
