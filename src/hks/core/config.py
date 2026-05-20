@@ -166,7 +166,18 @@ def _structured_value(name: str) -> str | None:
     if match:
         provider = match.group(1).lower().replace("_", "-")
         field = "api_key" if match.group(2) == "API_KEY" else "endpoint"
-        return _coerce_config_value(_nested_get(payload, ("llm", "providers", provider, field)))
+        value = _coerce_config_value(
+            _nested_get(payload, ("llm", "providers", provider, field))
+        )
+        if value is not None:
+            return value
+        # Fallback: reuse embedding provider api_key when llm section absent
+        # (endpoint is NOT shared — embedding and chat endpoints differ)
+        if field == "api_key":
+            return _coerce_config_value(
+                _nested_get(payload, ("embedding", provider, field))
+            )
+        return None
 
     return None
 

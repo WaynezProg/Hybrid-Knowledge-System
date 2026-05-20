@@ -3,12 +3,47 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
+from hks.core.config import config_value, load_structured_config, _nested_get
+
 OPENAI_KEY_ENV = "HKS_LLM_PROVIDER_OPENAI_API_KEY"
 
+
+def _has_openai_key() -> bool:
+    """Check all known locations for an OpenAI API key."""
+    # Check env vars directly (not via config_value, which may be
+    # affected by autouse fixtures during collection).
+    if os.environ.get(OPENAI_KEY_ENV) or os.environ.get("OPENAI_API_KEY"):
+        return True
+    if config_value(OPENAI_KEY_ENV) or config_value("OPENAI_API_KEY"):
+        return True
+    payload = load_structured_config()
+    return bool(_nested_get(payload, ("embedding", "openai", "api_key")))
+
+
 requires_openai = pytest.mark.skipif(
-    not os.environ.get(OPENAI_KEY_ENV) and not os.environ.get("OPENAI_API_KEY"),
+    not _has_openai_key(),
     reason=f"Set {OPENAI_KEY_ENV} or OPENAI_API_KEY to run eval tests",
 )
+
+
+def _real_config_file() -> str | None:
+    """Find the real hks.yaml from the repo (not the test-isolated one)."""
+    # Walk up from this file to find the repo root config
+    here = Path(__file__).resolve()
+    for parent in here.parents:
+        candidate = parent / "config" / "hks.yaml"
+        if candidate.exists():
+            return str(candidate)
+    return None
+
+
+@pytest.fixture(autouse=True)
+def _eval_restore_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Override the test-isolation fixture to use real config for evals."""
+    real_config = _real_config_file()
+    if real_config:
+        monkeypatch.setenv("HKS_CONFIG_FILE", real_config)
