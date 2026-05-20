@@ -20,22 +20,38 @@ def render_html(graph: GraphifyGraph) -> str:
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>HKS Graphify Dashboard</title>
+  <title>Graphify Explorer · HKS</title>
   <style>
     :root {
-      --bg-color: #09090b;
-      --panel-bg: rgba(20, 20, 25, 0.65);
-      --border-color: rgba(255, 255, 255, 0.08);
-      --text-main: #f4f4f5;
-      --text-muted: #a1a1aa;
-      --accent-color: #3b82f6;
+      --bg-color: #1a1618;
+      --bg-elev: #221d20;
+      --panel-bg: rgba(34, 29, 32, 0.84);
+      --panel-solid: #25201f;
+      --input-bg: #2c2528;
+      --border-color: #38312f;
+      --border-strong: #4a4140;
+      --text-main: #ece5ea;
+      --text-muted: #9a8e93;
+      --text-dim: #6d6166;
+      --accent-color: #b794f6;
+      --accent-bright: #c4a6ff;
+      --accent-soft: rgba(183, 148, 246, 0.1);
+      --accent-glow: rgba(183, 148, 246, 0.2);
+      --amber: #d6a85e;
+      --rose: #f0788a;
+      --teal: #7dd3fc;
+      --mint: #86efac;
+      --gold: #fcd34d;
 
-      --color-source: #3b82f6;
-      --color-wiki: #10b981;
-      --color-entity: #8b5cf6;
-      --color-concept: #f59e0b;
-      --color-artifact: #ec4899;
-      --color-community: #14b8a6;
+      --color-source: #7dd3fc;
+      --color-wiki: #86efac;
+      --color-entity: #b794f6;
+      --color-concept: #fcd34d;
+      --color-artifact: #f0788a;
+      --color-community: #c4a6ff;
+      --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      --mono: "SFMono-Regular", "SF Mono", Menlo, Consolas, ui-monospace, monospace;
+      --serif: Georgia, "Times New Roman", "Songti TC", serif;
     }
 
     * {
@@ -45,7 +61,7 @@ def render_html(graph: GraphifyGraph) -> str:
     }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang TC", "Microsoft JhengHei", sans-serif;
+      font-family: var(--sans);
       background-color: var(--bg-color);
       color: var(--text-main);
       width: 100vw;
@@ -53,6 +69,8 @@ def render_html(graph: GraphifyGraph) -> str:
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      line-height: 1.55;
+      -webkit-font-smoothing: antialiased;
     }
 
     .bg-grid {
@@ -62,45 +80,61 @@ def render_html(graph: GraphifyGraph) -> str:
       width: 100%;
       height: 100%;
       background-image:
-        linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-      background-size: 32px 32px;
+        radial-gradient(1200px 700px at 60% 45%, rgba(183, 148, 246, 0.045), transparent 70%),
+        radial-gradient(800px 500px at 20% 85%, rgba(125, 211, 252, 0.025), transparent 70%),
+        linear-gradient(to right, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+      background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
       pointer-events: none;
       z-index: 1;
     }
 
     /* Navbar */
     header {
-      height: 64px;
+      height: 48px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 24px;
+      gap: 16px;
+      padding: 0 16px;
       border-bottom: 1px solid var(--border-color);
-      background: rgba(9, 9, 11, 0.7);
-      backdrop-filter: blur(12px);
+      background: var(--bg-elev);
       z-index: 100;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--text-muted);
+      user-select: none;
     }
 
     .logo-section {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .brand-glyph {
+      width: 16px;
+      height: 16px;
+      display: inline-block;
+      background: radial-gradient(circle at 30% 30%, var(--accent-bright), var(--accent-color) 60%, transparent 70%);
+      border-radius: 50%;
+      box-shadow: 0 0 12px var(--accent-glow);
     }
 
     .logo-section h1 {
-      font-size: 20px;
-      font-weight: 700;
+      color: var(--text-main);
+      font-family: var(--serif);
+      font-size: 17px;
+      font-weight: 600;
       letter-spacing: 0;
-      background: linear-gradient(135deg, #fff 30%, #a1a1aa 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
+      white-space: nowrap;
     }
 
     .badge {
-      background: rgba(59, 130, 246, 0.15);
-      border: 1px solid rgba(59, 130, 246, 0.3);
-      color: #60a5fa;
+      background: var(--accent-soft);
+      border: 1px solid rgba(183, 148, 246, 0.32);
+      color: var(--accent-bright);
       font-size: 11px;
       padding: 2px 8px;
       border-radius: 9999px;
@@ -109,27 +143,28 @@ def render_html(graph: GraphifyGraph) -> str:
 
     .stats-container {
       display: flex;
-      gap: 16px;
+      gap: 14px;
+      margin-left: auto;
     }
 
     .stat-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid var(--border-color);
-      padding: 6px 16px;
-      border-radius: 8px;
+      background: transparent;
+      border: none;
+      padding: 0;
+      border-radius: 0;
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 13px;
+      gap: 4px;
+      font-size: 12px;
     }
 
     .stat-card .val {
-      font-weight: 700;
-      color: #fff;
+      font-weight: 500;
+      color: var(--text-main);
     }
 
     .stat-card .lbl {
-      color: var(--text-muted);
+      color: var(--text-dim);
     }
 
     /* Layout */
@@ -143,29 +178,33 @@ def render_html(graph: GraphifyGraph) -> str:
 
     /* Left Sidebar: Controls */
     .sidebar-left {
-      width: 320px;
-      height: 100%;
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      width: 304px;
+      max-height: calc(100% - 88px);
       background: var(--panel-bg);
-      backdrop-filter: blur(16px);
-      border-right: 1px solid var(--border-color);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
       display: flex;
       flex-direction: column;
-      gap: 24px;
-      padding: 24px;
+      gap: 18px;
+      padding: 16px;
       overflow-y: auto;
       z-index: 50;
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.2);
     }
 
     /* Right Sidebar: Details */
     .sidebar-right {
-      width: 340px;
+      width: 420px;
       height: 100%;
-      background: var(--panel-bg);
-      backdrop-filter: blur(16px);
+      background: var(--bg-elev);
       border-left: 1px solid var(--border-color);
       display: flex;
       flex-direction: column;
-      padding: 24px;
+      padding: 18px 22px 40px;
       overflow-y: auto;
       z-index: 50;
     }
@@ -175,7 +214,10 @@ def render_html(graph: GraphifyGraph) -> str:
       flex: 1;
       height: 100%;
       position: relative;
-      background: #050507;
+      background:
+        radial-gradient(900px 520px at 58% 42%, rgba(183, 148, 246, 0.075), transparent 72%),
+        radial-gradient(560px 420px at 18% 82%, rgba(125, 211, 252, 0.04), transparent 70%),
+        var(--bg-color);
       user-select: none;
     }
 
@@ -191,12 +233,13 @@ def render_html(graph: GraphifyGraph) -> str:
 
     /* Controls Elements */
     .section-title {
-      font-size: 14px;
-      font-weight: 600;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
       text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #fff;
-      margin-bottom: 12px;
+      letter-spacing: 0.14em;
+      color: var(--text-dim);
+      margin-bottom: 10px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -208,20 +251,21 @@ def render_html(graph: GraphifyGraph) -> str:
 
     .search-input {
       width: 100%;
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--input-bg);
       border: 1px solid var(--border-color);
-      color: #fff;
-      padding: 10px 14px;
+      color: var(--text-main);
+      padding: 8px 12px;
       border-radius: 8px;
-      font-size: 13px;
+      font-family: var(--mono);
+      font-size: 12px;
       outline: none;
       transition: all 0.2s;
     }
 
     .search-input:focus {
       border-color: var(--accent-color);
-      background: rgba(255, 255, 255, 0.08);
-      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+      background: rgba(44, 37, 40, 0.96);
+      box-shadow: 0 0 0 1px var(--accent-glow);
     }
 
     .search-results {
@@ -229,7 +273,7 @@ def render_html(graph: GraphifyGraph) -> str:
       top: calc(100% + 4px);
       left: 0;
       right: 0;
-      background: #18181b;
+      background: var(--bg-elev);
       border: 1px solid var(--border-color);
       border-radius: 8px;
       max-height: 200px;
@@ -311,25 +355,25 @@ def render_html(graph: GraphifyGraph) -> str:
     }
 
     .community-item {
-      background: rgba(255, 255, 255, 0.02);
+      background: rgba(255, 255, 255, 0.025);
       border: 1px solid var(--border-color);
-      padding: 10px;
-      border-radius: 6px;
+      padding: 9px 10px;
+      border-radius: 8px;
       cursor: pointer;
       font-size: 12px;
       transition: all 0.2s;
     }
 
     .community-item:hover, .community-item.active {
-      background: rgba(20, 184, 166, 0.1);
-      border-color: rgba(20, 184, 166, 0.4);
+      background: var(--accent-soft);
+      border-color: var(--border-strong);
     }
 
     .community-item-header {
       display: flex;
       justify-content: space-between;
       font-weight: 600;
-      color: #fff;
+      color: var(--text-main);
       margin-bottom: 4px;
     }
 
@@ -364,9 +408,9 @@ def render_html(graph: GraphifyGraph) -> str:
 
     .physics-btn {
       width: 100%;
-      background: rgba(255, 255, 255, 0.05);
+      background: var(--input-bg);
       border: 1px solid var(--border-color);
-      color: #fff;
+      color: var(--text-main);
       padding: 8px;
       border-radius: 6px;
       font-size: 12px;
@@ -376,15 +420,16 @@ def render_html(graph: GraphifyGraph) -> str:
     }
 
     .physics-btn:hover {
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(255, 255, 255, 0.2);
+      background: var(--accent-soft);
+      border-color: var(--border-strong);
+      color: var(--accent-bright);
     }
 
     /* Float controls */
     .float-controls {
       position: absolute;
       bottom: 24px;
-      right: 24px;
+      left: 24px;
       display: flex;
       flex-direction: column;
       gap: 8px;
@@ -396,9 +441,9 @@ def render_html(graph: GraphifyGraph) -> str:
       height: 40px;
       border-radius: 8px;
       background: var(--panel-bg);
-      backdrop-filter: blur(12px);
+      backdrop-filter: blur(10px);
       border: 1px solid var(--border-color);
-      color: #fff;
+      color: var(--text-muted);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -410,8 +455,9 @@ def render_html(graph: GraphifyGraph) -> str:
     }
 
     .float-btn:hover {
-      background: rgba(255, 255, 255, 0.12);
-      border-color: rgba(255, 255, 255, 0.2);
+      background: var(--accent-soft);
+      border-color: var(--border-strong);
+      color: var(--accent-bright);
     }
 
     /* Details styling */
@@ -440,78 +486,87 @@ def render_html(graph: GraphifyGraph) -> str:
     }
 
     .details-title {
-      font-size: 18px;
-      font-weight: 700;
-      color: #fff;
+      font-family: var(--serif);
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--text-main);
       word-break: break-word;
       margin-bottom: 6px;
     }
 
     .details-subtitle {
-      font-size: 12px;
+      font-family: var(--mono);
+      font-size: 11px;
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 0.08em;
       display: flex;
       align-items: center;
       gap: 6px;
     }
 
     .detail-card {
-      background: rgba(255, 255, 255, 0.02);
+      background: var(--panel-solid);
       border: 1px solid var(--border-color);
-      border-radius: 6px;
+      border-radius: 8px;
       padding: 12px;
       font-size: 13px;
     }
 
     .detail-card-title {
+      font-family: var(--mono);
       font-size: 11px;
       text-transform: uppercase;
       color: var(--text-muted);
       margin-bottom: 6px;
-      letter-spacing: 0.5px;
-      font-weight: 600;
+      letter-spacing: 0.08em;
+      font-weight: 500;
     }
 
     .detail-card-val {
-      color: #e4e4e7;
+      color: var(--text-main);
       word-break: break-all;
     }
 
     .badge-kind {
       padding: 2px 8px;
-      border-radius: 4px;
+      border-radius: 999px;
       font-size: 11px;
-      font-weight: 600;
-      color: #fff;
+      font-weight: 500;
+      color: var(--bg-color);
       display: inline-block;
+      font-family: var(--mono);
     }
 
     .badge-relation {
-      background: rgba(139, 92, 246, 0.15);
-      border: 1px solid rgba(139, 92, 246, 0.3);
-      color: #a78bfa;
+      background: var(--accent-soft);
+      border: 1px solid rgba(183, 148, 246, 0.3);
+      color: var(--accent-bright);
       padding: 2px 6px;
-      border-radius: 4px;
-      font-family: monospace;
+      border-radius: 999px;
+      font-family: var(--mono);
     }
 
     .badge-layer {
-      background: rgba(255, 255, 255, 0.08);
-      color: #fff;
+      background: var(--input-bg);
+      color: var(--text-muted);
+      border: 1px solid var(--border-color);
       padding: 1px 6px;
-      border-radius: 4px;
+      border-radius: 999px;
       font-size: 11px;
+      font-family: var(--mono);
     }
 
     .audit-findings-title {
-      font-size: 14px;
-      font-weight: 600;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 500;
       margin-bottom: 12px;
-      color: #fff;
+      color: var(--text-dim);
       border-bottom: 1px solid var(--border-color);
       padding-bottom: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
     }
 
     .audit-list {
@@ -525,21 +580,22 @@ def render_html(graph: GraphifyGraph) -> str:
       border-radius: 6px;
       border: 1px solid var(--border-color);
       font-size: 12px;
+      background: var(--panel-solid);
     }
 
     .audit-item.error {
-      background: rgba(239, 68, 68, 0.08);
-      border-color: rgba(239, 68, 68, 0.25);
+      background: rgba(240, 120, 138, 0.08);
+      border-color: rgba(240, 120, 138, 0.25);
     }
 
     .audit-item.warning {
-      background: rgba(245, 158, 11, 0.08);
-      border-color: rgba(245, 158, 11, 0.25);
+      background: rgba(214, 168, 94, 0.08);
+      border-color: rgba(214, 168, 94, 0.25);
     }
 
     .audit-item.info {
-      background: rgba(59, 130, 246, 0.08);
-      border-color: rgba(59, 130, 246, 0.25);
+      background: rgba(125, 211, 252, 0.08);
+      border-color: rgba(125, 211, 252, 0.25);
     }
 
     .audit-header {
@@ -565,10 +621,14 @@ def render_html(graph: GraphifyGraph) -> str:
 
     .node-label {
       font-size: 11px;
-      fill: #e4e4e7;
+      fill: var(--text-muted);
       pointer-events: none;
       text-anchor: middle;
       font-weight: 500;
+      paint-order: stroke;
+      stroke: var(--bg-color);
+      stroke-width: 3px;
+      stroke-linejoin: round;
     }
 
     .link {
@@ -586,19 +646,44 @@ def render_html(graph: GraphifyGraph) -> str:
       cursor: pointer;
     }
 
+    .status-line {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      max-width: calc(100% - 120px);
+      background: var(--panel-bg);
+      backdrop-filter: blur(10px);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 6px 10px;
+      z-index: 40;
+      pointer-events: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .status-line b {
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
     /* Scrollbar */
     ::-webkit-scrollbar {
-      width: 6px;
+      width: 10px;
     }
     ::-webkit-scrollbar-track {
       background: transparent;
     }
     ::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 9999px;
+      background: var(--border-color);
+      border-radius: 5px;
     }
     ::-webkit-scrollbar-thumb:hover {
-      background: rgba(255, 255, 255, 0.2);
+      background: var(--border-strong);
     }
   </style>
 </head>
@@ -607,7 +692,8 @@ def render_html(graph: GraphifyGraph) -> str:
 
   <header>
     <div class="logo-section">
-      <h1>HKS Graphify</h1>
+      <span class="brand-glyph"></span>
+      <h1>Graphify Explorer</h1>
       <span class="badge">v1.0.0-interactive</span>
     </div>
 
@@ -673,16 +759,16 @@ def render_html(graph: GraphifyGraph) -> str:
         <defs>
           <!-- Markers for arrowheads -->
           <marker id="arrow-extracted" viewBox="0 -5 10 10" refX="22" refY="0" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,-5L10,0L0,5" fill="#3b82f6" opacity="0.8"></path>
+            <path d="M0,-5L10,0L0,5" fill="#7dd3fc" opacity="0.82"></path>
           </marker>
           <marker id="arrow-inferred" viewBox="0 -5 10 10" refX="22" refY="0" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,-5L10,0L0,5" fill="#c084fc" opacity="0.8"></path>
+            <path d="M0,-5L10,0L0,5" fill="#c4a6ff" opacity="0.82"></path>
           </marker>
           <marker id="arrow-ambiguous" viewBox="0 -5 10 10" refX="22" refY="0" markerWidth="6" markerHeight="6" orient="auto">
-            <path d="M0,-5L10,0L0,5" fill="#fb923c" opacity="0.8"></path>
+            <path d="M0,-5L10,0L0,5" fill="#d6a85e" opacity="0.82"></path>
           </marker>
           <marker id="arrow-highlighted" viewBox="0 -5 10 10" refX="22" refY="0" markerWidth="7" markerHeight="7" orient="auto">
-            <path d="M0,-5L10,0L0,5" fill="#ffffff"></path>
+            <path d="M0,-5L10,0L0,5" fill="#ece5ea"></path>
           </marker>
         </defs>
         <g id="zoom-group">
@@ -695,6 +781,9 @@ def render_html(graph: GraphifyGraph) -> str:
         <button class="float-btn" id="zoom-in" title="Zoom In">+</button>
         <button class="float-btn" id="zoom-out" title="Zoom Out">-</button>
         <button class="float-btn" id="zoom-reset" title="Reset View">⊙</button>
+      </div>
+      <div class="status-line" id="status-line">
+        <b>drag</b> to pan · <b>scroll</b> to zoom · <b>click</b> a node or edge
       </div>
     </div>
 
@@ -715,12 +804,12 @@ def render_html(graph: GraphifyGraph) -> str:
   <script>
     // Constants & config
     const colors = {
-      source: '#3b82f6',
-      wiki_page: '#10b981',
-      entity: '#8b5cf6',
-      concept: '#f59e0b',
-      artifact: '#ec4899',
-      community: '#14b8a6'
+      source: '#7dd3fc',
+      wiki_page: '#86efac',
+      entity: '#b794f6',
+      concept: '#fcd34d',
+      artifact: '#f0788a',
+      community: '#c4a6ff'
     };
 
     function escapeHtml(value) {
@@ -822,6 +911,7 @@ def render_html(graph: GraphifyGraph) -> str:
     const canvasContainer = document.getElementById('canvas-container');
     const svgEl = document.getElementById('graph-svg');
     const zoomGroupEl = document.getElementById('zoom-group');
+    const statusLineEl = document.getElementById('status-line');
 
     let width = canvasContainer.clientWidth || 800;
     let height = canvasContainer.clientHeight || 600;
@@ -872,6 +962,8 @@ def render_html(graph: GraphifyGraph) -> str:
       return { edge, line, overlay, container: g };
     });
 
+    let dragTarget = null;
+
     const nodeDOMs = nodes.map(node => {
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
       g.setAttribute('class', 'node-group');
@@ -886,7 +978,7 @@ def render_html(graph: GraphifyGraph) -> str:
       circle.setAttribute('class', 'node-circle');
       circle.setAttribute('r', 6 + Math.sqrt(node.degree || 0) * 2.2);
       circle.setAttribute('fill', colors[node.kind]);
-      circle.setAttribute('stroke', '#ffffff');
+      circle.setAttribute('stroke', '#ece5ea');
       circle.setAttribute('stroke-width', 1.5);
       circle.setAttribute('stroke-opacity', 0.85);
 
@@ -908,32 +1000,31 @@ def render_html(graph: GraphifyGraph) -> str:
       g.addEventListener('mouseover', () => hoverNode(node));
       g.addEventListener('mouseout', () => unhoverNode());
 
-      let isDragging = false;
       g.addEventListener('mousedown', (e) => {
-        isDragging = true;
+        dragTarget = node;
         node.isFixed = true;
         e.stopPropagation();
       });
 
-      window.addEventListener('mousemove', (e) => {
-        if (!isDragging) return;
-        const rect = svgEl.getBoundingClientRect();
-        const screenX = e.clientX - rect.left;
-        const screenY = e.clientY - rect.top;
-        node.x = (screenX - zoomTx) / zoomScale;
-        node.y = (screenY - zoomTy) / zoomScale;
-      });
-
-      window.addEventListener('mouseup', () => {
-        if (isDragging) {
-          isDragging = false;
-          if (!isPaused) {
-            node.isFixed = false;
-          }
-        }
-      });
-
       return { node, container: g, circle, glow, text };
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!dragTarget) return;
+      const rect = svgEl.getBoundingClientRect();
+      const screenX = e.clientX - rect.left;
+      const screenY = e.clientY - rect.top;
+      dragTarget.x = (screenX - zoomTx) / zoomScale;
+      dragTarget.y = (screenY - zoomTy) / zoomScale;
+    });
+
+    window.addEventListener('mouseup', () => {
+      if (dragTarget) {
+        if (!isPaused) {
+          dragTarget.isFixed = false;
+        }
+        dragTarget = null;
+      }
     });
 
     let isPanning = false;
@@ -1123,15 +1214,19 @@ def render_html(graph: GraphifyGraph) -> str:
     });
 
     function getEdgeColor(evidence) {
-      if (evidence === 'INFERRED') return '#c084fc';
-      if (evidence === 'AMBIGUOUS') return '#fb923c';
-      return '#3b82f6';
+      if (evidence === 'INFERRED') return '#c4a6ff';
+      if (evidence === 'AMBIGUOUS') return '#d6a85e';
+      return '#7dd3fc';
     }
 
     function getEdgeStrokeDash(evidence) {
       if (evidence === 'INFERRED') return '4, 4';
       if (evidence === 'AMBIGUOUS') return '2, 3';
       return null;
+    }
+
+    function setStatusLine(html) {
+      statusLineEl.innerHTML = html;
     }
 
     function hoverNode(targetNode) {
@@ -1146,6 +1241,7 @@ def render_html(graph: GraphifyGraph) -> str:
         const connected = d.edge.source === targetNode.id || d.edge.target === targetNode.id;
         d.line.style.opacity = connected ? 0.9 : 0.04;
       });
+      setStatusLine(`<b>hover</b> · ${escapeHtml(targetNode.id)} · ${escapeHtml(targetNode.kind)} · degree ${targetNode.degree}`);
     }
 
     function unhoverNode() {
@@ -1153,6 +1249,7 @@ def render_html(graph: GraphifyGraph) -> str:
 
       nodeDOMs.forEach(d => { d.container.style.opacity = 1.0; });
       linkDOMs.forEach(d => { d.line.style.opacity = 0.4 * (d.edge.confidence_score || 1); });
+      setStatusLine('<b>drag</b> to pan · <b>scroll</b> to zoom · <b>click</b> a node or edge');
     }
 
     function selectNode(d) {
@@ -1161,7 +1258,7 @@ def render_html(graph: GraphifyGraph) -> str:
 
       nodeDOMs.forEach(dom => {
         const isSelf = dom.node.id === d.id;
-        dom.circle.style.stroke = '#ffffff';
+        dom.circle.style.stroke = '#ece5ea';
         dom.circle.style.strokeWidth = isSelf ? '3' : '1.5';
         dom.circle.style.filter = isSelf ? `drop-shadow(0 0 8px ${colors[dom.node.kind]})` : 'none';
         dom.container.style.opacity = areConnected(d.id, dom.node.id) ? 1.0 : 0.12;
@@ -1178,6 +1275,7 @@ def render_html(graph: GraphifyGraph) -> str:
       applyZoomTransform();
 
       renderNodeDetails(d);
+      setStatusLine(`<b>selected</b> · ${escapeHtml(d.id)} · ${escapeHtml(d.kind)} · degree ${d.degree}`);
     }
 
     function selectEdge(edge) {
@@ -1186,7 +1284,7 @@ def render_html(graph: GraphifyGraph) -> str:
 
       linkDOMs.forEach(dom => {
         const isSelf = dom.edge.id === edge.id;
-        dom.line.setAttribute('stroke', isSelf ? '#ffffff' : getEdgeColor(dom.edge.evidence));
+        dom.line.setAttribute('stroke', isSelf ? '#ece5ea' : getEdgeColor(dom.edge.evidence));
         dom.line.setAttribute('marker-end', isSelf ? 'url(#arrow-highlighted)' : `url(#arrow-${dom.edge.evidence.toLowerCase()})`);
         dom.line.style.opacity = isSelf ? 1.0 : 0.04;
       });
@@ -1197,6 +1295,7 @@ def render_html(graph: GraphifyGraph) -> str:
       });
 
       renderEdgeDetails(edge);
+      setStatusLine(`<b>edge</b> · ${escapeHtml(edge.source)} → ${escapeHtml(edge.target)} · ${escapeHtml(edge.relation)}`);
     }
 
     function clearSelection() {
@@ -1204,7 +1303,7 @@ def render_html(graph: GraphifyGraph) -> str:
       selectedEdgeId = null;
 
       nodeDOMs.forEach(dom => {
-        dom.circle.style.stroke = '#ffffff';
+        dom.circle.style.stroke = '#ece5ea';
         dom.circle.style.strokeWidth = '1.5';
         dom.circle.style.filter = 'none';
         dom.container.style.opacity = 1.0;
@@ -1220,6 +1319,7 @@ def render_html(graph: GraphifyGraph) -> str:
         highlightCommunity(communities.find(c => c.community_id === activeCommunityId));
       } else {
         initDefaultRightSidebar();
+        setStatusLine('<b>drag</b> to pan · <b>scroll</b> to zoom · <b>click</b> a node or edge');
       }
     }
 
@@ -1239,7 +1339,7 @@ def render_html(graph: GraphifyGraph) -> str:
       linkDOMs.forEach(dom => {
         const s = nodeMap[dom.edge.source];
         const t = nodeMap[dom.edge.target];
-        const inComm = s.community_id === community.community_id && t.community_id === community.community_id;
+        const inComm = s && t && s.community_id === community.community_id && t.community_id === community.community_id;
         dom.line.style.opacity = inComm ? 0.8 : 0.04;
       });
 
@@ -1248,6 +1348,7 @@ def render_html(graph: GraphifyGraph) -> str:
       });
 
       renderCommunityDetails(community);
+      setStatusLine(`<b>community</b> · ${escapeHtml(community.community_id)} · ${community.node_ids.length} nodes`);
     }
 
     function clearCommunityHighlight() {
@@ -1295,7 +1396,7 @@ def render_html(graph: GraphifyGraph) -> str:
       linkDOMs.forEach(dom => {
         const s = nodeMap[dom.edge.source];
         const t = nodeMap[dom.edge.target];
-        const visible = activeKinds.has(s.kind) && activeKinds.has(t.kind);
+        const visible = s && t && activeKinds.has(s.kind) && activeKinds.has(t.kind);
         dom.container.style.display = visible ? 'inline' : 'none';
       });
     }
@@ -1309,7 +1410,7 @@ def render_html(graph: GraphifyGraph) -> str:
         item.innerHTML = `
           <div class="community-item-header">
             <span>${escapeHtml(c.label)}</span>
-            <span class="count-badge" style="background: rgba(20, 184, 166, 0.15); color: #2dd4bf;">${c.node_ids.length} nodes</span>
+            <span class="count-badge" style="background: rgba(183, 148, 246, 0.12); color: var(--accent-bright);">${c.node_ids.length} nodes</span>
           </div>
           <div class="community-item-desc">${escapeHtml(c.summary)}</div>
         `;
@@ -1437,7 +1538,7 @@ def render_html(graph: GraphifyGraph) -> str:
           <div style="display:flex; flex-direction:column; gap:6px;">
             ${neighbors.map(n => `
               <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:6px 10px; border-radius:4px; border:1px solid var(--border-color); font-size:12px;">
-                <a href="#" class="node-link" data-node-id="${escapeAttr(n.id)}" style="color:#60a5fa; text-decoration:none; font-weight:500;">${escapeHtml(n.label)}</a>
+                <a href="#" class="node-link" data-node-id="${escapeAttr(n.id)}" style="color:var(--accent-bright); text-decoration:none; font-weight:500;">${escapeHtml(n.label)}</a>
                 <span style="font-size:10px; color:var(--text-muted); font-family:monospace;">
                   ${n.isOutgoing ? '➔ ' + escapeHtml(n.relation) : '⇠ ' + escapeHtml(n.relation)}
                 </span>
@@ -1460,7 +1561,7 @@ def render_html(graph: GraphifyGraph) -> str:
           <div class="detail-card-title">Node Metadata</div>
           <div style="display:flex; flex-direction:column; gap:8px;">
             <div><span style="color:var(--text-muted);">ID:</span> <span style="font-family:monospace; font-size:11px;">${escapeHtml(d.id)}</span></div>
-            <div><span style="color:var(--text-muted);">Source Reference:</span> <span style="font-family:monospace; font-size:11px; color:#a78bfa;">${escapeHtml(d.source_ref)}</span></div>
+            <div><span style="color:var(--text-muted);">Source Reference:</span> <span style="font-family:var(--mono); font-size:11px; color:var(--accent-bright);">${escapeHtml(d.source_ref)}</span></div>
             ${d.community_id ? `<div><span style="color:var(--text-muted);">Community ID:</span> <span class="badge-layer">${escapeHtml(d.community_id)}</span></div>` : ''}
           </div>
         </div>
@@ -1468,8 +1569,8 @@ def render_html(graph: GraphifyGraph) -> str:
         <div class="detail-card">
           <div class="detail-card-title">Provenance</div>
           <div style="display:flex; flex-direction:column; gap:8px; font-size:12px;">
-            <div><span style="color:var(--text-muted);">Source Relpath:</span> <span style="color:#2dd4bf; font-family:monospace;">${escapeHtml(prov.source_relpath || 'N/A')}</span></div>
-            <div><span style="color:var(--text-muted);">Wiki Page:</span> <span style="color:#60a5fa; font-family:monospace;">${escapeHtml(prov.wiki_page || 'N/A')}</span></div>
+            <div><span style="color:var(--text-muted);">Source Relpath:</span> <span style="color:var(--mint); font-family:var(--mono);">${escapeHtml(prov.source_relpath || 'N/A')}</span></div>
+            <div><span style="color:var(--text-muted);">Wiki Page:</span> <span style="color:var(--accent-bright); font-family:var(--mono);">${escapeHtml(prov.wiki_page || 'N/A')}</span></div>
             <div><span style="color:var(--text-muted);">Artifact ID:</span> <span style="font-family:monospace; font-size:10px;">${escapeHtml(prov.artifact_id || 'N/A')}</span></div>
           </div>
         </div>
@@ -1500,10 +1601,10 @@ def render_html(graph: GraphifyGraph) -> str:
         </div>
 
         <div class="detail-card" style="display:flex; flex-direction:column; gap:8px;">
-          <div><span style="color:var(--text-muted);">Source:</span> <a href="#" class="node-link" data-node-id="${escapeAttr(edge.source)}" style="color:#60a5fa; text-decoration:none; font-weight:500; font-family:sans-serif; margin-left:6px;">${escapeHtml(sNode ? sNode.label : edge.source)}</a></div>
+          <div><span style="color:var(--text-muted);">Source:</span> <a href="#" class="node-link" data-node-id="${escapeAttr(edge.source)}" style="color:var(--accent-bright); text-decoration:none; font-weight:500; font-family:var(--sans); margin-left:6px;">${escapeHtml(sNode ? sNode.label : edge.source)}</a></div>
           <div style="padding-left:12px; color:var(--text-muted); font-size:10px;">ID: ${escapeHtml(edge.source)}</div>
 
-          <div style="margin-top:6px;"><span style="color:var(--text-muted);">Target:</span> <a href="#" class="node-link" data-node-id="${escapeAttr(edge.target)}" style="color:#60a5fa; text-decoration:none; font-weight:500; font-family:sans-serif; margin-left:6px;">${escapeHtml(tNode ? tNode.label : edge.target)}</a></div>
+          <div style="margin-top:6px;"><span style="color:var(--text-muted);">Target:</span> <a href="#" class="node-link" data-node-id="${escapeAttr(edge.target)}" style="color:var(--accent-bright); text-decoration:none; font-weight:500; font-family:var(--sans); margin-left:6px;">${escapeHtml(tNode ? tNode.label : edge.target)}</a></div>
           <div style="padding-left:12px; color:var(--text-muted); font-size:10px;">ID: ${escapeHtml(edge.target)}</div>
         </div>
 
@@ -1511,15 +1612,15 @@ def render_html(graph: GraphifyGraph) -> str:
           <div class="detail-card-title">Reliability</div>
           <div style="display:flex; flex-direction:column; gap:8px;">
             <div><span style="color:var(--text-muted);">Evidence Type:</span> <span style="font-weight:600; color:${getEdgeColor(edge.evidence)};">${escapeHtml(edge.evidence)}</span></div>
-            <div><span style="color:var(--text-muted);">Confidence Score:</span> <span style="font-weight:700; font-family:monospace; color:#fff;">${formatScore(edge.confidence_score)}</span></div>
-            <div><span style="color:var(--text-muted);">Weight:</span> <span style="font-weight:700; font-family:monospace; color:#fff;">${formatScore(edge.weight)}</span></div>
+            <div><span style="color:var(--text-muted);">Confidence Score:</span> <span style="font-weight:700; font-family:var(--mono); color:var(--text-main);">${formatScore(edge.confidence_score)}</span></div>
+            <div><span style="color:var(--text-muted);">Weight:</span> <span style="font-weight:700; font-family:var(--mono); color:var(--text-main);">${formatScore(edge.weight)}</span></div>
           </div>
         </div>
 
         ${edge.rationale ? `
           <div class="detail-card">
             <div class="detail-card-title">Rationale</div>
-            <div style="line-height:1.5; color:#d4d4d8; font-size:12px;">${escapeHtml(edge.rationale)}</div>
+            <div style="line-height:1.5; color:var(--text-main); font-size:12px;">${escapeHtml(edge.rationale)}</div>
           </div>
         ` : ''}
       `;
@@ -1544,7 +1645,7 @@ def render_html(graph: GraphifyGraph) -> str:
 
         <div class="detail-card">
           <div class="detail-card-title">Summary</div>
-          <div style="line-height:1.5; font-size:12px; color:#d4d4d8;">${escapeHtml(c.summary)}</div>
+          <div style="line-height:1.5; font-size:12px; color:var(--text-main);">${escapeHtml(c.summary)}</div>
         </div>
 
         <div>
@@ -1552,7 +1653,7 @@ def render_html(graph: GraphifyGraph) -> str:
           <div style="display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; padding-right:4px;">
             ${commNodes.map(n => `
               <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:6px 10px; border-radius:4px; border:1px solid var(--border-color); font-size:12px;">
-                <a href="#" class="node-link" data-node-id="${escapeAttr(n.id)}" style="color:#60a5fa; text-decoration:none; font-weight:500;">${escapeHtml(n.label)}</a>
+                <a href="#" class="node-link" data-node-id="${escapeAttr(n.id)}" style="color:var(--accent-bright); text-decoration:none; font-weight:500;">${escapeHtml(n.label)}</a>
                 <span class="count-badge" style="color:${colorForKind(n.kind)}">${escapeHtml(n.kind)}</span>
               </div>
             `).join('')}

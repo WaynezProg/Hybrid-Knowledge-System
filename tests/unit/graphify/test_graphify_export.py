@@ -48,6 +48,15 @@ def test_graphify_html_has_no_remote_dependency() -> None:
     assert "<script src=" not in html
 
 
+def test_graphify_html_uses_fused_explorer_shell() -> None:
+    html = render_html(_graph())
+
+    assert "<title>Graphify Explorer · HKS</title>" in html
+    assert "class=\"brand-glyph\"" in html
+    assert "id=\"status-line\"" in html
+    assert "--accent-bright: #c4a6ff;" in html
+
+
 def test_graphify_html_keeps_payload_safe_for_untrusted_labels() -> None:
     unsafe = 'Project "</script><img src=x onerror=alert(1)>'
     html = render_html(

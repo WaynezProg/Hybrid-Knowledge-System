@@ -38,6 +38,9 @@ Thumbs.db
 /ks/
 .hks-runs/
 
+# Local design references
+graphify_html_example/
+
 # Secrets
 .env
 .env.local
