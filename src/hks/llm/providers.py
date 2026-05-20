@@ -99,7 +99,8 @@ def _openai_chat(
 
     raw_content: str = data["choices"][0]["message"]["content"]
     try:
-        return json.loads(raw_content)
+        result: dict[str, Any] = json.loads(raw_content)
+        return result
     except json.JSONDecodeError as exc:
         raise ValueError(f"OpenAI response content is not valid JSON: {raw_content!r}") from exc
 
