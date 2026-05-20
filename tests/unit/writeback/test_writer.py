@@ -5,7 +5,7 @@ import pytest
 from hks.core.paths import runtime_paths
 from hks.core.schema import QueryResponse, Trace, TraceStep
 from hks.storage.wiki import WikiStore
-from hks.writeback.writer import commit
+from hks.writeback.writer import WritebackContext, commit
 
 
 def _response() -> QueryResponse:
@@ -55,3 +55,30 @@ def test_writer_commit_propagates_log_failure(tmp_path, monkeypatch: pytest.Monk
 
     with pytest.raises(OSError, match="disk full"):
         commit(query="Project A summary", response=_response(), wiki_store=store)
+
+
+@pytest.mark.unit
+def test_writer_related_link_escapes_brackets_and_backslashes(tmp_path) -> None:
+    """Related link text must escape [, ], and \\ for valid Markdown."""
+    paths = runtime_paths(tmp_path / "ks")
+    store = WikiStore(paths)
+
+    store.write_page(
+        title="Project [A]\\Beta",
+        summary="summary",
+        body="# Project [A]\\Beta\n\ncontent",
+        source_relpath="project-ab.md",
+        origin="ingest",
+    )
+
+    context = WritebackContext(related_slugs=["project-a-beta"])
+    steps = commit(
+        query="test query",
+        response=_response(),
+        context=context,
+        wiki_store=store,
+    )
+
+    slug = steps[0].detail["slug"]
+    page_text = (paths.wiki_pages / f"{slug}.md").read_text(encoding="utf-8")
+    assert "- [Project \\[A\\]\\\\Beta](project-a-beta.md)" in page_text.splitlines()

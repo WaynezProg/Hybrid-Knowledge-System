@@ -26,7 +26,10 @@ def commit(
     body = [f"# {query.strip()}", "", response.answer.strip()]
     if related_pages:
         body.extend(["", "## Related", ""])
-        body.extend(f"- [{page.title}]({page.slug}.md)" for page in related_pages)
+        body.extend(
+            f"- [{WikiStore._escape_link_text(page.title)}]({page.slug}.md)"
+            for page in related_pages
+        )
     page = store.write_page(
         title=query.strip(),
         summary=response.answer.strip().replace("\n", " ")[:80],
