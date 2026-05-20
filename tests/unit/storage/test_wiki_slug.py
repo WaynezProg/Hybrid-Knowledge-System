@@ -183,6 +183,8 @@ def test_wiki_frontmatter_always_quotes_all_strings(tmp_ks_root: Path) -> None:
     assert isinstance(parsed["title"], str)
     assert parsed["summary"] == "false"
     assert isinstance(parsed["summary"], str)
+    assert parsed["source"] == "raw_sources/tricky.md"
+    assert isinstance(parsed["source"], str)
     assert parsed["nullable"] == "null"
     assert isinstance(parsed["nullable"], str)
     assert parsed["date_like"] == "2026-05-20"
@@ -201,6 +203,7 @@ def test_wiki_frontmatter_always_quotes_all_strings(tmp_ks_root: Path) -> None:
     loaded = store.load_page(page.slug)
     assert loaded.title == "true"
     assert loaded.summary == "false"
+    assert loaded.source_relpath == "tricky.md"
     assert loaded.metadata["nullable"] == "null"
     assert loaded.metadata["date_like"] == "2026-05-20"
     assert loaded.metadata["numeric"] == "123"
