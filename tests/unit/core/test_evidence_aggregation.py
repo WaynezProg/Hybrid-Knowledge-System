@@ -1,12 +1,12 @@
-"""Unit tests for evidence auto-aggregation from trace steps."""
+"""Unit tests for query response evidence serialization."""
 
 from __future__ import annotations
 
 from hks.core.schema import QueryResponse, Trace, TraceStep
 
 
-class TestEvidenceAggregation:
-    def test_wiki_hit_produces_evidence(self) -> None:
+class TestEvidenceSerialization:
+    def test_explicit_evidence_is_serialized(self) -> None:
         response = QueryResponse(
             answer="Atlas summary",
             source=["wiki"],
@@ -24,75 +24,57 @@ class TestEvidenceAggregation:
                     )
                 ],
             ),
+            evidence=[
+                {
+                    "source_relpath": "atlas.md",
+                    "route": "wiki",
+                    "quote": "Atlas project summary",
+                }
+            ],
         )
 
         payload = response.to_dict()
 
-        assert "evidence" in payload
-        assert len(payload["evidence"]) == 1
-        assert payload["evidence"][0]["source_relpath"] == "atlas.md"
-        assert payload["evidence"][0]["route"] == "wiki"
+        assert payload["evidence"] == [
+            {
+                "source_relpath": "atlas.md",
+                "route": "wiki",
+                "quote": "Atlas project summary",
+            }
+        ]
 
-    def test_graph_hit_expands_relpaths(self) -> None:
+    def test_trace_steps_do_not_create_uncited_evidence(self) -> None:
         response = QueryResponse(
-            answer="graph answer",
-            source=["graph"],
-            confidence=0.88,
+            answer="Atlas summary",
+            source=["wiki"],
+            confidence=1.0,
             trace=Trace(
-                route="graph",
+                route="wiki",
                 steps=[
                     TraceStep(
-                        kind="graph_lookup",
+                        kind="wiki_lookup",
                         detail={
+                            "slug": "atlas",
                             "hit": True,
-                            "relpaths": ["dep-map.md", "impact.pdf"],
-                            "node_ids": ["n1"],
-                            "edge_ids": ["e1"],
-                            "relations": ["impacts"],
+                            "source_relpath": "atlas.md",
                         },
-                    )
-                ],
-            ),
-        )
-
-        payload = response.to_dict()
-
-        assert len(payload["evidence"]) == 2
-        relpaths = [e["source_relpath"] for e in payload["evidence"]]
-        assert "dep-map.md" in relpaths
-        assert "impact.pdf" in relpaths
-        assert all(e["route"] == "graph" for e in payload["evidence"])
-
-    def test_vector_hit_includes_section_and_page(self) -> None:
-        response = QueryResponse(
-            answer="vector text",
-            source=["vector"],
-            confidence=0.75,
-            trace=Trace(
-                route="vector",
-                steps=[
+                    ),
                     TraceStep(
                         kind="vector_lookup",
                         detail={
                             "top_k": 5,
                             "top_similarity": 0.8,
-                            "source_relpath": "report.pdf",
-                            "section_path": "Chapter 1 > Methods",
-                            "page_range": {"start": 3, "end": 5},
+                            "source_relpath": "atlas.md",
+                            "quote": "Vector candidate that did not win",
                         },
-                    )
+                    ),
                 ],
             ),
         )
 
         payload = response.to_dict()
 
-        assert len(payload["evidence"]) == 1
-        ev = payload["evidence"][0]
-        assert ev["source_relpath"] == "report.pdf"
-        assert ev["section_path"] == "Chapter 1 > Methods"
-        assert ev["page_range"] == {"start": 3, "end": 5}
-        assert ev["route"] == "vector"
+        assert "evidence" not in payload
 
     def test_no_hit_omits_evidence(self) -> None:
         response = QueryResponse(
@@ -114,32 +96,43 @@ class TestEvidenceAggregation:
 
         assert "evidence" not in payload
 
-    def test_dedupes_by_relpath_and_route(self) -> None:
+    def test_explicit_vector_evidence_includes_section_page_and_quote(self) -> None:
         response = QueryResponse(
-            answer="combined",
-            source=["wiki", "vector"],
-            confidence=0.9,
+            answer="vector text",
+            source=["vector"],
+            confidence=0.75,
             trace=Trace(
-                route="wiki",
+                route="vector",
                 steps=[
-                    TraceStep(
-                        kind="wiki_lookup",
-                        detail={"hit": True, "source_relpath": "atlas.md"},
-                    ),
                     TraceStep(
                         kind="vector_lookup",
                         detail={
                             "top_k": 5,
                             "top_similarity": 0.8,
-                            "source_relpath": "atlas.md",
+                            "source_relpath": "report.pdf",
                         },
-                    ),
+                    )
                 ],
             ),
+            evidence=[
+                {
+                    "source_relpath": "report.pdf",
+                    "route": "vector",
+                    "section_path": "Chapter 1 > Methods",
+                    "page_range": {"start": 3, "end": 5},
+                    "quote": "clause 7.4 requires risk controls before launch.",
+                }
+            ],
         )
 
         payload = response.to_dict()
 
-        assert len(payload["evidence"]) == 2
-        routes = {e["route"] for e in payload["evidence"]}
-        assert routes == {"wiki", "vector"}
+        assert payload["evidence"] == [
+            {
+                "source_relpath": "report.pdf",
+                "route": "vector",
+                "section_path": "Chapter 1 > Methods",
+                "page_range": {"start": 3, "end": 5},
+                "quote": "clause 7.4 requires risk controls before launch.",
+            }
+        ]

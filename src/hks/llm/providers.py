@@ -95,6 +95,7 @@ def _openai_chat(
     }
     with httpx.Client(timeout=timeout) as client:
         response = client.post(url, json=body, headers=headers)
+        response.raise_for_status()
         data = response.json()
 
     raw_content: str = data["choices"][0]["message"]["content"]
@@ -134,21 +135,18 @@ class OpenAIProvider:
 
 
 def provider_for(request: LlmExtractionRequest) -> LlmProvider:
-    from hks.core.config import config_value
-
     provider_id = request.provider.provider_id
     if provider_id == "fake-malformed":
         return FakeProvider(malformed=True)
     if provider_id == "fake-side-effect":
         return FakeProvider(side_effect=True)
     if provider_id == "openai":
-        api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
-        if not api_key:
-            return FakeProvider()
-        endpoint = config_value("HKS_LLM_PROVIDER_OPENAI_ENDPOINT") or "https://api.openai.com/v1"
+        from hks.llm.config import require_hosted_provider_credentials
+
+        api_key, endpoint = require_hosted_provider_credentials("openai")
         return OpenAIProvider(
             api_key=api_key,
-            endpoint=endpoint,
+            endpoint=endpoint or "https://api.openai.com/v1",
             model=request.provider.model_id,
             timeout_seconds=request.provider.timeout_seconds,
         )

@@ -109,13 +109,11 @@ def _llm_restructure(
     provider: str,
     model: str | None,
 ) -> PageTree:
-    from hks.core.config import config_value
+    from hks.llm.config import require_hosted_provider_credentials
     from hks.llm.providers import _openai_chat
 
-    api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError(f"LLM restructure requires API key for provider={provider}")
-    endpoint = config_value("HKS_LLM_PROVIDER_OPENAI_ENDPOINT") or "https://api.openai.com/v1"
+    api_key, endpoint = require_hosted_provider_credentials(provider)
+    chat_endpoint = endpoint or "https://api.openai.com/v1"
 
     messages = [
         {
@@ -130,7 +128,7 @@ def _llm_restructure(
     ]
     result = _openai_chat(
         api_key=api_key,
-        endpoint=endpoint,
+        endpoint=chat_endpoint,
         model=model or "gpt-4o-mini",
         messages=messages,
         timeout=60,
@@ -175,13 +173,11 @@ def _llm_restructure(
 
 
 def _llm_summarize(text: str, title: str, provider: str, model: str | None) -> str:
-    from hks.core.config import config_value
+    from hks.llm.config import require_hosted_provider_credentials
     from hks.llm.providers import _openai_chat
 
-    api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError(f"LLM summarize requires API key for provider={provider}")
-    endpoint = config_value("HKS_LLM_PROVIDER_OPENAI_ENDPOINT") or "https://api.openai.com/v1"
+    api_key, endpoint = require_hosted_provider_credentials(provider)
+    chat_endpoint = endpoint or "https://api.openai.com/v1"
 
     messages = [
         {
@@ -195,7 +191,7 @@ def _llm_summarize(text: str, title: str, provider: str, model: str | None) -> s
     ]
     result = _openai_chat(
         api_key=api_key,
-        endpoint=endpoint,
+        endpoint=chat_endpoint,
         model=model or "gpt-4o-mini",
         messages=messages,
         timeout=30,

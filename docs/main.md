@@ -91,7 +91,16 @@ stdout 契約統一：
   "trace": {
     "route": "wiki|graph|vector",
     "steps": []
-  }
+  },
+  "evidence": [
+    {
+      "source_relpath": "raw.md",
+      "route": "vector",
+      "section_path": "Chapter > Section",
+      "page_range": {"start": 1, "end": 2},
+      "quote": "original source snippet"
+    }
+  ]
 }
 ```
 
@@ -120,6 +129,8 @@ Source / route 語意對照：
 | `ks source list|show` | `wiki` | `[]` | 讀取 manifest-derived catalog；不代表 query no-hit |
 | `ks workspace register|list|show|remove|use` | `wiki` | `[]` | 管理 local workspace registry；不讀取 knowledge layer 作答 |
 | `ks workspace query` | `wiki\|graph\|vector` | `ks query` semantics | 先解析 workspace id 到 `KS_ROOT`，再委派既有 query |
+
+`ks query` 成功命中時可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
 
 ---
 
@@ -158,10 +169,12 @@ Source / route 語意對照：
 * repo 預設 backend 是本機 deterministic semantic router
 * `HKS_ROUTING_MODEL` 保留為未來接本機 prompt model 的入口
 
-### 5.3 Fallback
+### 5.3 Fused retrieval + rerank
 
-* wiki miss → vector
-* graph miss → vector
+`ks query` 不是 sequential fallback。Query 會收集 wiki / graph / vector candidates，再統一 rerank：
+
+* `HKS_LLM_NETWORK_OPT_IN=1` 且有 OpenAI-compatible key 時，使用 LLM rerank
+* 未 explicit opt-in 或缺 credential 時，使用 deterministic RRF rerank
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
 
 ---

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from hks.errors import KSError
 from hks.page_tree.enrich import enrich_tree
 from hks.page_tree.model import PageTree, TreeNode
 
@@ -187,22 +188,33 @@ class TestEnrichTree:
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         from typing import Any
+
+        from hks.core.manifest import utc_now_iso
+        from hks.page_tree.model import PageTree, TreeNode
+
         tree = _degenerate_tree()
 
         def mock_restructure(
             tree: Any, source_text: str, provider: str, model: str | None
         ) -> Any:
-            from hks.page_tree.model import PageTree, TreeNode
-            from hks.core.manifest import utc_now_iso
-
             nodes = [
                 TreeNode(
-                    node_id="llm-n1", title="Introduction", level=1,
-                    start_offset=0, end_offset=250, children=[], summary="Intro",
+                    node_id="llm-n1",
+                    title="Introduction",
+                    level=1,
+                    start_offset=0,
+                    end_offset=250,
+                    children=[],
+                    summary="Intro",
                 ),
                 TreeNode(
-                    node_id="llm-n2", title="Body", level=1,
-                    start_offset=250, end_offset=500, children=[], summary="Body",
+                    node_id="llm-n2",
+                    title="Body",
+                    level=1,
+                    start_offset=250,
+                    end_offset=500,
+                    children=[],
+                    summary="Body",
                 ),
             ]
             return PageTree(
@@ -224,3 +236,18 @@ class TestEnrichTree:
 
         assert enriched.build_method == "llm"
         assert enriched.total_nodes == 2
+
+    def test_openai_provider_requires_network_opt_in(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        tree = _rule_tree()
+        monkeypatch.setenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", "sk-test")
+        monkeypatch.delenv("HKS_LLM_NETWORK_OPT_IN", raising=False)
+
+        def fail_openai_call(*_args: object, **_kwargs: object) -> dict[str, object]:
+            raise AssertionError("OpenAI call must require HKS_LLM_NETWORK_OPT_IN=1")
+
+        monkeypatch.setattr("hks.llm.providers._openai_chat", fail_openai_call)
+
+        with pytest.raises(KSError, match="HKS_LLM_NETWORK_OPT_IN=1"):
+            enrich_tree(tree, "x" * 100, provider="openai")

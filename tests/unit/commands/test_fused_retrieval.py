@@ -6,7 +6,15 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from hks.commands.query import Candidate, _collect_wiki_candidates, _collect_graph_candidates, _collect_vector_candidates
+from hks.commands.query import (
+    Candidate,
+    _candidate_evidence,
+    _collect_graph_candidates,
+    _collect_vector_candidates,
+    _collect_wiki_candidates,
+    _rerank_candidates,
+    _rrf_rerank,
+)
 from hks.storage.vector import SearchHit
 
 
@@ -85,8 +93,18 @@ class TestCollectVectorCandidates:
         vector_store = MagicMock()
         vector_store.count.return_value = 10
         vector_store.search.return_value = [
-            SearchHit(chunk_id="c1", text="matching text alpha", similarity=0.85, metadata={"source_relpath": "a.md"}),
-            SearchHit(chunk_id="c2", text="matching text beta", similarity=0.72, metadata={"source_relpath": "b.md"}),
+            SearchHit(
+                chunk_id="c1",
+                text="matching text alpha",
+                similarity=0.85,
+                metadata={"source_relpath": "a.md"},
+            ),
+            SearchHit(
+                chunk_id="c2",
+                text="matching text beta",
+                similarity=0.72,
+                metadata={"source_relpath": "b.md"},
+            ),
         ]
         vector_store.paths = MagicMock()
 
@@ -106,7 +124,12 @@ class TestCollectVectorCandidates:
         vector_store = MagicMock()
         vector_store.count.return_value = 10
         vector_store.search.return_value = [
-            SearchHit(chunk_id="c1", text="zzzzz", similarity=0.05, metadata={"source_relpath": "z.md"}),
+            SearchHit(
+                chunk_id="c1",
+                text="zzzzz",
+                similarity=0.05,
+                metadata={"source_relpath": "z.md"},
+            ),
         ]
         vector_store.paths = MagicMock()
 
@@ -120,9 +143,6 @@ class TestCollectVectorCandidates:
         )
 
         assert len(candidates) == 0
-
-
-from hks.commands.query import _rrf_rerank, _rerank_candidates
 
 
 class TestRRFRerank:
@@ -151,6 +171,16 @@ class TestRRFRerank:
         assert len(ranked) == 1
         assert ranked[0].text == "only one"
 
+    def test_preserves_equal_duplicate_candidates(self) -> None:
+        candidates = [
+            Candidate(text="same", source_route="vector", score=0.8, metadata={}),
+            Candidate(text="same", source_route="vector", score=0.8, metadata={}),
+        ]
+
+        ranked = _rrf_rerank(candidates)
+
+        assert len(ranked) == 2
+
 
 class TestRerankCandidates:
     def test_uses_rrf_when_no_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -166,3 +196,69 @@ class TestRerankCandidates:
 
         assert strategy == "rrf"
         assert len(ranked) == 2
+
+    def test_uses_rrf_when_api_key_set_without_network_opt_in(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", "sk-test")
+        monkeypatch.delenv("HKS_LLM_NETWORK_OPT_IN", raising=False)
+
+        def fail_llm_rerank(*_args: object, **_kwargs: object) -> list[Candidate]:
+            raise AssertionError("LLM rerank must require HKS_LLM_NETWORK_OPT_IN=1")
+
+        monkeypatch.setattr("hks.commands.query._llm_rerank", fail_llm_rerank)
+
+        candidates = [
+            Candidate(text="a", source_route="wiki", score=1.0, metadata={}),
+            Candidate(text="b", source_route="vector", score=0.5, metadata={}),
+        ]
+
+        ranked, strategy = _rerank_candidates("question", candidates)
+
+        assert strategy == "rrf"
+        assert [candidate.text for candidate in ranked] == ["a", "b"]
+
+
+class TestCandidateEvidence:
+    def test_vector_candidate_evidence_includes_winning_quote_and_location(self) -> None:
+        candidate = Candidate(
+            text="clause 7.4 requires risk controls before launch.",
+            source_route="vector",
+            score=0.91,
+            metadata={
+                "source_relpath": "reports/launch-plan.md",
+                "section_path": "Launch Plan > Risk Controls",
+                "page_range": {"start": 4, "end": 6},
+            },
+        )
+
+        assert _candidate_evidence(candidate) == [
+            {
+                "source_relpath": "reports/launch-plan.md",
+                "route": "vector",
+                "section_path": "Launch Plan > Risk Controls",
+                "page_range": {"start": 4, "end": 6},
+                "quote": "clause 7.4 requires risk controls before launch.",
+            }
+        ]
+
+    def test_graph_candidate_evidence_uses_edge_quotes_per_relpath(self) -> None:
+        candidate = Candidate(
+            text="Atlas 會影響 Billing API",
+            source_route="graph",
+            score=0.88,
+            metadata={
+                "relpaths": ["dependency-map.md"],
+                "evidence_by_relpath": {
+                    "dependency-map.md": "Project Atlas affects Billing API."
+                },
+            },
+        )
+
+        assert _candidate_evidence(candidate) == [
+            {
+                "source_relpath": "dependency-map.md",
+                "route": "graph",
+                "quote": "Project Atlas affects Billing API.",
+            }
+        ]

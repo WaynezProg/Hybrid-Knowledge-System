@@ -94,6 +94,8 @@ llm:
 
 這些欄位會對應到既有 env contract，例如 `HKS_MAX_FILE_MB`、`HKS_IMAGE_TIMEOUT_SEC`、`HKS_WRITEBACK_AUTO_THRESHOLD`、`HKS_LLM_PROVIDER_OPENAI_API_KEY`。
 
+LLM OpenAI-compatible provider、PageTree enrich、query reranker 都沿用同一個 hosted/network gate：`llm.network_opt_in: true`（或 `HKS_LLM_NETWORK_OPT_IN=1`）加上 `llm.providers.openai.api_key`（或 `HKS_LLM_PROVIDER_OPENAI_API_KEY` / `OPENAI_API_KEY`）。只設定 embedding OpenAI key 不會自動允許 chat/rerank 打網路；endpoint 也不與 embeddings endpoint 共用。
+
 ## 啟用設定
 
 所有 agent session 先跑：

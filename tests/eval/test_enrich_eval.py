@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.eval.conftest import requires_openai
+from .conftest import requires_openai
 
 EVAL_PATH = Path(__file__).resolve().parents[2] / "evals" / "pageindex_enrich.jsonl"
 

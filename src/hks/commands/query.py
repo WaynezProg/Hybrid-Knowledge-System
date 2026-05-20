@@ -31,6 +31,72 @@ class Candidate:
     metadata: dict[str, object]
 
 
+def _evidence_quote(text: object, *, limit: int = 240) -> str:
+    normalized = " ".join(str(text or "").split())
+    return normalized[:limit]
+
+
+def _metadata_str(metadata: dict[str, object], key: str) -> str | None:
+    value = metadata.get(key)
+    return value if isinstance(value, str) and value else None
+
+
+def _candidate_evidence(candidate: Candidate) -> list[dict[str, object]]:
+    if candidate.source_route == "wiki":
+        return _wiki_candidate_evidence(candidate)
+    if candidate.source_route == "graph":
+        return _graph_candidate_evidence(candidate)
+    return _vector_candidate_evidence(candidate)
+
+
+def _wiki_candidate_evidence(candidate: Candidate) -> list[dict[str, object]]:
+    relpath = _metadata_str(candidate.metadata, "source_relpath")
+    quote = _evidence_quote(candidate.metadata.get("quote") or candidate.text)
+    if relpath is None or not quote:
+        return []
+    return [{"source_relpath": relpath, "route": "wiki", "quote": quote}]
+
+
+def _graph_candidate_evidence(candidate: Candidate) -> list[dict[str, object]]:
+    relpaths = candidate.metadata.get("relpaths")
+    evidence_by_relpath = candidate.metadata.get("evidence_by_relpath")
+    if not isinstance(relpaths, list):
+        return []
+    quotes = evidence_by_relpath if isinstance(evidence_by_relpath, dict) else {}
+    evidence: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for relpath in relpaths:
+        if not isinstance(relpath, str) or relpath in seen:
+            continue
+        seen.add(relpath)
+        quote = _evidence_quote(quotes.get(relpath) or candidate.text)
+        if quote:
+            evidence.append(
+                {"source_relpath": relpath, "route": "graph", "quote": quote}
+            )
+    return evidence
+
+
+def _vector_candidate_evidence(candidate: Candidate) -> list[dict[str, object]]:
+    relpath = _metadata_str(candidate.metadata, "source_relpath")
+    quote = _evidence_quote(candidate.text)
+    if relpath is None or not quote:
+        return []
+
+    entry: dict[str, object] = {
+        "source_relpath": relpath,
+        "route": "vector",
+        "quote": quote,
+    }
+    section_path = _metadata_str(candidate.metadata, "section_path")
+    if section_path is not None:
+        entry["section_path"] = section_path
+    page_range = candidate.metadata.get("page_range")
+    if isinstance(page_range, dict):
+        entry["page_range"] = page_range
+    return [entry]
+
+
 def _lexical_terms(text: str) -> set[str]:
     lowered = text.lower()
     terms = set(re.findall(r"[a-z0-9]{2,}", lowered))
@@ -87,6 +153,7 @@ def _vector_trace_detail(
     }
     if chosen_hit is None:
         return detail
+    detail["quote"] = _evidence_quote(chosen_hit.text)
     for key in (
         "source_relpath",
         "sheet_name",
@@ -157,14 +224,18 @@ def _graph_trace_detail(
     node_ids: list[str],
     edge_ids: list[str],
     relations: Sequence[str],
+    evidence_by_relpath: dict[str, str] | None = None,
 ) -> dict[str, object]:
-    return {
+    detail: dict[str, object] = {
         "hit": True,
         "relpaths": relpaths,
         "node_ids": node_ids,
         "edge_ids": edge_ids,
         "relations": relations,
     }
+    if evidence_by_relpath:
+        detail["evidence_by_relpath"] = evidence_by_relpath
+    return detail
 
 
 def _has_wiki_secondary_intent(question: str) -> bool:
@@ -196,10 +267,16 @@ def _collect_wiki_candidates(
 
     page = wiki_store.search(question)
     if page is not None:
+        quote = _evidence_quote(page.summary or page.body)
         steps.append(
             TraceStep(
                 kind="wiki_lookup",
-                detail={"slug": page.slug, "hit": True, "source_relpath": page.source_relpath},
+                detail={
+                    "slug": page.slug,
+                    "hit": True,
+                    "source_relpath": page.source_relpath,
+                    "quote": quote,
+                },
             )
         )
         candidates.append(
@@ -207,7 +284,11 @@ def _collect_wiki_candidates(
                 text=f"{page.title}: {page.summary}",
                 source_route="wiki",
                 score=1.0 if is_primary else 0.65,
-                metadata={"source_relpath": page.source_relpath, "slug": page.slug},
+                metadata={
+                    "source_relpath": page.source_relpath,
+                    "slug": page.slug,
+                    "quote": quote,
+                },
             )
         )
     else:
@@ -241,6 +322,13 @@ def _collect_graph_candidates(
         steps.append(TraceStep(kind="graph_lookup", detail={"hit": False}))
         return candidates, steps
 
+    graph_payload = graph_store.load()
+    evidence_by_relpath: dict[str, str] = {}
+    for edge_id in graph_result.edge_ids:
+        edge = graph_payload.edges.get(edge_id)
+        if edge is not None and edge.evidence:
+            evidence_by_relpath.setdefault(edge.source_relpath, edge.evidence)
+
     steps.append(
         TraceStep(
             kind="graph_lookup",
@@ -249,6 +337,7 @@ def _collect_graph_candidates(
                 node_ids=graph_result.node_ids,
                 edge_ids=graph_result.edge_ids,
                 relations=graph_result.relations,
+                evidence_by_relpath=evidence_by_relpath,
             ),
         )
     )
@@ -257,7 +346,10 @@ def _collect_graph_candidates(
             text=graph_result.answer,
             source_route="graph",
             score=graph_result.confidence,
-            metadata={"relpaths": graph_result.relpaths},
+            metadata={
+                "relpaths": graph_result.relpaths,
+                "evidence_by_relpath": evidence_by_relpath,
+            },
         )
     )
     return candidates, steps
@@ -310,18 +402,17 @@ def _rrf_rerank(candidates: list[Candidate], *, k: int = 60) -> list[Candidate]:
     if not candidates:
         return []
 
-    source_groups: dict[str, list[Candidate]] = {}
-    for c in candidates:
-        source_groups.setdefault(c.source_route, []).append(c)
+    source_groups: dict[str, list[tuple[int, Candidate]]] = {}
+    for index, candidate in enumerate(candidates):
+        source_groups.setdefault(candidate.source_route, []).append((index, candidate))
 
     for route_candidates in source_groups.values():
-        route_candidates.sort(key=lambda c: c.score, reverse=True)
+        route_candidates.sort(key=lambda item: item[1].score, reverse=True)
 
     rrf_scores: dict[int, float] = {}
     for route_candidates in source_groups.values():
-        for rank, c in enumerate(route_candidates):
-            idx = candidates.index(c)
-            rrf_scores[idx] = rrf_scores.get(idx, 0.0) + 1.0 / (k + rank + 1)
+        for rank, (index, _candidate) in enumerate(route_candidates):
+            rrf_scores[index] = rrf_scores.get(index, 0.0) + 1.0 / (k + rank + 1)
 
     ranked_indices = sorted(
         rrf_scores,
@@ -344,8 +435,11 @@ def _llm_rerank(
     candidates: list[Candidate],
 ) -> list[Candidate]:
     from hks.core.config import config_value
+    from hks.llm.config import hosted_provider_ready
     from hks.llm.providers import _openai_chat
 
+    if not hosted_provider_ready("openai"):
+        return _rrf_rerank(candidates)
     api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
     if not api_key:
         return _rrf_rerank(candidates)
@@ -409,10 +503,9 @@ def _rerank_candidates(
     question: str,
     candidates: list[Candidate],
 ) -> tuple[list[Candidate], str]:
-    from hks.core.config import config_value
+    from hks.llm.config import hosted_provider_ready
 
-    api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
-    if api_key:
+    if hosted_provider_ready("openai"):
         ranked = _llm_rerank(question, candidates)
         return ranked, "llm-rerank"
     ranked = _rrf_rerank(candidates)
@@ -494,6 +587,7 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
         source=[winner.source_route],
         confidence=winner.score,
         trace=Trace(route=winner.source_route, steps=steps),
+        evidence=_candidate_evidence(winner),
     )
     return _maybe_writeback(
         question=question, response=response, writeback=writeback, wiki_store=wiki_store

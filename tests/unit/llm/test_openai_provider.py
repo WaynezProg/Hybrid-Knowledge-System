@@ -6,12 +6,12 @@ import json
 from typing import Any
 from unittest.mock import MagicMock, patch
 
+import httpx
 import pytest
 
-from hks.llm.config import build_provider_config, build_request
-from hks.llm.models import LlmProviderConfig
+from hks.errors import KSError
+from hks.llm.config import build_provider_config
 from hks.llm.providers import FakeProvider, OpenAIProvider, _openai_chat, provider_for
-
 
 # ---------------------------------------------------------------------------
 # _openai_chat helpers
@@ -29,6 +29,7 @@ def _make_httpx_response(content: Any) -> MagicMock:
         ]
     }
     mock_resp = MagicMock()
+    mock_resp.raise_for_status = MagicMock()
     mock_resp.json.return_value = response_body
     return mock_resp
 
@@ -121,6 +122,32 @@ def test_openai_chat_raises_on_non_json_content() -> None:
             )
 
 
+def test_openai_chat_raises_on_http_error() -> None:
+    request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+    response = httpx.Response(401, request=request)
+
+    with patch("hks.llm.providers.httpx.Client") as mock_client_cls:
+        mock_client = MagicMock()
+        mock_client.__enter__ = lambda s: s
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_response = _make_httpx_response({"error": "unauthorized"})
+        mock_response.raise_for_status.side_effect = httpx.HTTPStatusError(
+            "unauthorized",
+            request=request,
+            response=response,
+        )
+        mock_client.post.return_value = mock_response
+        mock_client_cls.return_value = mock_client
+
+        with pytest.raises(httpx.HTTPStatusError):
+            _openai_chat(
+                api_key="sk-test",
+                endpoint="https://api.openai.com/v1",
+                model="gpt-4o-mini",
+                messages=[],
+            )
+
+
 # ---------------------------------------------------------------------------
 # OpenAIProvider.extract()
 # ---------------------------------------------------------------------------
@@ -192,7 +219,10 @@ def test_openai_provider_defaults() -> None:
 # provider_for(): dispatch
 # ---------------------------------------------------------------------------
 
-def test_provider_for_returns_openai_provider_when_api_key_set(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_provider_for_returns_openai_provider_when_api_key_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HKS_LLM_NETWORK_OPT_IN", "1")
     monkeypatch.setenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", "sk-real-key")
 
     request = _make_extraction_request(provider_id="openai")
@@ -203,6 +233,7 @@ def test_provider_for_returns_openai_provider_when_api_key_set(monkeypatch: pyte
 
 
 def test_provider_for_accepts_openai_api_key_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HKS_LLM_NETWORK_OPT_IN", "1")
     monkeypatch.delenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "sk-fallback")
 
@@ -213,14 +244,15 @@ def test_provider_for_accepts_openai_api_key_fallback(monkeypatch: pytest.Monkey
     assert result.api_key == "sk-fallback"
 
 
-def test_provider_for_falls_back_to_fake_when_no_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_provider_for_raises_when_openai_api_key_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HKS_LLM_NETWORK_OPT_IN", "1")
     monkeypatch.delenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     request = _make_extraction_request(provider_id="openai")
-    result = provider_for(request)
 
-    assert isinstance(result, FakeProvider)
+    with pytest.raises(KSError, match="requires HKS_LLM_PROVIDER_OPENAI_API_KEY"):
+        provider_for(request)
 
 
 def test_provider_for_returns_fake_for_fake_provider_id() -> None:
@@ -231,6 +263,7 @@ def test_provider_for_returns_fake_for_fake_provider_id() -> None:
 
 
 def test_provider_for_uses_custom_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HKS_LLM_NETWORK_OPT_IN", "1")
     monkeypatch.setenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", "sk-key")
     monkeypatch.setenv("HKS_LLM_PROVIDER_OPENAI_ENDPOINT", "https://my-proxy.example.com/v1")
 
@@ -239,3 +272,24 @@ def test_provider_for_uses_custom_endpoint(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert isinstance(result, OpenAIProvider)
     assert result.endpoint == "https://my-proxy.example.com/v1"
+
+
+def test_build_provider_config_openai_requires_network_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("HKS_LLM_NETWORK_OPT_IN", raising=False)
+    monkeypatch.setenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", "sk-key")
+
+    with pytest.raises(KSError, match="HKS_LLM_NETWORK_OPT_IN=1"):
+        build_provider_config("openai")
+
+
+def test_build_provider_config_openai_requires_api_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HKS_LLM_NETWORK_OPT_IN", "1")
+    monkeypatch.delenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+    with pytest.raises(KSError, match="HKS_LLM_PROVIDER_OPENAI_API_KEY"):
+        build_provider_config("openai")

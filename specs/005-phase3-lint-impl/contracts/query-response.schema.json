@@ -43,7 +43,7 @@
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["source_relpath", "route"],
+        "required": ["source_relpath", "route", "quote"],
         "additionalProperties": true,
         "properties": {
           "source_relpath": { "type": "string" },

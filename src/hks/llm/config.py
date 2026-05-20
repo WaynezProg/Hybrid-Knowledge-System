@@ -14,8 +14,12 @@ from hks.llm.models import (
     LlmProviderConfig,
 )
 
+OPENAI_DEFAULT_MODEL = "gpt-4o-mini"
 SUPPORTED_MODES: frozenset[str] = frozenset(("preview", "store"))
-SUPPORTED_PROVIDERS: frozenset[str] = frozenset(("fake", "fake-malformed", "fake-side-effect", "openai"))
+FAKE_PROVIDERS: frozenset[str] = frozenset(
+    ("fake", "fake-malformed", "fake-side-effect")
+)
+SUPPORTED_PROVIDERS: frozenset[str] = FAKE_PROVIDERS | frozenset(("openai",))
 
 
 def normalize_provider_id(value: str | None) -> str:
@@ -47,12 +51,22 @@ def build_provider_config(
     timeout_seconds: int = 30,
 ) -> LlmProviderConfig:
     provider = normalize_provider_id(provider_id)
-    model = model_id or config_value("HKS_LLM_MODEL") or DEFAULT_FAKE_MODEL
-    if provider in SUPPORTED_PROVIDERS:
+    model = model_id or config_value("HKS_LLM_MODEL") or _default_model(provider)
+    if provider in FAKE_PROVIDERS:
         return LlmProviderConfig(
             provider_id=provider,
             model_id=model,
             timeout_seconds=timeout_seconds,
+        )
+    if provider == "openai":
+        openai_api_key, endpoint = require_hosted_provider_credentials(provider)
+        return LlmProviderConfig(
+            provider_id=provider,
+            model_id=model,
+            endpoint=endpoint,
+            network_opt_in=True,
+            timeout_seconds=timeout_seconds,
+            credential_status="present" if openai_api_key else "missing",
         )
 
     env_prefix = f"HKS_LLM_PROVIDER_{provider.upper().replace('-', '_')}"
@@ -79,6 +93,46 @@ def build_provider_config(
         timeout_seconds=timeout_seconds,
         credential_status="present" if api_key else "missing",
     )
+
+
+def _default_model(provider: str) -> str:
+    if provider == "openai":
+        return OPENAI_DEFAULT_MODEL
+    return DEFAULT_FAKE_MODEL
+
+
+def require_hosted_provider_credentials(provider: str) -> tuple[str, str | None]:
+    env_prefix = f"HKS_LLM_PROVIDER_{provider.upper().replace('-', '_')}"
+    if config_value("HKS_LLM_NETWORK_OPT_IN") != "1":
+        raise KSError(
+            f"hosted/network LLM provider `{provider}` requires HKS_LLM_NETWORK_OPT_IN=1",
+            exit_code=ExitCode.USAGE,
+            code="USAGE",
+        )
+
+    api_key = _hosted_provider_api_key(provider)
+    if not api_key:
+        raise KSError(
+            f"hosted/network LLM provider `{provider}` requires {env_prefix}_API_KEY",
+            exit_code=ExitCode.USAGE,
+            code="USAGE",
+        )
+    return api_key, config_value(f"{env_prefix}_ENDPOINT")
+
+
+def hosted_provider_ready(provider: str) -> bool:
+    return (
+        config_value("HKS_LLM_NETWORK_OPT_IN") == "1"
+        and _hosted_provider_api_key(provider) is not None
+    )
+
+
+def _hosted_provider_api_key(provider: str) -> str | None:
+    env_prefix = f"HKS_LLM_PROVIDER_{provider.upper().replace('-', '_')}"
+    api_key = config_value(f"{env_prefix}_API_KEY")
+    if provider == "openai":
+        api_key = api_key or config_value("OPENAI_API_KEY")
+    return api_key
 
 
 def build_request(

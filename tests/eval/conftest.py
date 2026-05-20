@@ -7,13 +7,16 @@ from pathlib import Path
 
 import pytest
 
-from hks.core.config import config_value, load_structured_config, _nested_get
+from hks.core.config import _nested_get, config_value, load_structured_config
 
 OPENAI_KEY_ENV = "HKS_LLM_PROVIDER_OPENAI_API_KEY"
 
 
-def _has_openai_key() -> bool:
-    """Check all known locations for an OpenAI API key."""
+def _has_openai_access() -> bool:
+    """Check that hosted OpenAI evals have both network opt-in and an API key."""
+    if config_value("HKS_LLM_NETWORK_OPT_IN") != "1":
+        return False
+
     # Check env vars directly (not via config_value, which may be
     # affected by autouse fixtures during collection).
     if os.environ.get(OPENAI_KEY_ENV) or os.environ.get("OPENAI_API_KEY"):
@@ -25,8 +28,11 @@ def _has_openai_key() -> bool:
 
 
 requires_openai = pytest.mark.skipif(
-    not _has_openai_key(),
-    reason=f"Set {OPENAI_KEY_ENV} or OPENAI_API_KEY to run eval tests",
+    not _has_openai_access(),
+    reason=(
+        f"Set HKS_LLM_NETWORK_OPT_IN=1 and {OPENAI_KEY_ENV} or OPENAI_API_KEY "
+        "to run eval tests"
+    ),
 )
 
 
