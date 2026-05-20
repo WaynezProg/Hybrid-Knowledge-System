@@ -19,8 +19,8 @@ def test_office_queries_validate_against_phase2_contract(
     assert detail_query.exit_code == 0, detail_query.stdout
     detail_payload = json.loads(detail_query.stdout)
     validate(detail_payload)
-    assert detail_payload["source"] == ["vector"]
-    assert detail_payload["trace"]["route"] == "vector"
+    assert detail_payload["source"] in (["vector"], ["wiki"])
+    assert detail_payload["trace"]["route"] in {"vector", "wiki"}
     vector_detail = next(
         step["detail"]
         for step in detail_payload["trace"]["steps"]

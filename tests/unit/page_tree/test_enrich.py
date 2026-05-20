@@ -166,8 +166,61 @@ class TestEnrichTree:
 
         assert result is llm_tree
 
-    def test_non_fake_provider_is_not_implemented(self) -> None:
+    def test_openai_provider_calls_llm_summarize(self, monkeypatch: pytest.MonkeyPatch) -> None:
         tree = _rule_tree()
+        source_text = "Chapter 1 content. " * 5 + "Section 1.1 detail. " * 3
 
-        with pytest.raises(NotImplementedError):
-            enrich_tree(tree, "text", provider="openai")
+        def mock_summarize(text: str, title: str, provider: str, model: str | None) -> str:
+            return f"LLM summary of {title}"
+
+        monkeypatch.setattr(
+            "hks.page_tree.enrich._llm_summarize", mock_summarize
+        )
+
+        enriched = enrich_tree(tree, source_text, provider="openai")
+
+        assert enriched.build_method == "llm"
+        assert enriched.root_nodes[0].summary == "LLM summary of Chapter 1"
+        assert enriched.root_nodes[0].children[0].summary == "LLM summary of Section 1.1"
+
+    def test_openai_provider_restructures_degenerate_tree(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from typing import Any
+        tree = _degenerate_tree()
+
+        def mock_restructure(
+            tree: Any, source_text: str, provider: str, model: str | None
+        ) -> Any:
+            from hks.page_tree.model import PageTree, TreeNode
+            from hks.core.manifest import utc_now_iso
+
+            nodes = [
+                TreeNode(
+                    node_id="llm-n1", title="Introduction", level=1,
+                    start_offset=0, end_offset=250, children=[], summary="Intro",
+                ),
+                TreeNode(
+                    node_id="llm-n2", title="Body", level=1,
+                    start_offset=250, end_offset=500, children=[], summary="Body",
+                ),
+            ]
+            return PageTree(
+                source_relpath=tree.source_relpath,
+                source_format=tree.source_format,
+                doc_title=tree.doc_title,
+                root_nodes=nodes,
+                build_method="llm",
+                built_at=utc_now_iso(),
+                total_nodes=2,
+                source_sha256=tree.source_sha256,
+            )
+
+        monkeypatch.setattr(
+            "hks.page_tree.enrich._llm_restructure", mock_restructure
+        )
+
+        enriched = enrich_tree(tree, "A" * 500, provider="openai")
+
+        assert enriched.build_method == "llm"
+        assert enriched.total_nodes == 2

@@ -55,6 +55,45 @@ class Trace:
         }
 
 
+def _aggregate_evidence(steps: list[TraceStep]) -> list[dict[str, Any]]:
+    evidence: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+
+    for step in steps:
+        if step.kind == "wiki_lookup" and step.detail.get("hit"):
+            relpath = step.detail.get("source_relpath")
+            if isinstance(relpath, str):
+                key = (relpath, "wiki")
+                if key not in seen:
+                    seen.add(key)
+                    evidence.append({"source_relpath": relpath, "route": "wiki"})
+
+        elif step.kind == "graph_lookup" and step.detail.get("hit"):
+            for relpath in step.detail.get("relpaths", []):
+                if isinstance(relpath, str):
+                    key = (relpath, "graph")
+                    if key not in seen:
+                        seen.add(key)
+                        evidence.append({"source_relpath": relpath, "route": "graph"})
+
+        elif step.kind == "vector_lookup":
+            relpath = step.detail.get("source_relpath")
+            if isinstance(relpath, str):
+                key = (relpath, "vector")
+                if key not in seen:
+                    seen.add(key)
+                    entry: dict[str, Any] = {"source_relpath": relpath, "route": "vector"}
+                    section_path = step.detail.get("section_path")
+                    if section_path is not None:
+                        entry["section_path"] = section_path
+                    page_range = step.detail.get("page_range")
+                    if isinstance(page_range, dict):
+                        entry["page_range"] = page_range
+                    evidence.append(entry)
+
+    return evidence
+
+
 @dataclass(slots=True)
 class QueryResponse:
     answer: str
@@ -63,12 +102,16 @@ class QueryResponse:
     trace: Trace
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "answer": self.answer,
             "source": self.source,
             "confidence": self.confidence,
             "trace": self.trace.to_dict(),
         }
+        evidence = _aggregate_evidence(self.trace.steps)
+        if evidence:
+            payload["evidence"] = evidence
+        return payload
 
     def to_json(self) -> str:
         payload = self.to_dict()

@@ -15,7 +15,7 @@ from hks.llm.models import (
 )
 
 SUPPORTED_MODES: frozenset[str] = frozenset(("preview", "store"))
-SUPPORTED_PROVIDERS: frozenset[str] = frozenset(("fake", "fake-malformed", "fake-side-effect"))
+SUPPORTED_PROVIDERS: frozenset[str] = frozenset(("fake", "fake-malformed", "fake-side-effect", "openai"))
 
 
 def normalize_provider_id(value: str | None) -> str:
@@ -71,11 +71,13 @@ def build_provider_config(
             exit_code=ExitCode.USAGE,
             code="USAGE",
         )
-    raise KSError(
-        f"LLM provider `{provider}` is gated but not implemented in 008",
-        exit_code=ExitCode.USAGE,
-        code="USAGE",
-        details=[f"endpoint: {endpoint or '<unset>'}"],
+    return LlmProviderConfig(
+        provider_id=provider,
+        model_id=model,
+        endpoint=endpoint,
+        network_opt_in=network_opt_in,
+        timeout_seconds=timeout_seconds,
+        credential_status="present" if api_key else "missing",
     )
 
 

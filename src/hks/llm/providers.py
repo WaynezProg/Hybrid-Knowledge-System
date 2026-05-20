@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any, Protocol
+
+import httpx
 
 from hks.llm.models import DEFAULT_FAKE_MODEL, LlmExtractionRequest
 
@@ -74,12 +77,81 @@ class FakeProvider:
         return payload
 
 
+def _openai_chat(
+    *,
+    api_key: str,
+    endpoint: str,
+    model: str,
+    messages: list[dict[str, Any]],
+    timeout: int = 30,
+) -> dict[str, Any]:
+    """POST to OpenAI-compatible /chat/completions and return parsed JSON content."""
+    url = f"{endpoint}/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    body = {
+        "model": model,
+        "messages": messages,
+        "response_format": {"type": "json_object"},
+    }
+    with httpx.Client(timeout=timeout) as client:
+        response = client.post(url, json=body, headers=headers)
+        data = response.json()
+
+    raw_content: str = data["choices"][0]["message"]["content"]
+    try:
+        result: dict[str, Any] = json.loads(raw_content)
+        return result
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"OpenAI response content is not valid JSON: {raw_content!r}") from exc
+
+
+@dataclass(frozen=True, slots=True)
+class OpenAIProvider:
+    api_key: str
+    endpoint: str = "https://api.openai.com/v1"
+    model: str = "gpt-4o-mini"
+    timeout_seconds: int = 30
+
+    def extract(self, request: LlmExtractionRequest, *, content: str) -> dict[str, Any]:
+        from hks.llm.prompts import EXTRACTION_PROMPT_TEMPLATE, build_prompt
+
+        messages = [
+            {"role": "system", "content": EXTRACTION_PROMPT_TEMPLATE},
+            {
+                "role": "user",
+                "content": build_prompt(
+                    source_relpath=request.source_relpath, content=content
+                ),
+            },
+        ]
+        return _openai_chat(
+            api_key=self.api_key,
+            endpoint=self.endpoint,
+            model=self.model,
+            messages=messages,
+            timeout=self.timeout_seconds,
+        )
+
+
 def provider_for(request: LlmExtractionRequest) -> LlmProvider:
+    from hks.core.config import config_value
+
     provider_id = request.provider.provider_id
     if provider_id == "fake-malformed":
         return FakeProvider(malformed=True)
     if provider_id == "fake-side-effect":
         return FakeProvider(side_effect=True)
+    if provider_id == "openai":
+        api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
+        if not api_key:
+            return FakeProvider()
+        endpoint = config_value("HKS_LLM_PROVIDER_OPENAI_ENDPOINT") or "https://api.openai.com/v1"
+        return OpenAIProvider(
+            api_key=api_key,
+            endpoint=endpoint,
+            model=request.provider.model_id,
+            timeout_seconds=request.provider.timeout_seconds,
+        )
     return FakeProvider()
 
 

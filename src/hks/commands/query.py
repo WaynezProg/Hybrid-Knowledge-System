@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 import sys
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import cast
 
 from hks.core.manifest import Manifest, resume_or_rebuild, utc_now_iso
@@ -21,7 +22,13 @@ from hks.storage.wiki import LogEntry, WikiStore
 from hks.writeback.gate import WritebackFlag, decide
 from hks.writeback.writer import WritebackContext, commit
 
-type QueryHit = tuple[str, list[Route], float]
+
+@dataclass(slots=True)
+class Candidate:
+    text: str
+    source_route: Route
+    score: float
+    metadata: dict[str, object]
 
 
 def _lexical_terms(text: str) -> set[str]:
@@ -168,13 +175,16 @@ def _has_wiki_secondary_intent(question: str) -> bool:
     )
 
 
-def _try_wiki(
+def _collect_wiki_candidates(
     question: str,
     *,
     wiki_store: WikiStore,
-    steps: list[TraceStep],
     require_secondary_intent: bool = False,
-) -> QueryHit | None:
+    is_primary: bool = False,
+) -> tuple[list[Candidate], list[TraceStep]]:
+    steps: list[TraceStep] = []
+    candidates: list[Candidate] = []
+
     if require_secondary_intent and not _has_wiki_secondary_intent(question):
         steps.append(
             TraceStep(
@@ -182,7 +192,7 @@ def _try_wiki(
                 detail={"hit": False, "reason": "secondary-intent-miss"},
             )
         )
-        return None
+        return candidates, steps
 
     page = wiki_store.search(question)
     if page is not None:
@@ -192,32 +202,44 @@ def _try_wiki(
                 detail={"slug": page.slug, "hit": True, "source_relpath": page.source_relpath},
             )
         )
-        return (f"{page.title}: {page.summary}", ["wiki"], 1.0)
-
-    overview = wiki_store.overview()
-    if overview and _has_wiki_secondary_intent(question):
-        steps.append(
-            TraceStep(
-                kind="wiki_lookup",
-                detail={"slug": None, "hit": True, "mode": "overview"},
+        candidates.append(
+            Candidate(
+                text=f"{page.title}: {page.summary}",
+                source_route="wiki",
+                score=1.0 if is_primary else 0.65,
+                metadata={"source_relpath": page.source_relpath, "slug": page.slug},
             )
         )
-        return (overview, ["wiki"], 1.0)
+    else:
+        overview = wiki_store.overview()
+        if overview and _has_wiki_secondary_intent(question):
+            steps.append(
+                TraceStep(
+                    kind="wiki_lookup",
+                    detail={"slug": None, "hit": True, "mode": "overview"},
+                )
+            )
+            candidates.append(
+                Candidate(text=overview, source_route="wiki", score=0.7, metadata={})
+            )
+        else:
+            steps.append(TraceStep(kind="wiki_lookup", detail={"hit": False}))
 
-    steps.append(TraceStep(kind="wiki_lookup", detail={"hit": False}))
-    return None
+    return candidates, steps
 
 
-def _try_graph(
+def _collect_graph_candidates(
     question: str,
     *,
     graph_store: GraphStore,
-    steps: list[TraceStep],
-) -> QueryHit | None:
+) -> tuple[list[Candidate], list[TraceStep]]:
+    steps: list[TraceStep] = []
+    candidates: list[Candidate] = []
+
     graph_result = answer_query(question, graph_store)
     if graph_result is None:
         steps.append(TraceStep(kind="graph_lookup", detail={"hit": False}))
-        return None
+        return candidates, steps
 
     steps.append(
         TraceStep(
@@ -230,90 +252,171 @@ def _try_graph(
             ),
         )
     )
-    return (graph_result.answer, ["graph"], graph_result.confidence)
+    candidates.append(
+        Candidate(
+            text=graph_result.answer,
+            source_route="graph",
+            score=graph_result.confidence,
+            metadata={"relpaths": graph_result.relpaths},
+        )
+    )
+    return candidates, steps
 
 
-def _try_vector(
+def _collect_vector_candidates(
     question: str,
     *,
     vector_store: VectorStore,
     manifest: Manifest,
-    steps: list[TraceStep],
-) -> QueryHit | None:
+) -> tuple[list[Candidate], list[TraceStep]]:
+    steps: list[TraceStep] = []
+    candidates: list[Candidate] = []
+
     candidate_limit = max(5, min(50, vector_store.count()))
     hits = vector_store.search(question, top_k=candidate_limit)
     top_similarity = hits[0].similarity if hits else 0.0
-    chosen_hit = _choose_vector_hit(question, hits)
-    if chosen_hit is not None:
-        steps.append(
-            TraceStep(
-                kind="vector_lookup",
-                detail=_vector_trace_detail(
-                    top_k=candidate_limit,
-                    top_similarity=top_similarity,
-                    chosen_hit=chosen_hit,
-                    manifest=manifest,
-                    tree_store=TreeStore(vector_store.paths),
-                ),
+
+    relevant_hits = [hit for hit in hits if _vector_hit_is_relevant(question, hit)]
+    tree_store = TreeStore(vector_store.paths)
+
+    for hit in relevant_hits[:5]:
+        metadata: dict[str, object] = dict(hit.metadata)
+        section_ctx = _vector_section_context(
+            chosen_hit=hit, manifest=manifest, tree_store=tree_store
+        )
+        metadata.update(section_ctx)
+        candidates.append(
+            Candidate(
+                text=hit.text,
+                source_route="vector",
+                score=hit.similarity,
+                metadata=metadata,
             )
         )
-        return (chosen_hit.text, ["vector"], chosen_hit.similarity)
 
-    steps.append(
-        TraceStep(
-            kind="vector_lookup",
-            detail=_vector_trace_detail(
-                top_k=candidate_limit,
-                top_similarity=top_similarity,
-                chosen_hit=None,
-                manifest=manifest,
-                tree_store=TreeStore(vector_store.paths),
-            ),
-        )
+    detail = _vector_trace_detail(
+        top_k=candidate_limit,
+        top_similarity=top_similarity,
+        chosen_hit=relevant_hits[0] if relevant_hits else None,
+        manifest=manifest,
+        tree_store=tree_store,
     )
-    return None
+    steps.append(TraceStep(kind="vector_lookup", detail=detail))
+
+    return candidates, steps
 
 
-def _try_route(
-    target_route: Route,
+def _rrf_rerank(candidates: list[Candidate], *, k: int = 60) -> list[Candidate]:
+    if not candidates:
+        return []
+
+    source_groups: dict[str, list[Candidate]] = {}
+    for c in candidates:
+        source_groups.setdefault(c.source_route, []).append(c)
+
+    for route_candidates in source_groups.values():
+        route_candidates.sort(key=lambda c: c.score, reverse=True)
+
+    rrf_scores: dict[int, float] = {}
+    for route_candidates in source_groups.values():
+        for rank, c in enumerate(route_candidates):
+            idx = candidates.index(c)
+            rrf_scores[idx] = rrf_scores.get(idx, 0.0) + 1.0 / (k + rank + 1)
+
+    ranked_indices = sorted(
+        rrf_scores,
+        key=lambda i: (rrf_scores[i], candidates[i].score),
+        reverse=True,
+    )
+    return [
+        Candidate(
+            text=candidates[i].text,
+            source_route=candidates[i].source_route,
+            score=candidates[i].score,
+            metadata=candidates[i].metadata,
+        )
+        for i in ranked_indices
+    ]
+
+
+def _llm_rerank(
     question: str,
-    *,
-    wiki_store: WikiStore,
-    graph_store: GraphStore,
-    vector_store: VectorStore,
-    manifest: Manifest,
-    steps: list[TraceStep],
-    require_wiki_secondary_intent: bool = False,
-) -> QueryHit | None:
-    if target_route == "wiki":
-        return _try_wiki(
-            question,
-            wiki_store=wiki_store,
-            steps=steps,
-            require_secondary_intent=require_wiki_secondary_intent,
-        )
-    if target_route == "graph":
-        return _try_graph(question, graph_store=graph_store, steps=steps)
-    return _try_vector(question, vector_store=vector_store, manifest=manifest, steps=steps)
+    candidates: list[Candidate],
+) -> list[Candidate]:
+    from hks.core.config import config_value
+    from hks.llm.providers import _openai_chat
 
+    api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
+    if not api_key:
+        return _rrf_rerank(candidates)
+    endpoint = config_value("HKS_LLM_PROVIDER_OPENAI_ENDPOINT") or "https://api.openai.com/v1"
+    model = config_value("HKS_LLM_MODEL") or "gpt-4o-mini"
 
-def _secondary_fallback_route(primary: Route, secondary: Route | None) -> Route | None:
-    if secondary is None or secondary in {primary, "vector"}:
-        return None
-    return secondary
-
-
-def _append_fallback(steps: list[TraceStep], *, source_route: Route, target_route: Route) -> None:
-    steps.append(
-        TraceStep(
-            kind="fallback",
-            detail={
-                "from": source_route,
-                "to": target_route,
-                "reason": f"{source_route}-miss",
-            },
-        )
+    capped = candidates[:10]
+    snippet_list = "\n".join(
+        f"[{i}] ({c.source_route}) {c.text[:200]}" for i, c in enumerate(capped)
     )
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a relevance ranker. Given a question and numbered text snippets, "
+                "return a JSON object with a 'ranking' key containing an array of snippet "
+                "indices sorted by relevance (most relevant first). "
+                'Example: {"ranking": [2, 0, 1]}'
+            ),
+        },
+        {
+            "role": "user",
+            "content": f"Question: {question}\n\nSnippets:\n{snippet_list}",
+        },
+    ]
+
+    try:
+        result = _openai_chat(
+            api_key=api_key,
+            endpoint=endpoint,
+            model=model,
+            messages=messages,
+            timeout=30,
+        )
+        ranking = result.get("ranking", [])
+        if not isinstance(ranking, list):
+            return _rrf_rerank(candidates)
+
+        ranked: list[Candidate] = []
+        seen: set[int] = set()
+        for idx in ranking:
+            if isinstance(idx, int) and 0 <= idx < len(capped) and idx not in seen:
+                seen.add(idx)
+                ranked.append(
+                    Candidate(
+                        text=capped[idx].text,
+                        source_route=capped[idx].source_route,
+                        score=capped[idx].score,
+                        metadata=capped[idx].metadata,
+                    )
+                )
+        for i, c in enumerate(capped):
+            if i not in seen:
+                ranked.append(c)
+        return ranked
+    except Exception:
+        return _rrf_rerank(candidates)
+
+
+def _rerank_candidates(
+    question: str,
+    candidates: list[Candidate],
+) -> tuple[list[Candidate], str]:
+    from hks.core.config import config_value
+
+    api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
+    if api_key:
+        ranked = _llm_rerank(question, candidates)
+        return ranked, "llm-rerank"
+    ranked = _rrf_rerank(candidates)
+    return ranked, "rrf"
 
 
 def run(question: str, *, writeback: str = "auto") -> QueryResponse:
@@ -342,66 +445,58 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
     graph_store = GraphStore(paths)
     vector_store = VectorStore(paths)
 
-    final_route = decision.route
-    hit = _try_route(
-        decision.route,
+    all_candidates: list[Candidate] = []
+
+    wiki_candidates, wiki_steps = _collect_wiki_candidates(
         question,
         wiki_store=wiki_store,
-        graph_store=graph_store,
-        vector_store=vector_store,
-        manifest=manifest,
-        steps=steps,
+        require_secondary_intent=(decision.route != "wiki"),
+        is_primary=(decision.route == "wiki"),
+    )
+    all_candidates.extend(wiki_candidates)
+    steps.extend(wiki_steps)
+
+    graph_candidates, graph_steps = _collect_graph_candidates(question, graph_store=graph_store)
+    all_candidates.extend(graph_candidates)
+    steps.extend(graph_steps)
+
+    vector_candidates, vector_steps = _collect_vector_candidates(
+        question, vector_store=vector_store, manifest=manifest
+    )
+    all_candidates.extend(vector_candidates)
+    steps.extend(vector_steps)
+
+    if not all_candidates:
+        response = _build_no_hit_response(decision.route, steps)
+        return _maybe_writeback(
+            question=question, response=response, writeback=writeback, wiki_store=wiki_store
+        )
+
+    ranked, strategy = _rerank_candidates(question, all_candidates)
+    steps.append(
+        TraceStep(
+            kind="merge",
+            detail={
+                "strategy": strategy,
+                "candidate_count": len(all_candidates),
+                "top_candidate": {
+                    "route": ranked[0].source_route,
+                    "score": ranked[0].score,
+                },
+            },
+        )
     )
 
-    if hit is None:
-        secondary_route = _secondary_fallback_route(decision.route, decision.secondary)
-        if secondary_route is not None:
-            _append_fallback(steps, source_route=decision.route, target_route=secondary_route)
-            final_route = secondary_route
-            hit = _try_route(
-                secondary_route,
-                question,
-                wiki_store=wiki_store,
-                graph_store=graph_store,
-                vector_store=vector_store,
-                manifest=manifest,
-                steps=steps,
-                require_wiki_secondary_intent=secondary_route == "wiki",
-            )
-
-    if hit is None and final_route != "vector":
-        _append_fallback(steps, source_route=final_route, target_route="vector")
-        final_route = "vector"
-        hit = _try_vector(
-            question,
-            vector_store=vector_store,
-            manifest=manifest,
-            steps=steps,
-        )
-
-    if hit is None:
-        response = _build_no_hit_response(final_route, steps)
-        response = _maybe_writeback(
-            question=question,
-            response=response,
-            writeback=writeback,
-            wiki_store=wiki_store,
-        )
-        return response
-
-    answer, source, confidence = hit
+    winner = ranked[0]
 
     response = QueryResponse(
-        answer=answer,
-        source=source,
-        confidence=confidence,
-        trace=Trace(route=final_route, steps=steps),
+        answer=winner.text,
+        source=[winner.source_route],
+        confidence=winner.score,
+        trace=Trace(route=winner.source_route, steps=steps),
     )
     return _maybe_writeback(
-        question=question,
-        response=response,
-        writeback=writeback,
-        wiki_store=wiki_store,
+        question=question, response=response, writeback=writeback, wiki_store=wiki_store
     )
 
 
