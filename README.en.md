@@ -2,7 +2,7 @@
 
 [繁體中文](./README.md)
 
-Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 1-3 and 008-012: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query routes across `wiki / graph / vector`, relation-style questions prefer graph, high-confidence answers auto write back by default, and the system ships image ingest, the lint system, multi-agent coordination, local MCP / HTTP adapters, LLM-assisted classification/extraction, LLM-assisted wiki synthesis, derived Graphify artifacts, a bounded watch/re-ingest workflow, and source catalog / workspace selection.
+Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 1-3 and 008-012: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query uses fused retrieval to collect candidates from wiki / graph / vector simultaneously and rank them with an LLM reranker (RRF fallback when no API key), high-confidence answers auto write back by default, and the system ships image ingest, the lint system, multi-agent coordination, local MCP / HTTP adapters, LLM-assisted classification/extraction, LLM-assisted wiki synthesis, derived Graphify artifacts, a bounded watch/re-ingest workflow, and source catalog / workspace selection.
 
 ## How This Project Runs
 
@@ -15,7 +15,7 @@ HKS is not a daemon by default. The normal workflow is to run `uv run ks ...` on
 ## What Ships Today
 
 - `ks ingest <file|dir> [--pptx-notes include|exclude]`: builds `raw_sources/`, `wiki/`, `graph/graph.json`, `vector/db/`, and `manifest.json`
-- `ks query "<question>" [--writeback auto|yes|no|ask]`: returns stable JSON; summary prefers wiki, relation prefers graph, detail prefers vector
+- `ks query "<question>" [--writeback auto|yes|no|ask]`: returns stable JSON; fused retrieval collects candidates from wiki / graph / vector simultaneously, then ranks with LLM reranker (RRF fallback without API key); response includes `evidence[]` for provenance
 - `ks source list|show`: inspect ingested sources and per-source derived artifacts for the current `KS_ROOT`; read-only
 - `ks workspace register|list|show|remove|use|query`: manage named `KS_ROOT` values and query a selected workspace
 - `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`: checks cross-layer consistency across `wiki / graph / vector / manifest / raw_sources`
@@ -97,9 +97,10 @@ uv run ks ingest <file-or-dir>
 uv run ks query "<question>" [--writeback auto|yes|no|ask]
 ```
 
-- Summary / overview questions prefer wiki
-- Relation / impact / dependency / why questions prefer graph, then fall back to vector on miss
-- Detail / clause questions prefer vector
+- All queries use fused retrieval: candidates are collected from wiki / graph / vector simultaneously, then ranked by LLM reranker (RRF fallback without API key)
+- The routing model determines the primary route (summary→wiki, relation→graph, detail→vector), which affects wiki candidate eligibility thresholds and score weighting
+- Response includes `evidence[]` listing each source's `source_relpath` and `route` for provenance
+- Trace includes a `merge` step recording the rerank strategy and candidate count
 - No-hit queries still exit `0`; they just return `source=[]`
 
 ### Source Catalog / Workspace

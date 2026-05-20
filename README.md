@@ -2,7 +2,7 @@
 
 [English](./README.en.md)
 
-Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。目前 runtime 已完成 Phase 1-3 與 008-012：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 會在 `wiki / graph / vector` 三層間切換，relation 類問題優先走 graph，高 confidence 答案預設自動 write-back，並提供 image ingest、lint system、multi-agent coordination、local MCP / HTTP adapter、LLM-assisted classification/extraction、LLM-assisted wiki synthesis、derived Graphify artifacts、bounded watch/re-ingest workflow，以及 source catalog / workspace selection。
+Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。目前 runtime 已完成 Phase 1-3 與 008-012：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 使用 fused retrieval 同時從 wiki / graph / vector 收集 candidates 再以 LLM reranker（無 API key 時 fallback RRF）排序，高 confidence 答案預設自動 write-back，並提供 image ingest、lint system、multi-agent coordination、local MCP / HTTP adapter、LLM-assisted classification/extraction、LLM-assisted wiki synthesis、derived Graphify artifacts、bounded watch/re-ingest workflow，以及 source catalog / workspace selection。
 
 ## 這個專案怎麼運作
 
@@ -15,7 +15,7 @@ HKS 預設不是常駐服務。一般使用方式是需要時執行 `uv run ks .
 ## 目前能做什麼
 
 - `ks ingest <file|dir> [--pptx-notes include|exclude]`：建立 `raw_sources/`、`wiki/`、`graph/graph.json`、`vector/db/`、`manifest.json`
-- `ks query "<question>" [--writeback auto|yes|no|ask]`：回傳穩定 JSON，summary 優先 wiki、relation 優先 graph、detail 優先 vector
+- `ks query "<question>" [--writeback auto|yes|no|ask]`：回傳穩定 JSON，fused retrieval 從 wiki / graph / vector 同時收集 candidates 後以 LLM reranker 排序（無 API key 時 RRF fallback），response 含 `evidence[]` 溯源
 - `ks source list|show`：查看目前 `KS_ROOT` 已 ingest 的資料與單筆 source 的 derived artifacts；read-only
 - `ks workspace register|list|show|remove|use|query`：管理多個 named `KS_ROOT`，並對指定 workspace query
 - `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`：檢查 `wiki / graph / vector / manifest / raw_sources` 跨層一致性
@@ -97,9 +97,10 @@ uv run ks ingest <file-or-dir>
 uv run ks query "<question>" [--writeback auto|yes|no|ask]
 ```
 
-- summary / overview 類：優先 wiki
-- relation / impact / dependency / why 類：優先 graph，miss 才 fallback vector
-- detail / clause 類：優先 vector
+- 所有 query 都走 fused retrieval：同時從 wiki / graph / vector 收集 candidates，再以 LLM reranker 排序（無 API key 時 fallback RRF）
+- routing model 決定 primary route（summary→wiki, relation→graph, detail→vector），影響 wiki 候選的參與門檻與分數加權
+- response 包含 `evidence[]`，列出各 source 的 `source_relpath` 和 `route` 供溯源
+- trace 包含 `merge` step，記錄 rerank strategy 與 candidate count
 - 無命中仍 exit `0`，只是 `source=[]`
 
 ### Source Catalog / Workspace
@@ -262,11 +263,18 @@ uv run hks-api --host 127.0.0.1 --port 8766
   "answer": "...",
   "source": ["graph"],
   "confidence": 0.88,
+  "evidence": [
+    {"source_relpath": "atlas.txt", "route": "graph"},
+    {"source_relpath": "atlas.txt", "route": "vector", "section_path": "Chapter 1 > Overview"}
+  ],
   "trace": {
     "route": "graph",
     "steps": [
       {"kind": "routing_model", "detail": {}},
-      {"kind": "graph_lookup", "detail": {}}
+      {"kind": "wiki_lookup", "detail": {"hit": false}},
+      {"kind": "graph_lookup", "detail": {"hit": true, "relpaths": ["atlas.txt"]}},
+      {"kind": "vector_lookup", "detail": {}},
+      {"kind": "merge", "detail": {"strategy": "llm", "candidate_count": 3}}
     ]
   }
 }
