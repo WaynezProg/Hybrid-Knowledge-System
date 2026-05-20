@@ -13,7 +13,10 @@ from hks.core.manifest import load_manifest
 def _find_page_for_source(pages_dir: Path, relpath: str) -> str:
     for page_path in pages_dir.glob("*.md"):
         text = page_path.read_text(encoding="utf-8")
-        if f"source: raw_sources/{relpath}" in text:
+        if (
+            f"source: raw_sources/{relpath}" in text
+            or f'source: "raw_sources/{relpath}"' in text
+        ):
             return text
     raise AssertionError(f"wiki page for {relpath} not found")
 

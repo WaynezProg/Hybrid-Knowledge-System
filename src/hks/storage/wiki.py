@@ -65,19 +65,7 @@ def fit_slug(slug: str, *, digest_source: str | None = None) -> str:
 
 def _frontmatter_scalar(value: str) -> str:
     normalized = " ".join(value.split())
-    if _requires_quoted_frontmatter_scalar(normalized):
-        return json.dumps(normalized, ensure_ascii=False)
-    return normalized
-
-
-def _requires_quoted_frontmatter_scalar(value: str) -> bool:
-    if value == "":
-        return True
-    if value != value.strip():
-        return True
-    if value[0] in "-?:,[]{}#&*!|>'\"%@`":
-        return True
-    return any(token in value for token in (": ", " #"))
+    return json.dumps(normalized, ensure_ascii=False)
 
 
 def _parse_frontmatter_scalar(value: str) -> str:
@@ -114,8 +102,8 @@ class WikiPage:
             f"title: {_frontmatter_scalar(self.title)}",
             f"summary: {_frontmatter_scalar(self.summary)}",
             f"source: {_frontmatter_scalar(source)}",
-            f"origin: {self.origin}",
-            f"updated_at: {self.updated_at}",
+            f"origin: {_frontmatter_scalar(self.origin)}",
+            f"updated_at: {_frontmatter_scalar(self.updated_at)}",
         ]
         for key, value in sorted(self.metadata.items()):
             if key not in {"slug", "title", "summary", "source", "origin", "updated_at"}:
@@ -305,10 +293,14 @@ class WikiStore:
             pages.append(WikiPage.from_markdown(path.read_text(encoding="utf-8")))
         return pages
 
+    @staticmethod
+    def _escape_link_text(text: str) -> str:
+        return text.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
+
     def rebuild_index(self) -> None:
         self.ensure()
         entries = [
-            f"- [{page.title}](pages/{page.slug}.md) — {page.summary}"
+            f"- [{self._escape_link_text(page.title)}](pages/{page.slug}.md) — {page.summary}"
             for page in sorted(self.list_pages(), key=lambda page: page.slug)
         ]
         lines = ["# Wiki Index", ""] + entries if entries else ["# Wiki Index"]
