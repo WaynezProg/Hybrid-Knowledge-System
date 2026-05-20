@@ -17,7 +17,7 @@ def render_html(graph: GraphifyGraph) -> str:
     payload = _json_script_payload(graph)
 
     html_content = """<!doctype html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
   <meta charset="utf-8">
   <title>Graphify Explorer · HKS</title>
@@ -425,6 +425,22 @@ def render_html(graph: GraphifyGraph) -> str:
       color: var(--accent-bright);
     }
 
+    .perf-note {
+      display: none;
+      margin-top: 8px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(214, 168, 94, 0.32);
+      background: rgba(214, 168, 94, 0.08);
+      color: var(--text-muted);
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .perf-note.is-visible {
+      display: block;
+    }
+
     /* Float controls */
     .float-controls {
       position: absolute;
@@ -700,15 +716,15 @@ def render_html(graph: GraphifyGraph) -> str:
     <div class="stats-container">
       <div class="stat-card">
         <span class="val" id="stats-nodes">0</span>
-        <span class="lbl">nodes</span>
+        <span class="lbl">節點</span>
       </div>
       <div class="stat-card">
         <span class="val" id="stats-edges">0</span>
-        <span class="lbl">edges</span>
+        <span class="lbl">關係</span>
       </div>
       <div class="stat-card">
         <span class="val" id="stats-communities">0</span>
-        <span class="lbl">communities</span>
+        <span class="lbl">社群</span>
       </div>
     </div>
   </header>
@@ -716,39 +732,42 @@ def render_html(graph: GraphifyGraph) -> str:
   <main>
     <div class="sidebar-left">
       <div>
-        <div class="section-title">Search Graph</div>
+        <div class="section-title">搜尋圖譜</div>
         <div class="search-wrapper">
-          <input type="text" class="search-input" id="search-input" placeholder="Type node name..." autocomplete="off">
+          <input type="text" class="search-input" id="search-input" placeholder="輸入節點名稱..." autocomplete="off">
           <div class="search-results" id="search-results"></div>
         </div>
       </div>
 
       <div>
-        <div class="section-title">Node Types</div>
+        <div class="section-title">節點類型</div>
         <div class="filter-list" id="type-filters"></div>
       </div>
 
       <div>
-        <div class="section-title">Physics settings</div>
+        <div class="section-title">力學設定</div>
         <div class="slider-group">
           <div class="slider-header">
-            <span>Link Distance</span>
+            <span>連線距離</span>
             <span id="val-distance">80</span>
           </div>
           <input type="range" id="slide-distance" min="40" max="250" value="80">
         </div>
         <div class="slider-group">
           <div class="slider-header">
-            <span>Gravity Strength</span>
+            <span>重力強度</span>
             <span id="val-charge">800</span>
           </div>
           <input type="range" id="slide-charge" min="100" max="2000" value="800">
         </div>
-        <button class="physics-btn" id="btn-pause">Pause Simulation</button>
+        <button class="physics-btn" id="btn-pause">暫停模擬</button>
+        <div class="perf-note" id="perf-note">
+          節點數超過 500，已自動暫停力學模擬。可先搜尋或篩選，再手動恢復。
+        </div>
       </div>
 
       <div>
-        <div class="section-title">Communities</div>
+        <div class="section-title">社群</div>
         <div class="community-list" id="community-list"></div>
       </div>
     </div>
@@ -778,12 +797,12 @@ def render_html(graph: GraphifyGraph) -> str:
       </svg>
 
       <div class="float-controls">
-        <button class="float-btn" id="zoom-in" title="Zoom In">+</button>
-        <button class="float-btn" id="zoom-out" title="Zoom Out">-</button>
-        <button class="float-btn" id="zoom-reset" title="Reset View">⊙</button>
+        <button class="float-btn" id="zoom-in" title="放大">+</button>
+        <button class="float-btn" id="zoom-out" title="縮小">-</button>
+        <button class="float-btn" id="zoom-reset" title="重設視角">⊙</button>
       </div>
       <div class="status-line" id="status-line">
-        <b>drag</b> to pan · <b>scroll</b> to zoom · <b>click</b> a node or edge
+        <b>拖曳</b>平移 · <b>滾輪</b>縮放 · <b>點選</b>節點或關係
       </div>
     </div>
 
@@ -793,7 +812,7 @@ def render_html(graph: GraphifyGraph) -> str:
         <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:48px; height:48px; opacity:0.5; stroke:currentColor;">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
         </svg>
-        <p>Select a node or edge to inspect its details</p>
+        <p>選取節點或關係以檢視細節</p>
       </div>
       <div class="details-content" id="details-content" style="display: none;"></div>
     </div>
@@ -812,6 +831,22 @@ def render_html(graph: GraphifyGraph) -> str:
       community: '#c4a6ff'
     };
 
+    const kindLabels = {
+      source: '來源',
+      wiki_page: 'Wiki 頁面',
+      entity: '實體',
+      concept: '概念',
+      artifact: '產物'
+    };
+
+    const evidenceLabels = {
+      EXTRACTED: '原文擷取',
+      INFERRED: '推論',
+      AMBIGUOUS: '模糊'
+    };
+
+    const AUTO_PAUSE_NODE_LIMIT = 500;
+
     function escapeHtml(value) {
       return String(value ?? '').replace(/[&<>"']/g, ch => ({
         '&': '&amp;',
@@ -828,6 +863,14 @@ def render_html(graph: GraphifyGraph) -> str:
 
     function colorForKind(kind) {
       return colors[kind] || '#71717a';
+    }
+
+    function labelForKind(kind) {
+      return kindLabels[kind] || kind;
+    }
+
+    function labelForEvidence(evidence) {
+      return evidenceLabels[evidence] || evidence;
     }
 
     function formatScore(value, fallback = '1.00') {
@@ -893,7 +936,8 @@ def render_html(graph: GraphifyGraph) -> str:
     let selectedNodeId = null;
     let selectedEdgeId = null;
     let activeCommunityId = null;
-    let isPaused = false;
+    const autoPausedLargeGraph = nodes.length > AUTO_PAUSE_NODE_LIMIT;
+    let isPaused = autoPausedLargeGraph;
 
     const adjList = {};
     edges.forEach(e => {
@@ -912,6 +956,8 @@ def render_html(graph: GraphifyGraph) -> str:
     const svgEl = document.getElementById('graph-svg');
     const zoomGroupEl = document.getElementById('zoom-group');
     const statusLineEl = document.getElementById('status-line');
+    const pauseButtonEl = document.getElementById('btn-pause');
+    const perfNoteEl = document.getElementById('perf-note');
 
     let width = canvasContainer.clientWidth || 800;
     let height = canvasContainer.clientHeight || 600;
@@ -922,6 +968,13 @@ def render_html(graph: GraphifyGraph) -> str:
       n.x = width / 2 + Math.cos(angle) * radius;
       n.y = height / 2 + Math.sin(angle) * radius;
     });
+
+    if (autoPausedLargeGraph) {
+      pauseButtonEl.textContent = '恢復模擬';
+      perfNoteEl.classList.add('is-visible');
+      nodes.forEach(n => { n.isFixed = true; });
+      setStatusLine(`<b>效能保護</b> · ${nodes.length} 個節點超過 ${AUTO_PAUSE_NODE_LIMIT}，已自動暫停力學模擬`);
+    }
 
     initFilters();
     initCommunities();
@@ -1103,13 +1156,15 @@ def render_html(graph: GraphifyGraph) -> str:
       document.getElementById('val-charge').textContent = gravityStrength;
     });
 
-    document.getElementById('btn-pause').addEventListener('click', function() {
+    pauseButtonEl.addEventListener('click', function() {
       isPaused = !isPaused;
-      this.textContent = isPaused ? 'Resume Simulation' : 'Pause Simulation';
+      this.textContent = isPaused ? '恢復模擬' : '暫停模擬';
       if (!isPaused) {
         nodes.forEach(n => { n.isFixed = false; });
+        setStatusLine('<b>模擬中</b> · 力學模擬已恢復');
       } else {
         nodes.forEach(n => { n.isFixed = true; });
+        setStatusLine('<b>已暫停</b> · 力學模擬已暫停');
       }
     });
 
@@ -1241,7 +1296,7 @@ def render_html(graph: GraphifyGraph) -> str:
         const connected = d.edge.source === targetNode.id || d.edge.target === targetNode.id;
         d.line.style.opacity = connected ? 0.9 : 0.04;
       });
-      setStatusLine(`<b>hover</b> · ${escapeHtml(targetNode.id)} · ${escapeHtml(targetNode.kind)} · degree ${targetNode.degree}`);
+      setStatusLine(`<b>停留</b> · ${escapeHtml(targetNode.id)} · ${escapeHtml(labelForKind(targetNode.kind))} · ${targetNode.degree} 個關聯`);
     }
 
     function unhoverNode() {
@@ -1249,7 +1304,7 @@ def render_html(graph: GraphifyGraph) -> str:
 
       nodeDOMs.forEach(d => { d.container.style.opacity = 1.0; });
       linkDOMs.forEach(d => { d.line.style.opacity = 0.4 * (d.edge.confidence_score || 1); });
-      setStatusLine('<b>drag</b> to pan · <b>scroll</b> to zoom · <b>click</b> a node or edge');
+      setStatusLine('<b>拖曳</b>平移 · <b>滾輪</b>縮放 · <b>點選</b>節點或關係');
     }
 
     function selectNode(d) {
@@ -1275,7 +1330,7 @@ def render_html(graph: GraphifyGraph) -> str:
       applyZoomTransform();
 
       renderNodeDetails(d);
-      setStatusLine(`<b>selected</b> · ${escapeHtml(d.id)} · ${escapeHtml(d.kind)} · degree ${d.degree}`);
+      setStatusLine(`<b>已選取</b> · ${escapeHtml(d.id)} · ${escapeHtml(labelForKind(d.kind))} · ${d.degree} 個關聯`);
     }
 
     function selectEdge(edge) {
@@ -1295,7 +1350,7 @@ def render_html(graph: GraphifyGraph) -> str:
       });
 
       renderEdgeDetails(edge);
-      setStatusLine(`<b>edge</b> · ${escapeHtml(edge.source)} → ${escapeHtml(edge.target)} · ${escapeHtml(edge.relation)}`);
+      setStatusLine(`<b>關係</b> · ${escapeHtml(edge.source)} → ${escapeHtml(edge.target)} · ${escapeHtml(edge.relation)}`);
     }
 
     function clearSelection() {
@@ -1319,7 +1374,7 @@ def render_html(graph: GraphifyGraph) -> str:
         highlightCommunity(communities.find(c => c.community_id === activeCommunityId));
       } else {
         initDefaultRightSidebar();
-        setStatusLine('<b>drag</b> to pan · <b>scroll</b> to zoom · <b>click</b> a node or edge');
+        setStatusLine('<b>拖曳</b>平移 · <b>滾輪</b>縮放 · <b>點選</b>節點或關係');
       }
     }
 
@@ -1348,7 +1403,7 @@ def render_html(graph: GraphifyGraph) -> str:
       });
 
       renderCommunityDetails(community);
-      setStatusLine(`<b>community</b> · ${escapeHtml(community.community_id)} · ${community.node_ids.length} nodes`);
+      setStatusLine(`<b>社群</b> · ${escapeHtml(community.community_id)} · ${community.node_ids.length} 個節點`);
     }
 
     function clearCommunityHighlight() {
@@ -1370,7 +1425,7 @@ def render_html(graph: GraphifyGraph) -> str:
           <div class="filter-checkbox-wrapper">
             <input type="checkbox" id="chk-${escapeAttr(kind)}" checked>
             <span class="color-dot" style="background-color: ${colorForKind(kind)}"></span>
-            <span>${escapeHtml(kind)}</span>
+            <span>${escapeHtml(labelForKind(kind))}</span>
           </div>
           <span class="count-badge">${counts[kind]}</span>
         `;
@@ -1410,7 +1465,7 @@ def render_html(graph: GraphifyGraph) -> str:
         item.innerHTML = `
           <div class="community-item-header">
             <span>${escapeHtml(c.label)}</span>
-            <span class="count-badge" style="background: rgba(183, 148, 246, 0.12); color: var(--accent-bright);">${c.node_ids.length} nodes</span>
+            <span class="count-badge" style="background: rgba(183, 148, 246, 0.12); color: var(--accent-bright);">${c.node_ids.length} 節點</span>
           </div>
           <div class="community-item-desc">${escapeHtml(c.summary)}</div>
         `;
@@ -1439,12 +1494,12 @@ def render_html(graph: GraphifyGraph) -> str:
 
         const filtered = nodes.filter(n => n.label.toLowerCase().includes(val)).slice(0, 10);
         if (filtered.length === 0) {
-          results.innerHTML = '<div style="padding: 10px; font-size:12px; color:var(--text-muted);">No match found</div>';
+          results.innerHTML = '<div style="padding: 10px; font-size:12px; color:var(--text-muted);">找不到符合的節點</div>';
         } else {
           results.innerHTML = filtered.map(n => `
             <div class="search-item" data-id="${escapeAttr(n.id)}">
               <span>${escapeHtml(n.label)}</span>
-              <span class="kind-badge" style="color: ${colorForKind(n.kind)}">${escapeHtml(n.kind)}</span>
+              <span class="kind-badge" style="color: ${colorForKind(n.kind)}">${escapeHtml(labelForKind(n.kind))}</span>
             </div>
           `).join('');
 
@@ -1475,7 +1530,7 @@ def render_html(graph: GraphifyGraph) -> str:
       let auditHtml = '';
       if (auditFindings && auditFindings.length > 0) {
         auditHtml = `
-          <div class="audit-findings-title">Audit Findings (${auditFindings.length})</div>
+          <div class="audit-findings-title">稽核結果 (${auditFindings.length})</div>
           <div class="audit-list">
             ${auditFindings.map(f => `
               <div class="audit-item ${escapeAttr(f.severity)}">
@@ -1484,28 +1539,28 @@ def render_html(graph: GraphifyGraph) -> str:
                   <span class="badge" style="background:transparent; border:none; padding:0; color:inherit; font-size:10px;">${escapeHtml(f.severity)}</span>
                 </div>
                 <div class="audit-desc">${escapeHtml(f.message)}</div>
-                ${f.source_ref ? `<div style="font-size:10px; color:var(--text-muted); margin-top:4px; font-family:monospace;">Ref: ${escapeHtml(f.source_ref)}</div>` : ''}
+                ${f.source_ref ? `<div style="font-size:10px; color:var(--text-muted); margin-top:4px; font-family:monospace;">來源: ${escapeHtml(f.source_ref)}</div>` : ''}
               </div>
             `).join('')}
           </div>
         `;
       } else {
         auditHtml = `
-          <div class="audit-findings-title">Audit Findings</div>
-          <p style="font-size:12px; color:var(--text-muted);">No audit concerns detected.</p>
+          <div class="audit-findings-title">稽核結果</div>
+          <p style="font-size:12px; color:var(--text-muted);">未偵測到稽核疑慮。</p>
         `;
       }
 
       content.innerHTML = `
         <div class="details-header">
-          <div class="details-title">System Overview</div>
-          <div class="details-subtitle">Graphify Report Summary</div>
+          <div class="details-title">系統總覽</div>
+          <div class="details-subtitle">Graphify 報告摘要</div>
         </div>
         <div class="detail-card">
-          <div class="detail-card-title">Analysis details</div>
+          <div class="detail-card-title">分析細節</div>
           <div style="display:flex; flex-direction:column; gap:4px; font-size:12px;">
-            <div>Algorithm: <span class="badge-layer">${escapeHtml(rawData.algorithm_version || 'graphify-v1')}</span></div>
-            <div>Generated: <span style="color:var(--text-muted); font-family:monospace;">${escapeHtml(rawData.generated_at ? new Date(rawData.generated_at).toLocaleString() : 'N/A')}</span></div>
+            <div>演算法: <span class="badge-layer">${escapeHtml(rawData.algorithm_version || 'graphify-v1')}</span></div>
+            <div>產生時間: <span style="color:var(--text-muted); font-family:monospace;">${escapeHtml(rawData.generated_at ? new Date(rawData.generated_at).toLocaleString('zh-TW') : '無')}</span></div>
           </div>
         </div>
         ${auditHtml}
@@ -1532,7 +1587,7 @@ def render_html(graph: GraphifyGraph) -> str:
         };
       });
 
-      let neighborsHtml = '<p style="font-size:12px; color:var(--text-muted);">No connections</p>';
+      let neighborsHtml = '<p style="font-size:12px; color:var(--text-muted);">沒有關聯</p>';
       if (neighbors.length > 0) {
         neighborsHtml = `
           <div style="display:flex; flex-direction:column; gap:6px;">
@@ -1552,31 +1607,31 @@ def render_html(graph: GraphifyGraph) -> str:
         <div class="details-header">
           <div class="details-title">${escapeHtml(d.label)}</div>
           <div class="details-subtitle">
-            <span class="badge-kind" style="background-color: ${colorForKind(d.kind)}">${escapeHtml(d.kind)}</span>
-            <span class="badge-layer">Layer: ${escapeHtml(d.source_layer)}</span>
+            <span class="badge-kind" style="background-color: ${colorForKind(d.kind)}">${escapeHtml(labelForKind(d.kind))}</span>
+            <span class="badge-layer">層級: ${escapeHtml(d.source_layer)}</span>
           </div>
         </div>
 
         <div class="detail-card">
-          <div class="detail-card-title">Node Metadata</div>
+          <div class="detail-card-title">節點中繼資料</div>
           <div style="display:flex; flex-direction:column; gap:8px;">
             <div><span style="color:var(--text-muted);">ID:</span> <span style="font-family:monospace; font-size:11px;">${escapeHtml(d.id)}</span></div>
-            <div><span style="color:var(--text-muted);">Source Reference:</span> <span style="font-family:var(--mono); font-size:11px; color:var(--accent-bright);">${escapeHtml(d.source_ref)}</span></div>
-            ${d.community_id ? `<div><span style="color:var(--text-muted);">Community ID:</span> <span class="badge-layer">${escapeHtml(d.community_id)}</span></div>` : ''}
+            <div><span style="color:var(--text-muted);">來源參照:</span> <span style="font-family:var(--mono); font-size:11px; color:var(--accent-bright);">${escapeHtml(d.source_ref)}</span></div>
+            ${d.community_id ? `<div><span style="color:var(--text-muted);">社群 ID:</span> <span class="badge-layer">${escapeHtml(d.community_id)}</span></div>` : ''}
           </div>
         </div>
 
         <div class="detail-card">
-          <div class="detail-card-title">Provenance</div>
+          <div class="detail-card-title">來源脈絡</div>
           <div style="display:flex; flex-direction:column; gap:8px; font-size:12px;">
-            <div><span style="color:var(--text-muted);">Source Relpath:</span> <span style="color:var(--mint); font-family:var(--mono);">${escapeHtml(prov.source_relpath || 'N/A')}</span></div>
-            <div><span style="color:var(--text-muted);">Wiki Page:</span> <span style="color:var(--accent-bright); font-family:var(--mono);">${escapeHtml(prov.wiki_page || 'N/A')}</span></div>
-            <div><span style="color:var(--text-muted);">Artifact ID:</span> <span style="font-family:monospace; font-size:10px;">${escapeHtml(prov.artifact_id || 'N/A')}</span></div>
+            <div><span style="color:var(--text-muted);">來源相對路徑:</span> <span style="color:var(--mint); font-family:var(--mono);">${escapeHtml(prov.source_relpath || '無')}</span></div>
+            <div><span style="color:var(--text-muted);">Wiki 頁面:</span> <span style="color:var(--accent-bright); font-family:var(--mono);">${escapeHtml(prov.wiki_page || '無')}</span></div>
+            <div><span style="color:var(--text-muted);">Artifact ID:</span> <span style="font-family:monospace; font-size:10px;">${escapeHtml(prov.artifact_id || '無')}</span></div>
           </div>
         </div>
 
         <div>
-          <div class="section-title">Relationships (${neighbors.length})</div>
+          <div class="section-title">關聯 (${neighbors.length})</div>
           ${neighborsHtml}
         </div>
       `;
@@ -1593,33 +1648,33 @@ def render_html(graph: GraphifyGraph) -> str:
 
       content.innerHTML = `
         <div class="details-header">
-          <div class="details-title">Relationship Details</div>
+          <div class="details-title">關係詳情</div>
           <div class="details-subtitle">
             <span class="badge-relation">${escapeHtml(edge.relation)}</span>
-            <span class="badge-layer">Layer: ${escapeHtml(edge.source_layer)}</span>
+            <span class="badge-layer">層級: ${escapeHtml(edge.source_layer)}</span>
           </div>
         </div>
 
         <div class="detail-card" style="display:flex; flex-direction:column; gap:8px;">
-          <div><span style="color:var(--text-muted);">Source:</span> <a href="#" class="node-link" data-node-id="${escapeAttr(edge.source)}" style="color:var(--accent-bright); text-decoration:none; font-weight:500; font-family:var(--sans); margin-left:6px;">${escapeHtml(sNode ? sNode.label : edge.source)}</a></div>
+          <div><span style="color:var(--text-muted);">來源:</span> <a href="#" class="node-link" data-node-id="${escapeAttr(edge.source)}" style="color:var(--accent-bright); text-decoration:none; font-weight:500; font-family:var(--sans); margin-left:6px;">${escapeHtml(sNode ? sNode.label : edge.source)}</a></div>
           <div style="padding-left:12px; color:var(--text-muted); font-size:10px;">ID: ${escapeHtml(edge.source)}</div>
 
-          <div style="margin-top:6px;"><span style="color:var(--text-muted);">Target:</span> <a href="#" class="node-link" data-node-id="${escapeAttr(edge.target)}" style="color:var(--accent-bright); text-decoration:none; font-weight:500; font-family:var(--sans); margin-left:6px;">${escapeHtml(tNode ? tNode.label : edge.target)}</a></div>
+          <div style="margin-top:6px;"><span style="color:var(--text-muted);">目標:</span> <a href="#" class="node-link" data-node-id="${escapeAttr(edge.target)}" style="color:var(--accent-bright); text-decoration:none; font-weight:500; font-family:var(--sans); margin-left:6px;">${escapeHtml(tNode ? tNode.label : edge.target)}</a></div>
           <div style="padding-left:12px; color:var(--text-muted); font-size:10px;">ID: ${escapeHtml(edge.target)}</div>
         </div>
 
         <div class="detail-card">
-          <div class="detail-card-title">Reliability</div>
+          <div class="detail-card-title">可靠度</div>
           <div style="display:flex; flex-direction:column; gap:8px;">
-            <div><span style="color:var(--text-muted);">Evidence Type:</span> <span style="font-weight:600; color:${getEdgeColor(edge.evidence)};">${escapeHtml(edge.evidence)}</span></div>
-            <div><span style="color:var(--text-muted);">Confidence Score:</span> <span style="font-weight:700; font-family:var(--mono); color:var(--text-main);">${formatScore(edge.confidence_score)}</span></div>
-            <div><span style="color:var(--text-muted);">Weight:</span> <span style="font-weight:700; font-family:var(--mono); color:var(--text-main);">${formatScore(edge.weight)}</span></div>
+            <div><span style="color:var(--text-muted);">證據類型:</span> <span style="font-weight:600; color:${getEdgeColor(edge.evidence)};">${escapeHtml(labelForEvidence(edge.evidence))}</span></div>
+            <div><span style="color:var(--text-muted);">信心分數:</span> <span style="font-weight:700; font-family:var(--mono); color:var(--text-main);">${formatScore(edge.confidence_score)}</span></div>
+            <div><span style="color:var(--text-muted);">權重:</span> <span style="font-weight:700; font-family:var(--mono); color:var(--text-main);">${formatScore(edge.weight)}</span></div>
           </div>
         </div>
 
         ${edge.rationale ? `
           <div class="detail-card">
-            <div class="detail-card-title">Rationale</div>
+            <div class="detail-card-title">判斷依據</div>
             <div style="line-height:1.5; color:var(--text-main); font-size:12px;">${escapeHtml(edge.rationale)}</div>
           </div>
         ` : ''}
@@ -1638,23 +1693,23 @@ def render_html(graph: GraphifyGraph) -> str:
         <div class="details-header">
           <div class="details-title">${escapeHtml(c.label)}</div>
           <div class="details-subtitle">
-            <span class="badge-kind" style="background-color: var(--color-community)">Community</span>
-            <span class="badge-layer">Confidence: ${formatScore(c.confidence_score)}</span>
+            <span class="badge-kind" style="background-color: var(--color-community)">社群</span>
+            <span class="badge-layer">信心分數: ${formatScore(c.confidence_score)}</span>
           </div>
         </div>
 
         <div class="detail-card">
-          <div class="detail-card-title">Summary</div>
+          <div class="detail-card-title">摘要</div>
           <div style="line-height:1.5; font-size:12px; color:var(--text-main);">${escapeHtml(c.summary)}</div>
         </div>
 
         <div>
-          <div class="section-title">Members (${commNodes.length})</div>
+          <div class="section-title">成員 (${commNodes.length})</div>
           <div style="display:flex; flex-direction:column; gap:6px; max-height:240px; overflow-y:auto; padding-right:4px;">
             ${commNodes.map(n => `
               <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:6px 10px; border-radius:4px; border:1px solid var(--border-color); font-size:12px;">
                 <a href="#" class="node-link" data-node-id="${escapeAttr(n.id)}" style="color:var(--accent-bright); text-decoration:none; font-weight:500;">${escapeHtml(n.label)}</a>
-                <span class="count-badge" style="color:${colorForKind(n.kind)}">${escapeHtml(n.kind)}</span>
+                <span class="count-badge" style="color:${colorForKind(n.kind)}">${escapeHtml(labelForKind(n.kind))}</span>
               </div>
             `).join('')}
           </div>

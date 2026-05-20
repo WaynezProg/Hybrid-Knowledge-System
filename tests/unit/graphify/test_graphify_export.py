@@ -57,6 +57,57 @@ def test_graphify_html_uses_fused_explorer_shell() -> None:
     assert "--accent-bright: #c4a6ff;" in html
 
 
+def test_graphify_html_uses_traditional_chinese_ui_copy() -> None:
+    html = render_html(_graph())
+
+    for expected in [
+        '<html lang="zh-Hant">',
+        "節點",
+        "關係",
+        "社群",
+        "搜尋圖譜",
+        "節點類型",
+        "力學設定",
+        "連線距離",
+        "重力強度",
+        "暫停模擬",
+        "選取節點或關係以檢視細節",
+        "系統總覽",
+        "稽核結果",
+        "拖曳",
+        "滾輪",
+        "點選",
+    ]:
+        assert expected in html
+
+
+def test_graphify_html_auto_pauses_large_graphs() -> None:
+    large_graph = GraphifyGraph(
+        generated_at="2026-04-26T00:00:00+00:00",
+        input_layers=["wiki"],
+        nodes=[
+            GraphifyNode(
+                id=f"wiki:node-{idx}",
+                label=f"Node {idx}",
+                kind="wiki_page",
+                source_layer="wiki",
+                source_ref=f"wiki/pages/node-{idx}.md",
+            )
+            for idx in range(501)
+        ],
+        edges=[],
+        communities=[],
+    )
+
+    html = render_html(large_graph)
+
+    assert "const AUTO_PAUSE_NODE_LIMIT = 500;" in html
+    assert "const autoPausedLargeGraph = nodes.length > AUTO_PAUSE_NODE_LIMIT;" in html
+    assert "let isPaused = autoPausedLargeGraph;" in html
+    assert "節點數超過 500，已自動暫停力學模擬" in html
+    assert "id=\"perf-note\"" in html
+
+
 def test_graphify_html_keeps_payload_safe_for_untrusted_labels() -> None:
     unsafe = 'Project "</script><img src=x onerror=alert(1)>'
     html = render_html(
