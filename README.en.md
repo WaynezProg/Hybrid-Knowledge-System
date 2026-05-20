@@ -2,7 +2,7 @@
 
 [繁體中文](./README.md)
 
-Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 1-3 and 008-012: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query uses fused retrieval to collect candidates from wiki / graph / vector simultaneously and rank them with an LLM reranker (RRF fallback when no API key), high-confidence answers auto write back by default, and the system ships image ingest, the lint system, multi-agent coordination, local MCP / HTTP adapters, LLM-assisted classification/extraction, LLM-assisted wiki synthesis, derived Graphify artifacts, a bounded watch/re-ingest workflow, and source catalog / workspace selection.
+Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 1-3 and 008-012: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query uses fused retrieval to collect candidates from wiki / graph / vector / page_tree simultaneously and rank them with an LLM reranker (RRF fallback when no API key), high-confidence answers auto write back by default, and the system ships image ingest, the lint system, multi-agent coordination, local MCP / HTTP adapters, LLM-assisted classification/extraction, LLM-assisted wiki synthesis, derived Graphify artifacts, a bounded watch/re-ingest workflow, and source catalog / workspace selection.
 
 ## How This Project Runs
 
@@ -15,12 +15,12 @@ HKS is not a daemon by default. The normal workflow is to run `uv run ks ...` on
 ## What Ships Today
 
 - `ks ingest <file|dir> [--pptx-notes include|exclude]`: builds `raw_sources/`, `wiki/`, `graph/graph.json`, `vector/db/`, and `manifest.json`
-- `ks query "<question>" [--writeback auto|yes|no|ask]`: returns stable JSON; fused retrieval collects candidates from wiki / graph / vector simultaneously, then ranks with LLM reranker (RRF fallback without API key); response includes `evidence[]` for provenance
+- `ks query "<question>" [--writeback auto|yes|no|ask]`: returns stable JSON; fused retrieval collects candidates from wiki / graph / vector / page_tree simultaneously, then ranks with LLM reranker (RRF fallback without API key); response includes `evidence[]` for provenance
 - `ks source list|show`: inspect ingested sources and per-source derived artifacts for the current `KS_ROOT`; read-only
 - `ks workspace register|list|show|remove|use|query`: manage named `KS_ROOT` values and query a selected workspace
-- `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`: checks cross-layer consistency across `wiki / graph / vector / manifest / raw_sources`
+- `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`: checks cross-layer consistency across `wiki / graph / vector / page_tree / manifest / raw_sources`
 - `ks coord session|lease|handoff|status|lint`: provides agent presence, resource leases, handoff notes, and coordination ledger lint
-- `ks llm classify <source-relpath> [--mode preview|store] [--provider fake]`: creates LLM classification / summary / fact / entity / relation candidates for an already-ingested source; preview does not mutate wiki / graph / vector, and store only writes `$KS_ROOT/llm/extractions/`
+- `ks llm classify <source-relpath> [--mode preview|store] [--provider fake]`: creates LLM classification / summary / fact / entity / relation candidates for an already-ingested source; preview does not mutate wiki / graph / vector / page_tree, and store only writes `$KS_ROOT/llm/extractions/`
 - `ks wiki synthesize --mode preview|store|apply`: consumes 008 extraction artifacts, creates / stores / explicitly applies wiki synthesis candidates; `apply` only accepts stored candidate artifacts
 - `ks graphify build --mode preview|store`: creates derived Graphify JSON, communities, audit, static HTML, and Markdown report from existing wiki / graph / 008 / 009 lineage without mutating the authoritative graph
 - `ks watch scan|run|status`: creates refresh plans, executes bounded refreshes, and reports watch state for explicit source roots or saved watch config; scan / dry-run do not mutate authoritative layers
@@ -97,9 +97,10 @@ uv run ks ingest <file-or-dir>
 uv run ks query "<question>" [--writeback auto|yes|no|ask]
 ```
 
-- All queries use fused retrieval: candidates are collected from wiki / graph / vector simultaneously, then ranked by LLM reranker (RRF fallback without API key)
+- All queries use fused retrieval: candidates are collected from wiki / graph / vector / page_tree simultaneously, then ranked by LLM reranker (RRF fallback without API key)
+- `page_tree` only contributes section nodes that have LLM-enriched summaries; bare titles are still covered by wiki / vector
 - The routing model determines the primary route (summary→wiki, relation→graph, detail→vector), which affects wiki candidate eligibility thresholds and score weighting
-- Response includes `evidence[]` listing each source's `source_relpath` and `route` for provenance
+- Response includes `evidence[]` for the winning candidate with `source_relpath`, `route`, and `quote`; vector / page_tree may include `section_path` and `page_range`
 - Trace includes a `merge` step recording the rerank strategy and candidate count
 - No-hit queries still exit `0`; they just return `source=[]`
 

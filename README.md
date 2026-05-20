@@ -2,7 +2,7 @@
 
 [English](./README.en.md)
 
-Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。目前 runtime 已完成 Phase 1-3 與 008-012：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 使用 fused retrieval 同時從 wiki / graph / vector 收集 candidates 再以 LLM reranker（無 API key 時 fallback RRF）排序，高 confidence 答案預設自動 write-back，並提供 image ingest、lint system、multi-agent coordination、local MCP / HTTP adapter、LLM-assisted classification/extraction、LLM-assisted wiki synthesis、derived Graphify artifacts、bounded watch/re-ingest workflow，以及 source catalog / workspace selection。
+Hybrid Knowledge System 是一個 CLI-first、domain-agnostic 的知識系統。目前 runtime 已完成 Phase 1-3 與 008-012：ingest 支援 `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`，query 使用 fused retrieval 同時從 wiki / graph / vector / page_tree 收集 candidates 再以 LLM reranker（無 API key 時 fallback RRF）排序，高 confidence 答案預設自動 write-back，並提供 image ingest、lint system、multi-agent coordination、local MCP / HTTP adapter、LLM-assisted classification/extraction、LLM-assisted wiki synthesis、derived Graphify artifacts、bounded watch/re-ingest workflow，以及 source catalog / workspace selection。
 
 ## 這個專案怎麼運作
 
@@ -15,12 +15,12 @@ HKS 預設不是常駐服務。一般使用方式是需要時執行 `uv run ks .
 ## 目前能做什麼
 
 - `ks ingest <file|dir> [--pptx-notes include|exclude]`：建立 `raw_sources/`、`wiki/`、`graph/graph.json`、`vector/db/`、`manifest.json`
-- `ks query "<question>" [--writeback auto|yes|no|ask]`：回傳穩定 JSON，fused retrieval 從 wiki / graph / vector 同時收集 candidates 後以 LLM reranker 排序（無 API key 時 RRF fallback），response 含 `evidence[]` 溯源
+- `ks query "<question>" [--writeback auto|yes|no|ask]`：回傳穩定 JSON，fused retrieval 從 wiki / graph / vector / page_tree 同時收集 candidates 後以 LLM reranker 排序（無 API key 時 RRF fallback），response 含 `evidence[]` 溯源
 - `ks source list|show`：查看目前 `KS_ROOT` 已 ingest 的資料與單筆 source 的 derived artifacts；read-only
 - `ks workspace register|list|show|remove|use|query`：管理多個 named `KS_ROOT`，並對指定 workspace query
-- `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`：檢查 `wiki / graph / vector / manifest / raw_sources` 跨層一致性
+- `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`：檢查 `wiki / graph / vector / page_tree / manifest / raw_sources` 跨層一致性
 - `ks coord session|lease|handoff|status|lint`：提供 agent presence、resource lease、handoff notes 與 coordination ledger lint
-- `ks llm classify <source-relpath> [--mode preview|store] [--provider fake]`：對已 ingest source 產生 LLM classification / summary / fact / entity / relation candidates；preview 預設不改 wiki / graph / vector，store 只寫 `$KS_ROOT/llm/extractions/`
+- `ks llm classify <source-relpath> [--mode preview|store] [--provider fake]`：對已 ingest source 產生 LLM classification / summary / fact / entity / relation candidates；preview 預設不改 wiki / graph / vector / page_tree，store 只寫 `$KS_ROOT/llm/extractions/`
 - `ks wiki synthesize --mode preview|store|apply`：consume 008 extraction artifact，產生 / 儲存 / 明確套用 wiki synthesis candidate；`apply` 只吃 stored candidate artifact
 - `ks graphify build --mode preview|store`：從既有 wiki / graph / 008 / 009 lineage 產生 derived graphify JSON、communities、audit、static HTML、Markdown report；不改 authoritative graph
 - `ks watch scan|run|status`：對明確 source root 或 saved watch config 產生 refresh plan、執行 bounded refresh、查詢 watch state；scan / dry-run 不改 authoritative layers
@@ -97,9 +97,10 @@ uv run ks ingest <file-or-dir>
 uv run ks query "<question>" [--writeback auto|yes|no|ask]
 ```
 
-- 所有 query 都走 fused retrieval：同時從 wiki / graph / vector 收集 candidates，再以 LLM reranker 排序（無 API key 時 fallback RRF）
+- 所有 query 都走 fused retrieval：同時從 wiki / graph / vector / page_tree 收集 candidates，再以 LLM reranker 排序（無 API key 時 fallback RRF）
+- `page_tree` 只把有 LLM-enriched summary 的 section node 作為候選；裸標題仍主要由 wiki / vector 覆蓋
 - routing model 決定 primary route（summary→wiki, relation→graph, detail→vector），影響 wiki 候選的參與門檻與分數加權
-- response 包含 `evidence[]`，列出各 source 的 `source_relpath` 和 `route` 供溯源
+- response 包含 `evidence[]`，列出 winner candidate 的 `source_relpath`、`route`、`quote`，vector / page_tree 可附 `section_path` 與 `page_range`
 - trace 包含 `merge` step，記錄 rerank strategy 與 candidate count
 - 無命中仍 exit `0`，只是 `source=[]`
 

@@ -1,4 +1,4 @@
-# Hybrid Knowledge System（Wiki + Graph + Vector）
+# Hybrid Knowledge System（Wiki + Graph + Vector + PageTree）
 
 ## 1. 定位
 
@@ -23,9 +23,10 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
   * `wiki/`：人可讀摘要與 write-back pages
   * `graph/graph.json`：entity / relation
   * `vector/db/`：embedding retrieval
+  * `page_trees/`：source section tree 與 LLM-enriched section summaries
 * Processing Layer
   * ingestion pipeline：parse → normalize → extract → update
-  * query pipeline：routing backend → wiki / graph / vector → fallback / write-back
+  * query pipeline：routing backend → wiki / graph / vector / page_tree fused candidates → rerank / write-back
 * Tool Layer
   * `ks ingest`
   * `ks query`
@@ -52,8 +53,8 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 
 目前 runtime 已完成可執行的本地知識系統與 derived Graphify pipeline：
 
-* 已完成：來源 ingest 後同步更新 `wiki / graph / vector / manifest`；修改來源後重跑 `ks ingest` 可依 hash / parser fingerprint 更新資料庫。
-* 已完成：query 會依問題類型走 wiki、graph 或 vector；高 confidence 結果可 write-back 成 wiki page。
+* 已完成：來源 ingest 後同步更新 `wiki / graph / vector / page_tree / manifest`；修改來源後重跑 `ks ingest` 可依 hash / parser fingerprint 更新資料庫。
+* 已完成：query 會同時收集 wiki、graph、vector、page_tree candidates，再以 LLM rerank 或 RRF 排序；高 confidence 結果可 write-back 成 wiki page。
 * 已完成：008 可對已 ingest source 產生 schema-validated LLM classification / summary / fact / entity / relation candidates，並可 explicit store 到 `$KS_ROOT/llm/extractions/`。
 * 已完成：009 可從 008 stored artifact 產生 wiki synthesis candidate，preview / store 預設不改 authoritative layers，只有 caller-explicit `apply` 會寫入 `wiki/` page、index 與 log。
 * 已完成：010 可從既有 wiki / graph / 008 / 009 lineage 產生 derived Graphify artifacts、community clustering、static HTML 與 audit report。
@@ -86,10 +87,10 @@ stdout 契約統一：
 ```json
 {
   "answer": "...",
-  "source": ["wiki", "graph", "vector"],
+  "source": ["wiki", "graph", "vector", "page_tree"],
   "confidence": 0.0,
   "trace": {
-    "route": "wiki|graph|vector",
+    "route": "wiki|graph|vector|page_tree",
     "steps": []
   },
   "evidence": [
@@ -116,9 +117,10 @@ Source / route 語意對照：
 | Command / mode | `trace.route` | `source` | 語意 |
 |---|---|---|---|
 | `ks query` 命中 wiki | `wiki` | `["wiki"]` | 讀取既有 wiki 作答 |
-| `ks query` 命中 graph | `graph` | `["graph"]` 或含 fallback source | 讀取 graph，必要時可 fallback / merge |
+| `ks query` 命中 graph | `graph` | `["graph"]` | 讀取 graph 作答 |
 | `ks query` 命中 vector | `vector` | `["vector"]` | 讀取 vector 作答 |
-| `ks query` no-hit | `wiki\|graph\|vector` | `[]` | 查詢流程正常但沒有可用命中；exit code 仍為 `0` |
+| `ks query` 命中 page_tree | `page_tree` | `["page_tree"]` | 讀取 LLM-enriched section summary 作答 |
+| `ks query` no-hit | `wiki\|graph\|vector\|page_tree` | `[]` | 查詢流程正常但沒有可用命中；exit code 仍為 `0` |
 | `ks llm classify --mode preview\|store` | `wiki` | `[]` | 產生或儲存 LLM extraction artifact；不代表查詢 no-hit，也未讀取 runtime knowledge layer 作答 |
 | `ks wiki synthesize --mode preview\|store` | `wiki` | `[]` | 產生或儲存 wiki synthesis candidate；不修改 authoritative wiki |
 | `ks wiki synthesize --mode apply` success | `wiki` | `["wiki"]` | caller-explicit wiki mutation 成功後，response 指向被寫入的 wiki layer |
@@ -128,9 +130,9 @@ Source / route 語意對照：
 | `ks watch run --mode execute --profile ingest-only` | `wiki` | `["wiki","graph","vector"]` | caller-explicit refresh 透過既有 ingest 更新穩定 runtime layers |
 | `ks source list|show` | `wiki` | `[]` | 讀取 manifest-derived catalog；不代表 query no-hit |
 | `ks workspace register|list|show|remove|use` | `wiki` | `[]` | 管理 local workspace registry；不讀取 knowledge layer 作答 |
-| `ks workspace query` | `wiki\|graph\|vector` | `ks query` semantics | 先解析 workspace id 到 `KS_ROOT`，再委派既有 query |
+| `ks workspace query` | `wiki\|graph\|vector\|page_tree` | `ks query` semantics | 先解析 workspace id 到 `KS_ROOT`，再委派既有 query |
 
-`ks query` 成功命中時可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
+`ks query` 成功命中時可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector / page_tree evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
 
 ---
 
@@ -171,10 +173,11 @@ Source / route 語意對照：
 
 ### 5.3 Fused retrieval + rerank
 
-`ks query` 不是 sequential fallback。Query 會收集 wiki / graph / vector candidates，再統一 rerank：
+`ks query` 不是 sequential fallback。Query 會收集 wiki / graph / vector / page_tree candidates，再統一 rerank：
 
 * `HKS_LLM_NETWORK_OPT_IN=1` 且有 OpenAI-compatible key 時，使用 LLM rerank
 * 未 explicit opt-in 或缺 credential 時，使用 deterministic RRF rerank
+* page_tree 只把有 LLM-enriched summary 的 section node 作為候選；裸標題仍主要由 wiki / vector 覆蓋
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
 
 ---
@@ -261,9 +264,9 @@ graph persistence 位於 `/ks/graph/graph.json`。
 * `vector_ids`
 
 `coordination/state.json` 存 agent sessions、resource leases、handoff notes；`events.jsonl` 是 append-only coordination event log。
-`llm/extractions/*.json` 存 008 extraction candidate artifact；`llm/wiki-candidates/*.json` 存 009 wiki synthesis candidate artifact。兩者都不是 authoritative wiki / graph / vector state；只有 `ks wiki synthesize --mode apply` 成功後寫入的 `origin=llm_wiki` page 才是 applied wiki state。
+`llm/extractions/*.json` 存 008 extraction candidate artifact；`llm/wiki-candidates/*.json` 存 009 wiki synthesis candidate artifact。兩者都不是 authoritative wiki / graph / vector / page_tree state；只有 `ks wiki synthesize --mode apply` 成功後寫入的 `origin=llm_wiki` page 才是 applied wiki state。
 
-Workspace registry 不屬於任何單一 `$KS_ROOT`，預設位於使用者 config path，可用 `HKS_WORKSPACE_REGISTRY` 指向 explicit JSON。Registry 只保存 workspace id 到 `KS_ROOT` 的 mapping；不修改任何 registered runtime 的 `wiki / graph / vector / manifest`。
+Workspace registry 不屬於任何單一 `$KS_ROOT`，預設位於使用者 config path，可用 `HKS_WORKSPACE_REGISTRY` 指向 explicit JSON。Registry 只保存 workspace id 到 `KS_ROOT` 的 mapping；不修改任何 registered runtime 的 `wiki / graph / vector / page_tree / manifest`。
 
 ---
 
@@ -317,7 +320,7 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 * `--mode=preview`：read-only，回傳 `graphify_summary`；不寫任何 runtime layer
 * `--mode=store`：只寫 `$KS_ROOT/graphify/runs/<run-id>/` 與 `$KS_ROOT/graphify/latest.json`
 * output 包含 graph JSON、communities JSON、audit JSON、static HTML、Markdown report
-* `trace.route="graph"`；top-level `source` 只使用既有 `wiki / graph / vector` enum，不能新增 `"graphify"`
+* `trace.route="graph"`；top-level `source` 只使用既有 HKS retrieval enum，不能新增 `"graphify"`
 * 010 不做 watch / daemon；011 才處理 continuous update orchestration
 
 ---
@@ -328,7 +331,7 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 
 * `scan`：讀取 manifest、明確 source roots 或 saved watch config、derived lineage，產生 refresh plan；不改 authoritative layers
 * `run --mode=dry-run`：只規劃 action，最多寫 `$KS_ROOT/watch/` operational state
-* `run --mode=execute --profile=ingest-only`：透過既有 ingest pipeline 更新 `wiki / graph / vector / manifest`
+* `run --mode=execute --profile=ingest-only`：透過既有 ingest pipeline 更新 `wiki / graph / vector / page_tree / manifest`
 * `status`：讀取 latest watch plan / run summary
 * watch state 位於 `$KS_ROOT/watch/{plans,runs,latest.json,events.jsonl,config.json}`
 * trace 使用 `trace.steps[kind="watch_summary"]`；top-level `source` 不新增 `"watch"`
