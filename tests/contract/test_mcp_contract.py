@@ -37,6 +37,10 @@ def test_mcp_tool_input_contract_rejects_unknown_fields_and_bad_choices() -> Non
     with pytest.raises(jsonschema.ValidationError):
         validate_tool_input("hks_query", {"question": "x", "extra": True})
 
+    for field in ("source_root_id", "skip_dir_names", "source_root_override"):
+        with pytest.raises(jsonschema.ValidationError):
+            validate_tool_input("hks_ingest", {"path": "/tmp/source", field: "internal"})
+
     with pytest.raises(jsonschema.ValidationError):
         validate_tool_input("hks_lint", {"severity_threshold": "fatal"})
 

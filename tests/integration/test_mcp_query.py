@@ -44,6 +44,45 @@ def test_mcp_query_matches_core_route_and_source(working_docs) -> None:
 
 
 @pytest.mark.integration
+def test_mcp_does_not_require_http_token(working_docs, monkeypatch) -> None:
+    monkeypatch.delenv("HKS_API_TOKEN", raising=False)
+    core.hks_ingest(path=str(working_docs))
+
+    payload = anyio.run(
+        _call_tool,
+        "hks_query",
+        {"question": "Project Atlas summary"},
+    )
+
+    validate(payload)
+    assert payload["source"]
+    assert "Project Atlas" in payload["answer"]
+    assert "ok" not in payload
+
+
+@pytest.mark.integration
+def test_mcp_explicit_ks_root_uses_context(working_docs, tmp_path, monkeypatch) -> None:
+    ks_root = tmp_path / "mcp-ks"
+    wrong_root = tmp_path / "wrong-ks"
+    core.hks_ingest(path=str(working_docs), ks_root=str(ks_root))
+    monkeypatch.setenv("KS_ROOT", str(wrong_root))
+
+    payload = anyio.run(
+        _call_tool,
+        "hks_query",
+        {"question": "Project Atlas summary", "ks_root": str(ks_root)},
+    )
+
+    validate(payload)
+    assert "Project Atlas" in payload["answer"]
+    assert {
+        evidence["source_relpath"] for evidence in payload["evidence"]
+    } >= {"project-atlas.txt"}
+    assert not (wrong_root / "manifest.json").exists()
+    assert "ok" not in payload
+
+
+@pytest.mark.integration
 def test_mcp_query_noinput_returns_adapter_error_envelope() -> None:
     payload = anyio.run(_call_tool, "hks_query", {"question": "Project Atlas summary"})
 

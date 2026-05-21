@@ -41,6 +41,23 @@ def test_mcp_ingest_creates_runtime_artifacts(working_docs, tmp_ks_root) -> None
 
 
 @pytest.mark.integration
+def test_mcp_ingest_does_not_require_http_roots(working_docs, tmp_ks_root, monkeypatch) -> None:
+    monkeypatch.delenv("HKS_API_INGEST_ROOTS", raising=False)
+    monkeypatch.delenv("HKS_API_TOKEN", raising=False)
+
+    payload = anyio.run(_call_tool, "hks_ingest", {"path": str(working_docs)})
+
+    validate(payload)
+    assert payload["trace"]["steps"][0]["kind"] == "ingest_summary"
+    assert (tmp_ks_root / "manifest.json").exists()
+    assert (tmp_ks_root / "wiki" / "index.md").exists()
+    assert (tmp_ks_root / "graph" / "graph.json").exists()
+    assert (tmp_ks_root / "vector" / "db").exists()
+    assert list((tmp_ks_root / "raw_sources").glob("*.txt"))
+    assert "ok" not in payload
+
+
+@pytest.mark.integration
 def test_mcp_lint_clean_runtime_and_strict_error(working_docs, tmp_ks_root) -> None:
     core.hks_ingest(path=str(working_docs))
 
