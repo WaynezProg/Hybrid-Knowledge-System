@@ -42,6 +42,12 @@ class HttpSecurityFailure:
     details: list[str]
 
 
+@dataclass(frozen=True)
+class HttpIngestPath:
+    source_root: Path
+    target_path: Path
+
+
 def _parse_bool(value: str | None, *, default: bool) -> bool:
     if not value:
         return default
@@ -122,7 +128,7 @@ def _ingest_failure(status_code: int, code: str, message: str) -> HttpSecurityFa
 
 def resolve_http_ingest_path(
     *, path: str, source_root_id: str | None = None
-) -> Path | HttpSecurityFailure:
+) -> HttpIngestPath | HttpSecurityFailure:
     roots = parse_ingest_roots()
     if not roots:
         return _ingest_failure(
@@ -147,7 +153,6 @@ def resolve_http_ingest_path(
                 "source_root_id is not configured for HTTP ingest",
             )
         source_root = roots[source_root_id]
-
     relative_path = Path(path)
     if relative_path.is_absolute():
         return _ingest_failure(
@@ -163,14 +168,29 @@ def resolve_http_ingest_path(
             "HTTP ingest path contains a forbidden segment",
         )
 
-    resolved_path = (source_root / relative_path).resolve(strict=False)
+    if not source_root.is_dir():
+        return _ingest_failure(
+            403,
+            "HTTP_INGEST_ROOT_UNAVAILABLE",
+            "Configured HTTP ingest source root is unavailable",
+        )
+
+    requested_path = source_root / relative_path
+    if not requested_path.exists():
+        return _ingest_failure(
+            400,
+            "HTTP_INGEST_PATH_NOT_FOUND",
+            "HTTP ingest path was not found under the configured source root",
+        )
+
+    resolved_path = requested_path.resolve(strict=False)
     if not _is_relative_to(resolved_path, source_root):
         return _ingest_failure(
             400,
             "HTTP_INGEST_PATH_FORBIDDEN",
             "HTTP ingest path escapes the configured source root",
         )
-    return resolved_path
+    return HttpIngestPath(source_root=source_root, target_path=resolved_path)
 
 
 def is_mutating_request(request: Request) -> bool:

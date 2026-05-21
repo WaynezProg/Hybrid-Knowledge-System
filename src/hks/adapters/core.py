@@ -175,6 +175,7 @@ def hks_ingest(
     ks_root: str | None = None,
     request_id: str | None = None,
     skip_dir_names: set[str] | None = None,
+    source_root_override: str | None = None,
 ) -> dict[str, Any]:
     payload = {"path": path, "prune": prune, "pptx_notes": pptx_notes, "ks_root": ks_root}
     try:
@@ -191,6 +192,7 @@ def hks_ingest(
         prune=prune,
         pptx_notes=notes == "include",
         skip_dir_names=skip_dir_names,
+        source_root_override=Path(source_root_override) if source_root_override else None,
         ks_root=ks_root,
         request_id=request_id,
     )

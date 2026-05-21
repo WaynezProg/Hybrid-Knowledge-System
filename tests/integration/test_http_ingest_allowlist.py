@@ -35,6 +35,13 @@ def _write_doc(root: Path, relpath: str, text: str = "Atlas project note") -> Pa
     return path
 
 
+def _assert_no_path_leak(payload: dict[str, Any], *paths: Path) -> None:
+    error = payload["error"]
+    serialized = f"{error['message']} {error['details']}"
+    for path in paths:
+        assert str(path) not in serialized
+
+
 @pytest.mark.integration
 def test_http_ingest_allows_relative_path_under_configured_root(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tmp_ks_root: Path
@@ -50,7 +57,33 @@ def test_http_ingest_allows_relative_path_under_configured_root(
 
     assert response.status_code == 200
     manifest = load_manifest(tmp_ks_root / "manifest.json")
-    assert "project.md" in manifest.entries
+    assert "notes/project.md" in manifest.entries
+
+
+@pytest.mark.integration
+def test_http_single_file_ingest_preserves_source_root_relative_collision_paths(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tmp_ks_root: Path
+) -> None:
+    source_root = tmp_path / "source"
+    _write_doc(source_root, "a/same.md", "alpha")
+    _write_doc(source_root, "b/same.md", "bravo")
+    client = _client(monkeypatch, f"docs={source_root}")
+
+    first = _post_ingest(
+        client,
+        {"source_root_id": "docs", "path": "a/same.md", "ks_root": str(tmp_ks_root)},
+    )
+    second = _post_ingest(
+        client,
+        {"source_root_id": "docs", "path": "b/same.md", "ks_root": str(tmp_ks_root)},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    manifest = load_manifest(tmp_ks_root / "manifest.json")
+    assert "a/same.md" in manifest.entries
+    assert "b/same.md" in manifest.entries
+    assert "same.md" not in manifest.entries
 
 
 @pytest.mark.integration
@@ -104,6 +137,63 @@ def test_http_ingest_rejects_top_level_symlink_escape(
 
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "HTTP_INGEST_PATH_FORBIDDEN"
+
+
+@pytest.mark.integration
+def test_http_ingest_rejects_unavailable_configured_root_without_path_leak(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tmp_ks_root: Path
+) -> None:
+    missing_root = tmp_path / "missing"
+    client = _client(monkeypatch, f"docs={missing_root}")
+
+    response = _post_ingest(
+        client,
+        {"source_root_id": "docs", "path": "project.md", "ks_root": str(tmp_ks_root)},
+    )
+
+    assert response.status_code == 403
+    payload = response.json()
+    assert payload["error"]["code"] == "HTTP_INGEST_ROOT_UNAVAILABLE"
+    _assert_no_path_leak(payload, tmp_path, missing_root)
+
+
+@pytest.mark.integration
+def test_http_ingest_rejects_missing_target_without_path_leak(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tmp_ks_root: Path
+) -> None:
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    client = _client(monkeypatch, f"docs={source_root}")
+
+    response = _post_ingest(
+        client,
+        {"source_root_id": "docs", "path": "missing.md", "ks_root": str(tmp_ks_root)},
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["error"]["code"] == "HTTP_INGEST_PATH_NOT_FOUND"
+    _assert_no_path_leak(payload, tmp_path, source_root)
+
+
+@pytest.mark.integration
+def test_http_ingest_rejects_broken_symlink_without_path_leak(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tmp_ks_root: Path
+) -> None:
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    (source_root / "broken.md").symlink_to(tmp_path / "missing-target.md")
+    client = _client(monkeypatch, f"docs={source_root}")
+
+    response = _post_ingest(
+        client,
+        {"source_root_id": "docs", "path": "broken.md", "ks_root": str(tmp_ks_root)},
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["error"]["code"] == "HTTP_INGEST_PATH_NOT_FOUND"
+    _assert_no_path_leak(payload, tmp_path, source_root)
 
 
 @pytest.mark.integration

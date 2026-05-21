@@ -202,9 +202,15 @@ def ingest(
     prune: bool = False,
     pptx_notes: bool = True,
     skip_dir_names: set[str] | None = None,
+    source_root_override: Path | None = None,
 ) -> IngestSummary:
-    source_root = path.resolve(strict=False)
-    files = discover_files(source_root, skip_dir_names=skip_dir_names)
+    ingest_target = path.resolve(strict=False)
+    source_root = (
+        source_root_override.resolve(strict=False)
+        if source_root_override is not None
+        else ingest_target
+    )
+    files = discover_files(ingest_target, skip_dir_names=skip_dir_names)
     paths = runtime_paths()
     backend = TextModelBackend()
     wiki_store = WikiStore(paths)

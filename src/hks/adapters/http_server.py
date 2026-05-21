@@ -16,6 +16,7 @@ from starlette.routing import Route
 from hks.adapters import core
 from hks.adapters.http_security import (
     HTTP_INGEST_BLOCKED_PATH_SEGMENTS,
+    HttpIngestPath,
     HttpSecurityFailure,
     http_security_dispatch,
     resolve_http_ingest_path,
@@ -100,12 +101,14 @@ async def ingest_endpoint(request: Request) -> Response:
     resolved_path = resolve_http_ingest_path(path=path, source_root_id=source_root_id)
     if isinstance(resolved_path, HttpSecurityFailure):
         return security_error_response(resolved_path)
-    payload["path"] = str(resolved_path)
+    assert isinstance(resolved_path, HttpIngestPath)
+    payload["path"] = str(resolved_path.target_path)
 
     return _response(
         core.hks_ingest,
         **payload,
         skip_dir_names=set(HTTP_INGEST_BLOCKED_PATH_SEGMENTS),
+        source_root_override=str(resolved_path.source_root),
     )
 
 
