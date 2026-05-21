@@ -34,7 +34,12 @@ def reset_current_ks_root(token: Token[Path | None]) -> None:
 
 @contextmanager
 def scoped_ks_root(ks_root: str | Path | None) -> Iterator[None]:
-    """Set a request-local KS_ROOT without mutating process environment."""
+    """Set a request-local KS_ROOT without mutating process environment.
+
+    Warning: passing ``None`` actively clears any outer scope's root
+    (resolve_ks_root will fall through to env/cwd).  Use
+    ``contextlib.nullcontext()`` instead when you want a no-op.
+    """
 
     token = set_current_ks_root(ks_root)
     try:

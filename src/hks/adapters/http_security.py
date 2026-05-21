@@ -20,7 +20,6 @@ HTTP_INGEST_BLOCKED_PATH_SEGMENTS = frozenset(
 _MUTATING_POST_PATHS = frozenset(
     {
         "/ingest",
-        "/query",
         "/pageindex/enrich",
         "/llm/classify",
         "/wiki/synthesize",

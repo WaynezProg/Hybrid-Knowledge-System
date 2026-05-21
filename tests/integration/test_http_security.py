@@ -100,8 +100,6 @@ def test_http_security_host_allowlist_normalizes_host_header_forms(
     "path",
     [
         "/ingest",
-        "/query",
-        "/workspaces/proj-a/query",
         "/pageindex/enrich",
         "/llm/classify",
         "/wiki/synthesize",
@@ -113,6 +111,7 @@ def test_http_security_host_allowlist_normalizes_host_header_forms(
         "/coord/handoff",
         "/workspaces",
         "/workspaces/proj-a",
+        "/workspaces/proj-a/query",
     ],
 )
 def test_http_security_guards_all_mutating_endpoints(
@@ -128,15 +127,16 @@ def test_http_security_guards_all_mutating_endpoints(
 
 
 @pytest.mark.integration
-def test_http_security_allows_query_to_reach_validation_with_valid_bearer(
+def test_http_security_leaves_read_only_query_unauthenticated(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("HKS_API_TOKEN", "secret-token")
+    """``/query`` is read-only by default and must not require a bearer token."""
+    monkeypatch.delenv("HKS_API_TOKEN", raising=False)
 
     response = TestClient(create_app()).post(
         "/query",
-        json={},
-        headers={**ALLOWED_HOST, **VALID_BEARER},
+        json={"question": "anything"},
+        headers=ALLOWED_HOST,
     )
 
     assert response.status_code not in {401, 403}
@@ -192,7 +192,7 @@ def test_http_security_allows_browser_style_mutation_when_reject_is_disabled(
     monkeypatch.setenv("HKS_API_REJECT_BROWSER_REQUESTS", disabled_value)
 
     response = TestClient(create_app()).post(
-        "/query",
+        "/ingest",
         json={},
         headers={
             **ALLOWED_HOST,
