@@ -4,90 +4,47 @@
 
 [繁體中文](./README.md)
 
-Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 1-3 and 008-012: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query uses fused retrieval to collect candidates from wiki / graph / vector / page_tree simultaneously and rank them with an LLM reranker (RRF fallback when no API key), high-confidence answers auto write back by default, and the system ships image ingest, the lint system, multi-agent coordination, local MCP / HTTP adapters, LLM-assisted classification/extraction, LLM-assisted wiki synthesis, derived Graphify artifacts, a bounded watch/re-ingest workflow, and source catalog / workspace selection.
-
-## How This Project Runs
-
-HKS is not a daemon by default. The normal workflow is to run `uv run ks ...` only when you need it; each command exits after it finishes, and runtime data is stored under `$KS_ROOT`.
-
-- Humans / shell scripts / Codex / Claude Code / OpenClaw: call `ks ingest`, `ks query`, `ks source`, `ks workspace`, `ks lint`, `ks coord`, `ks llm classify`, `ks wiki synthesize`, `ks graphify build`, and `ks watch scan|run|status` directly
-- MCP agent integration: start `hks-mcp`; stdio mode is usually launched by the agent client and lives for that session
-- HTTP client integration: start `hks-api` or `hks-mcp --transport streamable-http`; keep that process running only while clients need to call it
-
-## What Ships Today
-
-- `ks ingest <file|dir> [--pptx-notes include|exclude]`: builds `raw_sources/`, `wiki/`, `graph/graph.json`, `vector/db/`, and `manifest.json`
-- `ks query "<question>" [--writeback auto|yes|no|ask]`: returns stable JSON; fused retrieval collects candidates from wiki / graph / vector / page_tree simultaneously, then ranks with LLM reranker (RRF fallback without API key); response includes `evidence[]` for provenance
-- `ks source list|show`: inspect ingested sources and per-source derived artifacts for the current `KS_ROOT`; read-only
-- `ks workspace register|list|show|remove|use|query`: manage named `KS_ROOT` values and query a selected workspace
-- `ks lint [--strict] [--severity-threshold error|warning|info] [--fix|--fix=apply]`: checks cross-layer consistency across `wiki / graph / vector / page_tree / manifest / raw_sources`
-- `ks coord session|lease|handoff|status|lint`: provides agent presence, resource leases, handoff notes, and coordination ledger lint
-- `ks llm classify <source-relpath> [--mode preview|store] [--provider fake]`: creates LLM classification / summary / fact / entity / relation candidates for an already-ingested source; preview does not mutate wiki / graph / vector / page_tree, and store only writes `$KS_ROOT/llm/extractions/`
-- `ks wiki synthesize --mode preview|store|apply`: consumes 008 extraction artifacts, creates / stores / explicitly applies wiki synthesis candidates; `apply` only accepts stored candidate artifacts
-- `ks graphify build --mode preview|store`: creates derived Graphify JSON, communities, audit, static HTML, and Markdown report from existing wiki / graph / 008 / 009 lineage without mutating the authoritative graph
-- `ks watch scan|run|status`: creates refresh plans, executes bounded refreshes, and reports watch state for explicit source roots or saved watch config; scan / dry-run do not mutate authoritative layers
-- `hks-mcp --transport stdio|streamable-http`: exposes query / ingest / source catalog / workspace / lint / coordination / LLM extraction / wiki synthesis / graphify / watch tools as local MCP tools
-- `hks-api`: optional loopback HTTP facade for `/query`, `/ingest`, `/catalog/*`, `/workspaces/*`, `/lint`, `/llm/classify`, `/wiki/synthesize`, `/graphify/build`, `/watch/*`, and `/coord/*`
-- Standalone image ingest now supports `png / jpg / jpeg` via local `tesseract`; `.heic / .webp` and VLM are still out of scope
+CLI-first knowledge system: ingest documents into structured wiki / graph / vector layers, then answer questions with fused retrieval. Not a daemon — each command runs and exits.
 
 ## Installation
-
-Prerequisites:
-
-- On macOS, use Homebrew for system tools
-- Python runtime is managed by `mise`; Python packages are installed by `uv`
-- Image ingest requires local `tesseract` and language data
-- `jq` is optional, but useful for checking JSON output
 
 ```bash
 git clone https://github.com/WaynezProg/Hybrid-Knowledge-System.git
 cd Hybrid-Knowledge-System
+
+# System tools (macOS)
 brew install tesseract tesseract-lang jq
+
+# Python runtime (managed by mise) + packages (managed by uv)
 mise install
 uv sync
+
+# Test fixtures
 make fixtures
 ```
 
-If you only need text / Office ingest, you can skip `tesseract` until you ingest `png / jpg / jpeg`.
+> Skip `tesseract` if you only need text / Office ingest. Install it later when you need image ingest.
 
-## 5-Minute Quick Start
+## Quick Start
 
 ```bash
-mkdir -p .hks-runs/demo
+# 1. Set up runtime directory
 export KS_ROOT="$PWD/.hks-runs/demo/ks"
-export HKS_EMBEDDING_MODEL=simple
+export HKS_EMBEDDING_MODEL=simple          # for demo / CI; remove for production
+
+# 2. Ingest documents
 uv run ks ingest tests/fixtures/valid
-uv run ks source list | jq .
-uv run ks source show project-atlas.txt | jq .
+
+# 3. Query
 uv run ks query "What is the main point of these documents?" --writeback=no | jq .
-uv run ks query "Which systems are impacted if Project A slips?" --writeback=no | jq .
-uv run ks llm classify project-atlas.txt --provider fake --mode preview | jq .
-uv run ks llm classify project-atlas.txt --provider fake --mode store | jq .
-uv run ks wiki synthesize --source-relpath project-atlas.txt --target-slug project-atlas-synthesis --mode store --provider fake | jq .
-uv run ks graphify build --mode store --provider fake | jq .
-uv run ks watch scan --source-root tests/fixtures/valid | jq .
-export HKS_WORKSPACE_REGISTRY="$PWD/.hks-runs/demo/workspaces.json"
-uv run ks workspace register demo --ks-root "$KS_ROOT" --label "Demo" | jq .
-uv run ks workspace query demo "What are the current Project Atlas risks?" --writeback=no | jq .
-uv run ks coord session start agent-a | jq .
-uv run ks coord lease claim agent-a wiki:atlas | jq .
-uv run hks-mcp --help
-cat "$KS_ROOT/graph/graph.json" | jq '.nodes | length, .edges | length'
+
+# 4. Browse ingested sources
+uv run ks source list | jq .
 ```
 
-`.hks-runs/` is a repo-local runtime directory and is ignored by `.gitignore`; it is safer than `/tmp` for cross-platform use and for keeping test outputs around.
+`HKS_EMBEDDING_MODEL=simple` is for demos and CI. For production, remove it to use the default `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, or set `HKS_EMBEDDING_MODEL=openai:text-embedding-3-small` for the OpenAI API.
 
-`HKS_EMBEDDING_MODEL=simple` is best for CI, demos, and agent smoke tests. For real use, remove it to use the default `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`, or point `HKS_EMBEDDING_MODEL` at a local model directory.
-
-## Using with Obsidian
-
-`$KS_ROOT/wiki/` can be opened directly in Obsidian with `Open folder as vault`; no Obsidian plugin or Obsidian API is required. `wiki/index.md` uses standard Markdown relative links to `wiki/pages/*.md`, and `pages/*.md` keeps YAML-readable frontmatter.
-
-The boundary matters: HKS authoritative source remains `raw_sources/` + `manifest.json`, not the Obsidian vault. `origin=ingest` pages are overwritten when the source is re-ingested; manual edits in Obsidian do not update `graph/graph.json`, `vector/db/`, or `page_trees/`. Do not put human notes in `wiki/pages/` (HKS reads and parses every `*.md` there); use `$KS_ROOT/wiki/manual/`, `$KS_ROOT/wiki/notes/`, or a separate vault instead.
-
-See [docs/obsidian.md](./docs/obsidian.md) for the full guide.
-
-## How To Use It
+## Usage
 
 ### Ingest
 
@@ -95,11 +52,7 @@ See [docs/obsidian.md](./docs/obsidian.md) for the full guide.
 uv run ks ingest <file-or-dir>
 ```
 
-- Supports `txt`, `md`, `pdf`, `docx`, `xlsx`, `pptx`, `png`, `jpg`, and `jpeg`
-- Uses `SHA256 + parser_fingerprint` for idempotency
-- `--pptx-notes=exclude` changes the parser fingerprint and forces pptx re-ingest
-- Image ingest requires local `tesseract` + `tesseract-lang`
-- `.heic` / `.webp` / gif / tiff / svg are still unsupported
+Supports `txt`, `md`, `pdf`, `docx`, `xlsx`, `pptx`, `png`, `jpg`, `jpeg`. Uses SHA256 + parser fingerprint for idempotency — re-ingesting the same file is a no-op. Image ingest requires local `tesseract`.
 
 ### Query
 
@@ -107,167 +60,110 @@ uv run ks ingest <file-or-dir>
 uv run ks query "<question>" [--writeback auto|yes|no|ask]
 ```
 
-- All queries use fused retrieval: candidates are collected from wiki / graph / vector / page_tree simultaneously, then ranked by LLM reranker (RRF fallback without API key)
-- `page_tree` only contributes section nodes that have LLM-enriched summaries; bare titles are still covered by wiki / vector
-- The routing model determines the primary route (summary→wiki, relation→graph, detail→vector), which affects wiki candidate eligibility thresholds and score weighting
-- Response includes `evidence[]` for the winning candidate with `source_relpath`, `route`, and `quote`; vector / page_tree may include `section_path` and `page_range`
-- Trace includes a `merge` step recording the rerank strategy and candidate count
-- No-hit queries still exit `0`; they just return `source=[]`
+All queries use fused retrieval: candidates are collected from wiki / graph / vector / page_tree simultaneously, then ranked by LLM reranker (RRF fallback without API key). Response includes `evidence[]` for provenance.
 
-### Source Catalog / Workspace
+Write-back modes:
+- `auto` (default): writes back when `confidence >= 0.75`
+- `yes` / `no`: force / disable
+- `ask`: interactive prompt on TTY
+
+> Agent / automation workflows should always use `--writeback=no`.
+
+### Source Catalog & Workspace
 
 ```bash
-uv run ks source list
-uv run ks source show project-atlas.txt
+uv run ks source list                         # list ingested sources
+uv run ks source show project-atlas.txt       # single source details
 
+# Multi-workspace management
 export HKS_WORKSPACE_REGISTRY="$PWD/.hks-runs/workspaces.json"
 uv run ks workspace register atlas --ks-root "$PWD/.hks-runs/atlas/ks" --label "Atlas"
-uv run ks workspace list
-uv run ks workspace use atlas
-uv run ks workspace query atlas "What risks does this project have?" --writeback=no
+uv run ks workspace query atlas "What are the risks?" --writeback=no
 ```
 
-- `ks source list|show` only reads `manifest.json` and existing artifact references; it does not mutate `wiki/`, `graph/`, `vector/`, `manifest.json`, or `watch/`
-- the workspace registry is a separate local JSON file; `HKS_WORKSPACE_REGISTRY` overrides its path and records workspace ids mapped to `KS_ROOT` values
-- `workspace use` returns a shell-safe `export KS_ROOT=...`; it does not pretend to modify the parent shell
-- `workspace query` routes the query to the selected workspace `KS_ROOT` and returns the same response shape as `ks query`
-
-### Write-back
-
-- `auto`: default mode; commits automatically when `confidence >= HKS_WRITEBACK_AUTO_THRESHOLD`
-- `yes`: force a write-back
-- `no`: disable write-back
-- `ask`: legacy interactive mode; prompt on TTY, skip on non-TTY
-
-Auto write-back pages include a `## Related` section that links back to existing wiki pages touched by the answer.  
-For automation or agent workflows, explicitly using `--writeback=no` is still the safest default.
-
-### Lint
+### LLM Classification & Wiki Synthesis
 
 ```bash
-uv run ks lint
-```
-
-It emits `trace.steps[kind="lint_summary"].detail` with `findings`, severity/category counters, and fix plan/apply results.
-
-- Default mode is read-only; findings still exit `0`
-- `--strict`: exits `1` when findings meet `--severity-threshold`
-- `--fix`: plans safe repairs without writing
-- `--fix=apply`: only runs allowlisted actions: rebuild `wiki/index.md`, prune orphan vector chunks, prune orphan graph nodes/edges, and append `wiki/log.md`
-
-### LLM Classification / Extraction
-
-```bash
-uv run ks llm classify <source-relpath> --provider fake --mode preview
-uv run ks llm classify <source-relpath> --provider fake --mode store
-```
-
-- Operates only on source relpaths already present in the `ks ingest` manifest, such as `project-atlas.txt`
-- Successful responses keep the HKS top-level JSON shape: `trace.route="wiki"`, `source=[]`, and `trace.steps[kind="llm_extraction_summary"]`
-- `preview` is the default and does not write `wiki/`, `graph/graph.json`, `vector/db/`, or `manifest.json`
-- `store` only writes versioned candidate artifacts to `$KS_ROOT/llm/extractions/` for later 009 Wiki synthesis, 010 Graphify, and 011 watch/re-ingest work
-- The built-in deterministic `fake` provider needs no network or API key
-- Hosted/network providers fail closed by default; opt-in must come from environment variables, not CLI/MCP/HTTP request payloads
-
-### LLM Wiki Synthesis
-
-```bash
+# Generate LLM extraction for an ingested source
+uv run ks llm classify project-atlas.txt --provider fake --mode preview | jq .
 uv run ks llm classify project-atlas.txt --provider fake --mode store
-uv run ks wiki synthesize --source-relpath project-atlas.txt --target-slug project-atlas-synthesis --mode preview --provider fake
-uv run ks wiki synthesize --source-relpath project-atlas.txt --target-slug project-atlas-synthesis --mode store --provider fake
-uv run ks wiki synthesize --candidate-artifact-id <candidate-id> --mode apply --provider fake
+
+# Generate wiki page from extraction
+uv run ks wiki synthesize --source-relpath project-atlas.txt \
+  --target-slug project-atlas-synthesis --mode store --provider fake
 ```
 
-- `preview` returns a wiki page candidate and does not mutate `wiki/`, `graph/`, `vector/`, or `manifest.json`
-- `store` writes a versioned candidate artifact to `$KS_ROOT/llm/wiki-candidates/`
-- `apply` requires a stored `candidate_artifact_id` and only writes `wiki/pages/`, `wiki/index.md`, and `wiki/log.md`
-- If the target slug already has a non-`origin=llm_wiki` page, it fails closed with exit `1` while stdout remains HKS JSON
-- Successful responses use `trace.steps[kind="wiki_synthesis_summary"]`
+- `preview`: dry run, no writes
+- `store`: writes versioned artifact to `$KS_ROOT/llm/`
+- Built-in `fake` provider needs no network; hosted providers require env-var opt-in
 
 ### Graphify
 
 ```bash
-uv run ks graphify build --mode preview --provider fake
-uv run ks graphify build --mode store --provider fake
-uv run ks graphify build --mode store --no-html --provider fake
+uv run ks graphify build --mode store --provider fake | jq .
 ```
 
-- `preview` returns `graphify_summary` and writes no runtime layer
-- `store` only writes `$KS_ROOT/graphify/runs/<run-id>/` and `$KS_ROOT/graphify/latest.json`
-- outputs include `graphify.json`, `communities.json`, `audit.json`, `manifest.json`, `graph.html`, and `GRAPH_REPORT.md`
-- Graphify is a derived analysis layer; it does not mutate authoritative `graph/graph.json`, `wiki/`, `vector/`, or `manifest.json`
-- Successful responses use `trace.route="graph"` and `trace.steps[kind="graphify_summary"]`; `source` lists stable layers actually read, such as `["wiki","graph"]`
+Generates a derived knowledge graph, communities, interactive HTML dashboard, and Markdown report from wiki / graph layers. Writes to `$KS_ROOT/graphify/runs/` without mutating authoritative layers.
 
 ### Watch / Refresh
 
 ```bash
-uv run ks watch scan --source-root <source-dir>
-uv run ks watch run --source-root <source-dir> --mode dry-run --profile ingest-only
-uv run ks watch run --source-root <source-dir> --mode execute --profile ingest-only
-uv run ks watch status
+uv run ks watch scan --source-root <dir>                                    # scan for changes
+uv run ks watch run --source-root <dir> --mode execute --profile ingest-only # run refresh
+uv run ks watch status                                                       # check state
 ```
 
-- `scan` creates a watch plan under `$KS_ROOT/watch/` operational state and does not mutate `wiki/`, `graph/`, `vector/`, or `manifest.json`
-- `run --mode dry-run` only plans refresh actions; `run --mode execute` calls existing ingest / graphify services
-- external source change detection requires `--source-root` or saved watch config; without it, HKS only scans `$KS_ROOT/raw_sources` as an internal consistency fallback
-- successful responses use `trace.route="wiki"` and `trace.steps[kind="watch_summary"]`; scan / dry-run / status use `source=[]`, while successful execute ingest refresh uses `source=["wiki","graph","vector"]`
-
-### Coordination
+### Coordination (Multi-Agent)
 
 ```bash
 uv run ks coord session start agent-a
-uv run ks coord session heartbeat agent-a
 uv run ks coord lease claim agent-a wiki:atlas --ttl-seconds 1800
 uv run ks coord handoff add agent-a --summary "checked" --next-action "review"
-uv run ks coord status --agent-id agent-a
-uv run ks coord lint
 ```
 
-Coordination state is stored at `$KS_ROOT/coordination/state.json`; events append to `$KS_ROOT/coordination/events.jsonl`.
+When multiple agents share one `$KS_ROOT`, claim a lease before writing and record handoffs.
 
-- `session`: declares agent presence without duplicating an active session for the same agent
-- `lease`: claims ownership for a logical `resource_key`; conflicts exit `1` while stdout remains schema-valid JSON with `trace.steps[kind="coordination_summary"].detail.conflicts`
-- `handoff`: records a summary, next action, blocked_by, and references
-- `coord lint`: checks missing references and stale active leases
-
-### Agent Integration
-
-Codex, Claude Code, OpenClaw, or any other local agent can use HKS in three ways:
+### Lint
 
 ```bash
-# 1. Simplest path: the agent runs CLI commands directly
+uv run ks lint                    # read-only check
+uv run ks lint --strict           # exit 1 on findings
+uv run ks lint --fix=apply        # auto-fix (rebuild index, prune orphans)
+```
+
+## Agent Integration
+
+Three ways to connect:
+
+```bash
+# 1. CLI (simplest)
 export KS_ROOT="$PWD/.hks-runs/my-runtime/ks"
-uv run ks query "What are the current Project Atlas risks?" --writeback=no
-uv run ks llm classify project-atlas.txt --provider fake --mode preview
-uv run ks wiki synthesize --source-relpath project-atlas.txt --mode preview --provider fake
-uv run ks graphify build --mode preview --provider fake
-uv run ks lint --strict
+uv run ks query "Project Atlas risks?" --writeback=no
 
-# 2. MCP stdio: let an MCP-capable agent client launch this server
+# 2. MCP stdio (launched by an MCP-capable agent client)
 uv run hks-mcp --transport stdio
 
-# 3. HTTP: for tools that cannot use MCP but can call loopback HTTP
+# 3. HTTP (for tools that cannot use MCP)
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
-Agent read paths should explicitly use `--writeback=no`, or rely on the MCP `hks_query` default, to avoid background queries creating wiki pages. When multiple agents share one `$KS_ROOT`, use `ks coord lease` to claim a logical resource before editing and record handoffs with `ks coord handoff`.
+<details>
+<summary>MCP tools</summary>
 
-### MCP / HTTP Adapter
+`hks_query`, `hks_ingest`, `hks_source_list`, `hks_source_show`, `hks_workspace_list`, `hks_workspace_register`, `hks_workspace_show`, `hks_workspace_remove`, `hks_workspace_use`, `hks_workspace_query`, `hks_lint`, `hks_llm_classify`, `hks_wiki_synthesize`, `hks_graphify_build`, `hks_pageindex_show`, `hks_pageindex_enrich`, `hks_watch_scan`, `hks_watch_run`, `hks_watch_status`, `hks_coord_session`, `hks_coord_lease`, `hks_coord_handoff`, `hks_coord_status`
 
-```bash
-uv run hks-mcp --transport stdio
-uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
-uv run hks-api --host 127.0.0.1 --port 8766
-```
+</details>
 
-- MCP tools: `hks_query`, `hks_ingest`, `hks_source_list`, `hks_source_show`, `hks_workspace_list`, `hks_workspace_register`, `hks_workspace_show`, `hks_workspace_remove`, `hks_workspace_use`, `hks_workspace_query`, `hks_lint`, `hks_llm_classify`, `hks_wiki_synthesize`, `hks_graphify_build`, `hks_pageindex_show`, `hks_pageindex_enrich`, `hks_watch_scan`, `hks_watch_run`, `hks_watch_status`, `hks_coord_session`, `hks_coord_lease`, `hks_coord_handoff`, `hks_coord_status`
-- HTTP endpoints: `/query`, `/ingest`, `/catalog/sources`, `/catalog/sources/{relpath}`, `/workspaces`, `/workspaces/{workspace_id}`, `/workspaces/{workspace_id}/query`, `/lint`, `/llm/classify`, `/wiki/synthesize`, `/graphify/build`, `/pageindex/{relpath}`, `/pageindex/enrich`, `/watch/scan`, `/watch/run`, `/watch/status`, `/coord/session`, `/coord/lease`, `/coord/handoff`, `/coord/status`
-- Successful payloads directly use the existing `ks` top-level JSON shape, with no adapter envelope
-- Error payloads use `{ok:false,error:{code,exit_code,message,details},response?}`
-- The adapter is local-first; Streamable HTTP and the HTTP facade bind to loopback by default
-- Agent workflows should keep the `hks_query` default `writeback=no`
+<details>
+<summary>HTTP endpoints</summary>
+
+`/query`, `/ingest`, `/catalog/sources`, `/catalog/sources/{relpath}`, `/workspaces`, `/workspaces/{workspace_id}`, `/workspaces/{workspace_id}/query`, `/lint`, `/llm/classify`, `/wiki/synthesize`, `/graphify/build`, `/pageindex/{relpath}`, `/pageindex/enrich`, `/watch/scan`, `/watch/run`, `/watch/status`, `/coord/session`, `/coord/lease`, `/coord/handoff`, `/coord/status`
+
+</details>
 
 ## Output Contract
+
+All commands share the same top-level JSON shape:
 
 ```json
 {
@@ -290,61 +186,73 @@ uv run hks-api --host 127.0.0.1 --port 8766
 }
 ```
 
-`ks ingest`, `ks query`, `ks source`, `ks workspace`, `ks lint`, `ks coord`, `ks llm classify`, `ks wiki synthesize`, `ks graphify build`, and `ks watch scan|run|status` all share the same top-level JSON shape. `ks source` and workspace management commands use `trace.route="wiki"`, `source=[]`, and `trace.steps[kind="catalog_summary"]`; `ks workspace query` returns normal `ks query` semantics. `ks llm classify` and `ks wiki synthesize --mode preview|store` use `source=[]`; distinguish them from query no-hit by the trace step kind. Successful `ks wiki synthesize --mode apply` uses `source=["wiki"]`. `ks graphify build` uses `trace.route="graph"` and `source` means the stable HKS layers actually read; it never returns `"graphify"` as a top-level source. `ks watch scan|run --mode dry-run|status` uses `trace.route="wiki"` and `source=[]`; successful `ks watch run --mode execute --profile ingest-only` uses `source=["wiki","graph","vector"]`.
+- `evidence[]`: provenance with `source_relpath`, `route`, `quote`
+- `trace.steps`: records each pipeline step
+- No-hit queries return `source=[]` and still exit `0`
 
 ## Exit Codes
 
-- `0`: success, including query no-hit
-- `1`: general error
-- `2`: CLI usage error
-- `65`: ingest data error
-- `66`: missing input or uninitialized `KS_ROOT`
+| Code | Meaning |
+|------|---------|
+| `0` | Success (including query no-hit) |
+| `1` | General error |
+| `2` | CLI usage error |
+| `65` | Ingest data error |
+| `66` | Missing input or uninitialized `KS_ROOT` |
 
-## Useful Environment Variables
+## Configuration
 
-- `KS_ROOT`: runtime data root, default `./ks`
-- `HKS_EMBEDDING_MODEL`: embedding backend; `simple` is best for offline smoke tests and CI
-- `HKS_ROUTING_MODEL`: routing backend label and extension point for future local models; default `simple`
-- `HKS_WRITEBACK_AUTO_THRESHOLD`: auto write-back threshold, default `0.75`
-- `HKS_MAX_FILE_MB`: max `txt / md / pdf` file size for ingest, default `200`; Office and image inputs use their own limits
-- `HKS_OFFICE_MAX_FILE_MB`: max Office file size for ingest, default `200`
-- `HKS_OFFICE_TIMEOUT_SEC`: Office parser timeout in seconds, default `60`
-- `HKS_IMAGE_MAX_FILE_MB`: max image file size for ingest, default `20`
-- `HKS_IMAGE_TIMEOUT_SEC`: image OCR timeout in seconds, default `30`
-- `HKS_IMAGE_MAX_PIXELS`: max decoded image pixels, default `100000000`
-- `HKS_OCR_LANGS`: tesseract language set, default `eng+chi_tra`
-- `HKS_ROUTING_RULES`: override the routing rules file path
-- `HKS_LLM_PROVIDER`: LLM extraction provider, default `fake`
-- `HKS_LLM_MODEL`: LLM extraction model id, default `fake-llm-extractor-v1`
-- `HKS_LLM_NETWORK_OPT_IN`: hosted/network provider opt-in; must be `1` before non-fake provider credentials are considered
-- `HKS_LLM_PROVIDER_<ID>_API_KEY`: hosted provider credential, e.g. provider id `openai` maps to `HKS_LLM_PROVIDER_OPENAI_API_KEY`
-- `HKS_LLM_PROVIDER_<ID>_ENDPOINT`: optional hosted provider endpoint
-- `HKS_WORKSPACE_REGISTRY`: workspace registry JSON path; defaults to the user config path
+Full reference: [docs/configuration.md](./docs/configuration.md).
 
-## Further Reading
+**Common environment variables:**
 
-- Phase 1 baseline: [specs/001-phase1-cli-mvp/spec.md](./specs/001-phase1-cli-mvp/spec.md)
-- Office ingest expansion: [specs/002-phase2-ingest-office/spec.md](./specs/002-phase2-ingest-office/spec.md)
-- Phase 2 graph / routing / write-back: [specs/003-phase2-graph-routing/spec.md](./specs/003-phase2-graph-routing/spec.md)
-- Phase 3 image ingest: [specs/004-phase3-image-ingest/spec.md](./specs/004-phase3-image-ingest/spec.md)
-- Current response contract: [specs/005-phase3-lint-impl/contracts/query-response.schema.json](./specs/005-phase3-lint-impl/contracts/query-response.schema.json)
-- Spec archive index: [specs/ARCHIVE.md](./specs/ARCHIVE.md)
-- Phase 3 lint system: [specs/005-phase3-lint-impl/spec.md](./specs/005-phase3-lint-impl/spec.md)
-- Phase 3 MCP / API adapter: [specs/006-mcp-api-adapter/spec.md](./specs/006-mcp-api-adapter/spec.md)
-- Phase 3 multi-agent support: [specs/007-multi-agent-support/spec.md](./specs/007-multi-agent-support/spec.md)
-- LLM-assisted classification / extraction: [specs/008-llm-classification-extraction/spec.md](./specs/008-llm-classification-extraction/spec.md)
-- LLM-assisted wiki synthesis: [specs/009-llm-wiki-synthesis/spec.md](./specs/009-llm-wiki-synthesis/spec.md)
-- Graphify pipeline: [specs/010-graphify-pipeline/spec.md](./specs/010-graphify-pipeline/spec.md)
-- Watch / re-ingest workflow: [specs/011-continuous-watch/spec.md](./specs/011-continuous-watch/spec.md)
-- Source catalog / workspace selection: [specs/012-source-catalog/spec.md](./specs/012-source-catalog/spec.md)
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `KS_ROOT` | `./ks` | Runtime data root |
+| `HKS_EMBEDDING_MODEL` | `paraphrase-multilingual-MiniLM-L12-v2` | Embedding backend; use `simple` for CI |
+| `HKS_LLM_PROVIDER` | `fake` | LLM provider; `openai` requires API key |
+| `HKS_LLM_NETWORK_OPT_IN` | — | Set to `1` to allow non-fake providers |
+| `HKS_LLM_PROVIDER_OPENAI_API_KEY` | — | OpenAI API key |
+| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto write-back confidence threshold |
+| `HKS_WORKSPACE_REGISTRY` | user config path | Workspace registry JSON path |
 
-## Development Checks
+Use `config/hks.yaml` for structured config (copy from `config/hks.yaml.example`). Priority: process env > `config/hks.env` > `config/hks.yaml` / `config/hks.json` > default.
+
+## Using with Obsidian
+
+`$KS_ROOT/wiki/` can be opened directly in Obsidian via `Open folder as vault` — no plugin needed. Do not put human notes in `wiki/pages/` (HKS reads and parses every `*.md` there); use `$KS_ROOT/wiki/manual/`, `$KS_ROOT/wiki/notes/`, or a separate vault instead.
+
+See [docs/obsidian.md](./docs/obsidian.md) for the full guide.
+
+## Development
 
 ```bash
 uv run pytest --tb=short -q
 uv run ruff check .
 uv run mypy src/hks
 ```
+
+## Further Reading
+
+<details>
+<summary>Spec directory</summary>
+
+- [specs/001-phase1-cli-mvp/spec.md](./specs/001-phase1-cli-mvp/spec.md) — Phase 1 baseline
+- [specs/002-phase2-ingest-office/spec.md](./specs/002-phase2-ingest-office/spec.md) — Office ingest
+- [specs/003-phase2-graph-routing/spec.md](./specs/003-phase2-graph-routing/spec.md) — Graph / routing / write-back
+- [specs/004-phase3-image-ingest/spec.md](./specs/004-phase3-image-ingest/spec.md) — Image ingest
+- [specs/005-phase3-lint-impl/spec.md](./specs/005-phase3-lint-impl/spec.md) — Lint system
+- [specs/006-mcp-api-adapter/spec.md](./specs/006-mcp-api-adapter/spec.md) — MCP / API adapter
+- [specs/007-multi-agent-support/spec.md](./specs/007-multi-agent-support/spec.md) — Multi-agent support
+- [specs/008-llm-classification-extraction/spec.md](./specs/008-llm-classification-extraction/spec.md) — LLM classification / extraction
+- [specs/009-llm-wiki-synthesis/spec.md](./specs/009-llm-wiki-synthesis/spec.md) — Wiki synthesis
+- [specs/010-graphify-pipeline/spec.md](./specs/010-graphify-pipeline/spec.md) — Graphify pipeline
+- [specs/011-continuous-watch/spec.md](./specs/011-continuous-watch/spec.md) — Watch / re-ingest
+- [specs/012-source-catalog/spec.md](./specs/012-source-catalog/spec.md) — Source catalog / workspace
+- [specs/005-phase3-lint-impl/contracts/query-response.schema.json](./specs/005-phase3-lint-impl/contracts/query-response.schema.json) — Response contract
+- [specs/ARCHIVE.md](./specs/ARCHIVE.md) — Archive index
+
+</details>
 
 ## License
 
