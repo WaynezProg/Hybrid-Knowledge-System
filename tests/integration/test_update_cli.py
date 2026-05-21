@@ -47,7 +47,7 @@ def test_update_help_describes_daily_workflow(cli_runner) -> None:
     assert "manifest" in result.stdout
     assert "fingerprint" in result.stdout
     assert "先看會改什麼" in result.stdout
-    assert "--prune" in result.stdout
+    assert "missing source" in result.stdout
 
 
 @pytest.mark.integration
