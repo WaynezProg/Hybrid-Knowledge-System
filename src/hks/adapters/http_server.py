@@ -7,11 +7,14 @@ from typing import Annotated, Any
 import typer
 import uvicorn
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from hks.adapters import core
+from hks.adapters.http_security import http_security_dispatch
 from hks.adapters.models import AdapterToolError
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
@@ -187,6 +190,7 @@ async def coord_status_endpoint(request: Request) -> Response:
 
 def create_app() -> Starlette:
     return Starlette(
+        middleware=[Middleware(BaseHTTPMiddleware, dispatch=http_security_dispatch)],
         routes=[
             Route("/query", query_endpoint, methods=["POST"]),
             Route("/ingest", ingest_endpoint, methods=["POST"]),
