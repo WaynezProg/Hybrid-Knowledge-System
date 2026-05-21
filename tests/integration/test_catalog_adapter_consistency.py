@@ -9,6 +9,13 @@ from hks.adapters.http_server import create_app
 from hks.cli import app
 
 
+def _headers(token: str | None = None) -> dict[str, str]:
+    headers = {"host": "127.0.0.1"}
+    if token is not None:
+        headers["authorization"] = f"Bearer {token}"
+    return headers
+
+
 def test_source_list_cli_core_and_http_are_semantically_consistent(
     cli_runner,
     working_docs,
@@ -17,7 +24,7 @@ def test_source_list_cli_core_and_http_are_semantically_consistent(
 
     cli_payload = json.loads(cli_runner.invoke(app, ["source", "list"]).stdout)
     direct = core.hks_source_list()
-    http = TestClient(create_app()).post("/catalog/sources", json={}).json()
+    http = TestClient(create_app()).post("/catalog/sources", json={}, headers=_headers()).json()
 
     cli_detail = cli_payload["trace"]["steps"][0]["detail"]
     direct_detail = direct["trace"]["steps"][0]["detail"]
@@ -35,7 +42,9 @@ def test_workspace_list_cli_core_and_http_are_semantically_consistent(
     cli_runner,
     tmp_path,
     working_docs,
+    monkeypatch,
 ) -> None:
+    monkeypatch.setenv("HKS_API_TOKEN", "secret")
     registry = tmp_path / "workspaces.json"
     core.hks_ingest(path=str(working_docs))
     core.hks_workspace_register(
@@ -54,6 +63,7 @@ def test_workspace_list_cli_core_and_http_are_semantically_consistent(
     http = TestClient(create_app()).post(
         "/workspaces",
         json={"action": "list", "registry_path": str(registry)},
+        headers=_headers("secret"),
     ).json()
 
     assert (
@@ -62,4 +72,3 @@ def test_workspace_list_cli_core_and_http_are_semantically_consistent(
         == http["trace"]["steps"][0]["detail"]["total_count"]
         == 1
     )
-

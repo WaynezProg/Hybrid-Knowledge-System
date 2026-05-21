@@ -9,11 +9,16 @@ from hks.adapters.contracts import (
     validate_wiki_tool_input,
 )
 
+BEARER_AUTH = [{"BearerAuth": []}]
+
 
 @pytest.mark.contract
 def test_wiki_synthesis_adapter_contracts_are_valid() -> None:
     jsonschema.Draft202012Validator.check_schema(load_wiki_tools_schema())
-    assert load_wiki_http_openapi()["paths"]["/wiki/synthesize"]["post"]
+    spec = load_wiki_http_openapi()
+    assert spec["paths"]["/wiki/synthesize"]["post"]
+    assert spec["components"]["securitySchemes"]["BearerAuth"]["scheme"] == "bearer"
+    assert spec["paths"]["/wiki/synthesize"]["post"]["security"] == BEARER_AUTH
 
 
 @pytest.mark.contract

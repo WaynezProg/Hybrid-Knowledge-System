@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -97,7 +98,15 @@ def max_file_mb() -> int:
     return int(config_value("HKS_MAX_FILE_MB") or "200")
 
 
-def discover_files(path: Path) -> list[Path]:
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def discover_files(path: Path, *, skip_dir_names: set[str] | None = None) -> list[Path]:
     if not path.exists():
         raise KSError(
             f"path not found: {path}",
@@ -107,7 +116,22 @@ def discover_files(path: Path) -> list[Path]:
         )
     if path.is_file():
         return [path]
-    return sorted(file_path for file_path in path.rglob("*") if file_path.is_file())
+    if skip_dir_names is None:
+        return sorted(file_path for file_path in path.rglob("*") if file_path.is_file())
+
+    source_root = path.resolve(strict=False)
+    files: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(path, followlinks=False):
+        dirnames[:] = sorted(name for name in dirnames if name not in skip_dir_names)
+        for filename in sorted(filenames):
+            file_path = Path(dirpath) / filename
+            if file_path.is_symlink() and not _is_relative_to(
+                file_path.resolve(strict=False), source_root
+            ):
+                continue
+            if file_path.is_file():
+                files.append(file_path)
+    return files
 
 
 def parse_file(path: Path, source_format: SourceFormat, flags: ParserFlags) -> ParsedDocument:
@@ -172,9 +196,21 @@ def _log_and_issue(
     )
 
 
-def ingest(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> IngestSummary:
-    source_root = path.resolve(strict=False)
-    files = discover_files(source_root)
+def ingest(
+    path: Path,
+    *,
+    prune: bool = False,
+    pptx_notes: bool = True,
+    skip_dir_names: set[str] | None = None,
+    source_root_override: Path | None = None,
+) -> IngestSummary:
+    ingest_target = path.resolve(strict=False)
+    source_root = (
+        source_root_override.resolve(strict=False)
+        if source_root_override is not None
+        else ingest_target
+    )
+    files = discover_files(ingest_target, skip_dir_names=skip_dir_names)
     paths = runtime_paths()
     backend = TextModelBackend()
     wiki_store = WikiStore(paths)

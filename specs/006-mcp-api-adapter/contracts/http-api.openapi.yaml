@@ -9,6 +9,9 @@ paths:
   /query:
     post:
       summary: Query HKS knowledge base
+      description: Guarded because query can write back when writeback is auto or yes. Requests must use an allowlisted Host header.
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -37,6 +40,9 @@ paths:
   /ingest:
     post:
       summary: Ingest local file or directory
+      description: Guarded HTTP ingest accepts only relative paths under HKS_API_INGEST_ROOTS. source_root_id is required when multiple HTTP ingest roots are configured and optional with one root. CLI and MCP ingest keep trusted local path semantics.
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -127,6 +133,9 @@ paths:
   /pageindex/enrich:
     post:
       summary: Enrich PageIndex trees with LLM summaries
+      description: Guarded because enrich can store derived artifacts and may call configured LLM providers.
+      security:
+        - BearerAuth: []
       requestBody:
         required: false
         content:
@@ -155,6 +164,8 @@ paths:
   /coord/session:
     post:
       summary: Start, heartbeat, or close a coordination session
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -183,6 +194,8 @@ paths:
   /coord/lease:
     post:
       summary: Claim, renew, or release a coordination lease
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -211,6 +224,8 @@ paths:
   /coord/handoff:
     post:
       summary: Add or list coordination handoff notes
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -265,6 +280,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/AdapterError'
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Local bearer token supplied through HKS_API_TOKEN for guarded HTTP operations.
   schemas:
     HksQueryInput:
       type: object
@@ -285,9 +305,13 @@ components:
       required: [path]
       additionalProperties: false
       properties:
+        source_root_id:
+          type: [string, 'null']
+          description: Named source root from HKS_API_INGEST_ROOTS. Required when multiple HTTP ingest roots are configured; optional when one root is configured, though explicit IDs are recommended.
         path:
           type: string
           minLength: 1
+          description: Relative path under the selected HTTP ingest root.
         prune:
           type: boolean
           default: false

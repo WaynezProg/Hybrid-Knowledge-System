@@ -56,8 +56,21 @@ def _summary_to_response(summary: IngestSummary) -> QueryResponse:
     )
 
 
-def run(path: Path, *, prune: bool = False, pptx_notes: bool = True) -> QueryResponse:
-    summary = run_ingest(path, prune=prune, pptx_notes=pptx_notes)
+def run(
+    path: Path,
+    *,
+    prune: bool = False,
+    pptx_notes: bool = True,
+    skip_dir_names: set[str] | None = None,
+    source_root_override: Path | None = None,
+) -> QueryResponse:
+    summary = run_ingest(
+        path,
+        prune=prune,
+        pptx_notes=pptx_notes,
+        skip_dir_names=skip_dir_names,
+        source_root_override=source_root_override,
+    )
     response = _summary_to_response(summary)
     if summary.failures:
         raise KSError(

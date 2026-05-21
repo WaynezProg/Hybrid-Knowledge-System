@@ -7,6 +7,8 @@ paths:
     post:
       summary: Build derived Graphify artifacts
       operationId: graphifyBuild
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -55,6 +57,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdapterError"
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Local bearer token supplied through HKS_API_TOKEN for guarded HTTP operations.
   schemas:
     QueryResponse:
       type: object

@@ -7,11 +7,21 @@ from typing import Annotated, Any
 import typer
 import uvicorn
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from hks.adapters import core
+from hks.adapters.http_security import (
+    HTTP_INGEST_BLOCKED_PATH_SEGMENTS,
+    HttpIngestPath,
+    HttpSecurityFailure,
+    http_security_dispatch,
+    resolve_http_ingest_path,
+    security_error_response,
+)
 from hks.adapters.models import AdapterToolError
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
@@ -75,7 +85,31 @@ async def query_endpoint(request: Request) -> Response:
 
 
 async def ingest_endpoint(request: Request) -> Response:
-    return await _adapter_response(request, core.hks_ingest)
+    try:
+        payload = await _json(request)
+    except Exception as error:
+        return _usage_response(str(error))
+
+    source_root_id = payload.pop("source_root_id", None)
+    if source_root_id is not None and not isinstance(source_root_id, str):
+        return _usage_response("source_root_id must be a string")
+
+    path = payload.get("path")
+    if not isinstance(path, str):
+        return _usage_response("path must be a string")
+
+    resolved_path = resolve_http_ingest_path(path=path, source_root_id=source_root_id)
+    if isinstance(resolved_path, HttpSecurityFailure):
+        return security_error_response(resolved_path)
+    assert isinstance(resolved_path, HttpIngestPath)
+    payload["path"] = str(resolved_path.target_path)
+
+    return _response(
+        core.hks_ingest,
+        **payload,
+        skip_dir_names=set(HTTP_INGEST_BLOCKED_PATH_SEGMENTS),
+        source_root_override=str(resolved_path.source_root),
+    )
 
 
 async def lint_endpoint(request: Request) -> Response:
@@ -187,6 +221,7 @@ async def coord_status_endpoint(request: Request) -> Response:
 
 def create_app() -> Starlette:
     return Starlette(
+        middleware=[Middleware(BaseHTTPMiddleware, dispatch=http_security_dispatch)],
         routes=[
             Route("/query", query_endpoint, methods=["POST"]),
             Route("/ingest", ingest_endpoint, methods=["POST"]),

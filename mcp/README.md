@@ -49,10 +49,14 @@ Start the loopback HTTP facade:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
+export HKS_API_TOKEN='replace-with-local-token'
+# Required only when HTTP clients call /ingest.
+export HKS_API_INGEST_ROOTS='fixtures=/Users/me/hks/tests/fixtures'
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
 Default binding is loopback only. Do not use `--allow-non-loopback` unless the user explicitly accepts exposing the service outside the local machine.
+Mutating or writeback-capable HTTP endpoints require `Authorization: Bearer $HKS_API_TOKEN`. HTTP `/ingest` is allowlisted: it accepts relative paths under `HKS_API_INGEST_ROOTS`; `source_root_id` is required when multiple roots are configured and optional with one root, but explicit IDs are recommended. MCP `hks_ingest` and CLI `ks ingest` keep trusted local path semantics for arbitrary local paths.
 
 Implemented endpoint groups:
 
@@ -83,14 +87,27 @@ Query without write-back:
 
 ```bash
 curl -sS http://127.0.0.1:8766/query \
+  -H 'Host: 127.0.0.1' \
+  -H "Authorization: Bearer $HKS_API_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"question":"這批資料的重點是什麼？","writeback":"no","ks_root":null}' | jq .
+```
+
+Ingest from an allowlisted HTTP source root:
+
+```bash
+curl -sS http://127.0.0.1:8766/ingest \
+  -H 'Host: 127.0.0.1' \
+  -H "Authorization: Bearer $HKS_API_TOKEN" \
+  -H 'content-type: application/json' \
+  -d '{"source_root_id":"fixtures","path":"valid","ks_root":null}' | jq .
 ```
 
 List sources:
 
 ```bash
 curl -sS http://127.0.0.1:8766/catalog/sources \
+  -H 'Host: 127.0.0.1' \
   -H 'content-type: application/json' \
   -d '{"ks_root":null}' | jq .
 ```
@@ -99,6 +116,7 @@ Run lint:
 
 ```bash
 curl -sS http://127.0.0.1:8766/lint \
+  -H 'Host: 127.0.0.1' \
   -H 'content-type: application/json' \
   -d '{"strict":true,"ks_root":null}' | jq .
 ```
@@ -107,6 +125,8 @@ Preview LLM extraction:
 
 ```bash
 curl -sS http://127.0.0.1:8766/llm/classify \
+  -H 'Host: 127.0.0.1' \
+  -H "Authorization: Bearer $HKS_API_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"source_relpath":"project-atlas.txt","mode":"preview","provider":"fake","ks_root":null}' | jq .
 ```
@@ -115,6 +135,8 @@ Build Graphify preview:
 
 ```bash
 curl -sS http://127.0.0.1:8766/graphify/build \
+  -H 'Host: 127.0.0.1' \
+  -H "Authorization: Bearer $HKS_API_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"mode":"preview","provider":"fake","ks_root":null}' | jq .
 ```

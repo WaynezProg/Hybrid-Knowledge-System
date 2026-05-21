@@ -9,14 +9,21 @@ from hks.adapters.contracts import (
     validate_watch_tool_input,
 )
 
+BEARER_AUTH = [{"BearerAuth": []}]
+
 
 @pytest.mark.contract
 def test_watch_adapter_contracts_are_valid() -> None:
     jsonschema.Draft202012Validator.check_schema(load_watch_tools_schema())
-    paths = load_watch_http_openapi()["paths"]
+    spec = load_watch_http_openapi()
+    paths = spec["paths"]
     assert paths["/watch/scan"]["post"]
     assert paths["/watch/run"]["post"]
     assert paths["/watch/status"]["post"]
+    assert spec["components"]["securitySchemes"]["BearerAuth"]["scheme"] == "bearer"
+    assert paths["/watch/scan"]["post"]["security"] == BEARER_AUTH
+    assert paths["/watch/run"]["post"]["security"] == BEARER_AUTH
+    assert "security" not in paths["/watch/status"]["post"]
 
 
 @pytest.mark.contract

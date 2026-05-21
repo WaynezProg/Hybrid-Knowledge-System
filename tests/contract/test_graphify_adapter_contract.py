@@ -9,11 +9,16 @@ from hks.adapters.contracts import (
     validate_graphify_tool_input,
 )
 
+BEARER_AUTH = [{"BearerAuth": []}]
+
 
 @pytest.mark.contract
 def test_graphify_adapter_contracts_are_valid() -> None:
     jsonschema.Draft202012Validator.check_schema(load_graphify_tools_schema())
-    assert load_graphify_http_openapi()["paths"]["/graphify/build"]["post"]
+    spec = load_graphify_http_openapi()
+    assert spec["paths"]["/graphify/build"]["post"]
+    assert spec["components"]["securitySchemes"]["BearerAuth"]["scheme"] == "bearer"
+    assert spec["paths"]["/graphify/build"]["post"]["security"] == BEARER_AUTH
 
 
 @pytest.mark.contract

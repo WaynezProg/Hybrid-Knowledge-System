@@ -27,6 +27,13 @@ async def _call_tool(name: str, payload: dict[str, Any]) -> dict[str, Any]:
     return _tool_payload(await server.call_tool(name, payload))
 
 
+def _headers(token: str | None = None) -> dict[str, str]:
+    headers = {"host": "127.0.0.1"}
+    if token is not None:
+        headers["authorization"] = f"Bearer {token}"
+    return headers
+
+
 @pytest.mark.integration
 def test_mcp_coordination_tools_flow(working_docs) -> None:
     core.hks_ingest(path=str(working_docs))
@@ -47,13 +54,15 @@ def test_mcp_coordination_tools_flow(working_docs) -> None:
 
 
 @pytest.mark.integration
-def test_http_coordination_endpoints(working_docs) -> None:
+def test_http_coordination_endpoints(working_docs, monkeypatch) -> None:
+    monkeypatch.setenv("HKS_API_TOKEN", "secret")
     core.hks_ingest(path=str(working_docs))
     client = TestClient(create_app())
 
     response = client.post(
         "/coord/session",
         json={"action": "start", "agent_id": "agent-a"},
+        headers=_headers("secret"),
     )
     assert response.status_code == 200
     assert response.json()["trace"]["steps"][0]["kind"] == "coordination_summary"
@@ -61,10 +70,12 @@ def test_http_coordination_endpoints(working_docs) -> None:
     conflict_a = client.post(
         "/coord/lease",
         json={"action": "claim", "agent_id": "agent-a", "resource_key": "wiki:atlas"},
+        headers=_headers("secret"),
     )
     conflict_b = client.post(
         "/coord/lease",
         json={"action": "claim", "agent_id": "agent-b", "resource_key": "wiki:atlas"},
+        headers=_headers("secret"),
     )
     assert conflict_a.status_code == 200
     assert conflict_b.status_code == 500
