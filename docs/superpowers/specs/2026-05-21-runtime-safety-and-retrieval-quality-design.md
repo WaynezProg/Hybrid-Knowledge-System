@@ -62,6 +62,10 @@ def scoped_ks_root(ks_root: str | Path | None) -> Iterator[None]:
 
 CLI 行為不變：CLI 可以繼續靠 env/config 決定 `KS_ROOT`。adapter 行為改成 context-local：同 process 多 request 不會互相覆蓋。
 
+**統一舊實作**：`adapters/core.py` 和 `workspace/service.py` 各自有一份 `scoped_ks_root()` 直接改 `os.environ`。014 完成後這兩處必須刪除，統一至 `hks.core.runtime_context.scoped_ks_root()`。
+
+**MCP adapter 遷移**：`hks-mcp` 同樣遷移至 contextvar-based `scoped_ks_root()`。MCP 是 stdio transport，不需要 bearer token 或 Host check，但 ingest path validation 應與 CLI 一致。
+
 ### HTTP Security Contract
 
 新增 config/env：
@@ -71,7 +75,7 @@ CLI 行為不變：CLI 可以繼續靠 env/config 決定 `KS_ROOT`。adapter 行
 - `HKS_API_REJECT_BROWSER_REQUESTS`，預設 true
 - `HKS_API_INGEST_ROOTS`，預設空，格式為 `id=/absolute/source/root` 的逗號分隔清單
 
-HTTP request guard：
+HTTP request guard（以 Starlette middleware 實作，不在 endpoint function 中重複）：
 
 - Host header 必須在 allowlist。
 - mutating endpoint 需要 `Authorization: Bearer <HKS_API_TOKEN>`。
@@ -112,10 +116,13 @@ HTTP `hks_ingest` 不再接受 arbitrary path。request 必須提供：
 ### 014 Tests
 
 - unit: contextvar precedence and restore behavior
+- unit: 舊 `adapters/core.py` 和 `workspace/service.py` 的 `scoped_ks_root` 已移除，import 改指向 `runtime_context`
 - integration: two concurrent adapter calls with different `ks_root` cannot see each other
+- integration: MCP adapter 使用 contextvar-based `scoped_ks_root`
 - HTTP contract: missing token blocks mutating endpoint
 - HTTP contract: invalid Host blocks request
 - HTTP contract: Origin / Sec-Fetch-Site browser request blocks mutating endpoint
+- HTTP contract: security guards 由 middleware 處理，非 per-endpoint 重複
 - HTTP ingest: absolute path and symlink escape rejected
 
 ## 015: Confidence and Writeback Gate
@@ -126,15 +133,18 @@ HTTP `hks_ingest` 不再接受 arbitrary path。request 必須提供：
 
 目前 `confidence` 是 mixed raw score。015 後：
 
-- `confidence` 保留，但語意改成 `calibrated_confidence`，維持 backward compatibility。
-- 新增 optional top-level `retrieval_score`。
-- 新增 optional top-level `calibrated_confidence`。
-- 新增 optional top-level `writeback_eligible`。
+- `confidence` **值不動**，保持原始 raw score，確保既有 agent/script 的行為不因 015 上線而 silent break。
+- 新增 optional top-level `retrieval_score`（= raw score，與 `confidence` 等值；為未來 deprecation `confidence` 鋪路）。
+- 新增 optional top-level `calibrated_confidence`（校準後信心）。
+- 新增 optional top-level `writeback_eligible`（bool）。
+- writeback gate 改讀 `calibrated_confidence`，不再讀 `confidence`。
 - 不新增 top-level `route`，因為 `trace.route` 已是 authoritative selected route；重複欄位會增加 drift 風險。
+
+> **設計決策**：曾考慮直接把 `confidence` 值改成 calibrated score，但這對已依賴舊值的 caller 是 silent behavior change，不符合 backward compatibility 承諾。選擇 additive-only schema evolution。
 
 ### Calibration Contract
 
-新增 `hks.retrieval.confidence`：
+新增 `src/hks/retrieval/confidence.py`（直接建立在 017 的目標路徑，避免二次搬遷）：
 
 ```python
 @dataclass(frozen=True, slots=True)
@@ -154,7 +164,9 @@ Route policy：
 | vector | 需要 source_relpath、quote、similarity threshold、non-empty evidence |
 | page_tree | 需要 source_relpath、section_path、page_range、non-empty quote |
 
-`--writeback=yes` 仍是 explicit caller mutation，可以越過 auto eligibility，但 trace 必須標示 `"forced": true`。
+> **預期效果**：graph extraction 目前是 regex/heuristic，很多 edge 缺乏 `raw_evidence` 或完整 `source_relpath`。015 上線後 graph route 的 auto writeback 會**事實上接近永遠 false**。這是刻意的防污染結果，不是 bug。Graph extraction 品質提升後（deferred: graph edge provenance），auto writeback 自然會開始通過。
+
+`--writeback=yes` 仍是 explicit caller mutation，可以越過 auto eligibility，但 trace 必須標示 `"forced": true`。forced writeback 同時寫入 coordination `events.jsonl`，讓 `ks lint` 能偵測非自然回寫。
 
 ### Rerank Trace Contract
 
@@ -206,9 +218,13 @@ Existing evals prove the fused path runs. 016 adds measurable pass/fail quality 
 - `no_hit_precision`
 - `writeback_false_positive_rate`
 
+### 與現有 Eval 的關係
+
+現有 `evals/e2e_query.jsonl`（5 筆，格式為 `expected_sources_present` + `expected_answer_contains`）和 `tests/eval/test_e2e_query_eval.py` 繼續保留並在 CI 中跑。它們驗證 fused path 不壞；016 新增的 golden query eval 驗證品質指標。兩者格式不同、threshold 獨立、CI 中並行執行。
+
 ### Golden Query Format
 
-Add `evals/golden_queries/*.jsonl`:
+新增 `evals/golden_queries/*.jsonl`（與現有 `evals/` 並存）：
 
 ```json
 {
@@ -238,6 +254,10 @@ CI runs a deterministic quick eval with `HKS_EMBEDDING_MODEL=simple` and no Open
 - evidence_hit_rate >= 0.80
 - no_hit_precision = 1.00
 - writeback_false_positive_rate = 0.00
+
+> **no_hit_precision = 1.00 的前提**：no-hit 案例必須是真正無歧義的問題（知識庫中不存在任何相關資料）。如果 question 本身有歧義或能被偶然命中，100% threshold 會讓 CI 脆弱。撰寫 no-hit 案例時，先用 `ks query` 驗證確實沒有任何 route 命中。
+
+> **simple embedding + lexical filter 交互**：CI 在 `HKS_EMBEDDING_MODEL=simple` 下跑，vector similarity 品質較低，此時 `_vector_hit_is_relevant()` 的 lexical hard gate 會更頻繁地丟掉本應命中的結果。若 016 eval 的 `evidence_hit_rate` 持續無法達標，應考慮將 vector lexical filter softening（目前在 deferred）提前到 016 scope。
 
 Hosted OpenAI eval remains opt-in and is not required for CI.
 
@@ -287,7 +307,7 @@ src/hks/commands/query.py
 
 These are real, but not part of 014-017:
 
-- Vector lexical filter softening and final-score feature exposure.
+- Vector lexical filter softening and final-score feature exposure. **提前條件**：若 016 CI eval 的 `evidence_hit_rate` 在 `simple` embedding 下持續無法達標，應提前到 016 scope 內處理。
 - Embedding collection versioning by provider/model/dimension/chunker fingerprint.
 - Graph edge provenance fields: extraction_method, pattern_id, raw_evidence, source_span, verified.
 - Ingest transaction journal and crash recovery.
