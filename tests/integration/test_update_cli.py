@@ -148,7 +148,9 @@ def test_update_missing_without_prune_preserves_existing_artifacts(
 
     result = cli_runner.invoke(app, ["update", str(docs)])
 
-    detail = _payload(result)["trace"]["steps"][0]["detail"]
+    payload = _payload(result)
+    detail = payload["trace"]["steps"][0]["detail"]
+    assert payload["source"] == []
     assert detail["source_counts"]["missing"] == 1
     assert detail["action_counts"]["planned"] == 0
     assert "remove-me.md" in load_manifest(tmp_ks_root / "manifest.json").entries

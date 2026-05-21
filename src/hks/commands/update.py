@@ -27,7 +27,8 @@ def run(
     )
     detail, _ = service_run(request)
     payload = _build_detail(detail, source_roots=source_roots)
-    source: list[Route] = ["wiki", "graph", "vector"] if mode == "execute" else []
+    completed = cast(dict[str, int], payload["action_counts"]).get("completed", 0)
+    source: list[Route] = ["wiki", "graph", "vector"] if mode == "execute" and completed > 0 else []
     return QueryResponse(
         answer=_summary_answer(payload),
         source=source,
