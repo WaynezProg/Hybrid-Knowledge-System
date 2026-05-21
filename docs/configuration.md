@@ -96,6 +96,17 @@ llm:
 
 LLM OpenAI-compatible provider、PageTree enrich、query reranker 都沿用同一個 hosted/network gate：`llm.network_opt_in: true`（或 `HKS_LLM_NETWORK_OPT_IN=1`）加上 `llm.providers.openai.api_key`（或 `HKS_LLM_PROVIDER_OPENAI_API_KEY` / `OPENAI_API_KEY`）。只設定 embedding OpenAI key 不會自動允許 chat/rerank 打網路；endpoint 也不與 embeddings endpoint 共用。
 
+## HTTP API security
+
+`hks-api` 是 loopback HTTP facade，不是公開服務。HTTP mutating 或 writeback-capable endpoints 受以下 env 控制：
+
+- `HKS_API_TOKEN`：HTTP mutating / writeback-capable endpoints 必須使用 `Authorization: Bearer <token>`。
+- `HKS_API_HOST_ALLOWLIST`：允許的 `Host` header 名稱，預設 `127.0.0.1,localhost,::1`。
+- `HKS_API_REJECT_BROWSER_REQUESTS`：拒絕帶 `Origin` 或 `Sec-Fetch-Site` 的 mutating requests，預設 true。
+- `HKS_API_INGEST_ROOTS`：逗號分隔的 named source roots，例如 `docs=/Users/me/docs,shared=/Volumes/shared`。
+
+HTTP `/ingest` 只接受 `HKS_API_INGEST_ROOTS` 底下的 relative paths，request 需帶 `source_root_id` 與相對 `path`。CLI `ks ingest` 與 MCP `hks_ingest` 維持 local-tool path semantics，可由可信任 agent automation 使用任意本機路徑。
+
 ## 啟用設定
 
 所有 agent session 先跑：
