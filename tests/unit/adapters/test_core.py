@@ -13,6 +13,13 @@ def _response() -> QueryResponse:
         source=["wiki"],
         confidence=1.0,
         trace=Trace(route="wiki", steps=[TraceStep(kind="wiki_lookup", detail={"hit": True})]),
+        evidence=[
+            {
+                "source_relpath": "atlas.md",
+                "route": "wiki",
+                "quote": "Atlas summary",
+            }
+        ],
     )
 
 
@@ -28,6 +35,18 @@ def test_successful_query_wrapper_returns_direct_query_response(monkeypatch) -> 
 
     assert payload["answer"] == "Atlas summary"
     assert payload["source"] == ["wiki"]
+    assert payload["confidence"] == 1.0
+    assert payload["trace"] == {
+        "route": "wiki",
+        "steps": [{"kind": "wiki_lookup", "detail": {"hit": True}}],
+    }
+    assert payload["evidence"] == [
+        {
+            "source_relpath": "atlas.md",
+            "route": "wiki",
+            "quote": "Atlas summary",
+        }
+    ]
     assert "ok" not in payload
     assert "payload" not in payload
 
