@@ -2,9 +2,6 @@
 
 from __future__ import annotations
 
-import os
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
 
@@ -55,24 +52,9 @@ from hks.commands import source as source_command
 from hks.commands import watch as watch_command
 from hks.commands import wiki as wiki_command
 from hks.commands import workspace as workspace_command
+from hks.core.runtime_context import scoped_ks_root
 from hks.core.schema import QueryResponse, Route, build_error_response, validate
 from hks.errors import ExitCode, KSError
-
-
-@contextmanager
-def scoped_ks_root(ks_root: str | None) -> Iterator[None]:
-    if not ks_root:
-        yield
-        return
-    previous = os.environ.get("KS_ROOT")
-    os.environ["KS_ROOT"] = str(Path(ks_root).expanduser().resolve(strict=False))
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop("KS_ROOT", None)
-        else:
-            os.environ["KS_ROOT"] = previous
 
 
 def _usage_error(message: str, *, request_id: str | None = None) -> AdapterToolError:
