@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import os
 from collections import Counter, defaultdict
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +10,7 @@ from hks.catalog.models import CatalogSummaryDetail
 from hks.commands import query as query_command
 from hks.core.manifest import load_manifest, utc_now_iso
 from hks.core.paths import runtime_paths
+from hks.core.runtime_context import scoped_ks_root
 from hks.core.schema import QueryResponse
 from hks.errors import ExitCode, KSError
 from hks.workspace.models import WorkspaceRecord, WorkspaceRegistry, WorkspaceStatus
@@ -23,19 +21,6 @@ from hks.workspace.validation import (
     validate_metadata,
     validate_workspace_id,
 )
-
-
-@contextmanager
-def scoped_ks_root(ks_root: str) -> Iterator[None]:
-    previous = os.environ.get("KS_ROOT")
-    os.environ["KS_ROOT"] = str(Path(ks_root).expanduser().resolve(strict=False))
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop("KS_ROOT", None)
-        else:
-            os.environ["KS_ROOT"] = previous
 
 
 def _workspace_status(record: WorkspaceRecord, *, duplicate: bool = False) -> WorkspaceStatus:
