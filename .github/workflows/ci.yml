@@ -26,6 +26,7 @@ jobs:
       - uses: astral-sh/setup-uv@v8.1.0
         with:
           enable-cache: true
+          cache-suffix: test
 
       - name: Install tesseract OCR
         run: |
@@ -56,6 +57,7 @@ jobs:
       - uses: astral-sh/setup-uv@v8.1.0
         with:
           enable-cache: true
+          cache-suffix: airgapped-install
 
       - name: Warm cache
         run: uv sync
