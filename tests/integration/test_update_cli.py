@@ -46,7 +46,7 @@ def test_update_help_describes_daily_workflow(cli_runner) -> None:
     assert "每天變動的文件知識庫" in result.stdout
     assert "manifest" in result.stdout
     assert "fingerprint" in result.stdout
-    assert "--dry-run" in result.stdout
+    assert "先看會改什麼" in result.stdout
     assert "--prune" in result.stdout
 
 
