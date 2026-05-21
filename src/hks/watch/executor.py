@@ -24,25 +24,32 @@ def execute_actions(
         return [action.with_status("skipped") for action in actions]
 
     executed: list[RefreshAction] = []
-    source_roots = sorted(
-        {
-            Path(source.root_path)
-            for source in sources
-            if source.root_path and source.state in {"stale", "new"}
-        }
+    source_roots = _execution_source_roots(
+        request=request,
+        actions=actions,
+        sources=sources,
+        paths=paths,
     )
     ingest_outputs: list[str] = []
+    prune_outputs: list[str] = []
     try:
-        if any(action.kind == "ingest" for action in actions):
+        if any(action.kind in {"ingest", "prune"} for action in actions):
             for root in source_roots:
                 response = ingest_command.run(root, prune=request.prune)
                 detail = response.trace.steps[0].detail
                 ingest_outputs.extend(detail.get("created", []))
                 ingest_outputs.extend(detail.get("updated", []))
+                prune_outputs.extend(detail.get("pruned", []))
         for action in actions:
             if action.kind == "ingest":
                 output_ref = action.source_relpath or ""
                 executed.append(action.with_status("completed", output_refs=[output_ref]))
+            elif action.kind == "prune":
+                output_ref = action.source_relpath or ""
+                if output_ref in prune_outputs:
+                    executed.append(action.with_status("completed", output_refs=[output_ref]))
+                else:
+                    executed.append(action.with_status("skipped", output_refs=[]))
             elif action.kind == "graphify_build":
                 response = graphify_command.run_build(
                     mode="store",
@@ -73,6 +80,26 @@ def execute_actions(
     _ = paths
     _ = ingest_outputs
     return executed
+
+
+def _execution_source_roots(
+    *,
+    request: WatchRequest,
+    actions: list[RefreshAction],
+    sources: list[WatchSource],
+    paths: RuntimePaths,
+) -> list[Path]:
+    roots = {
+        Path(source.root_path)
+        for source in sources
+        if source.root_path and source.state in {"stale", "new"}
+    }
+    if any(action.kind == "prune" for action in actions):
+        roots.update(Path(source.root_path) for source in sources if source.root_path)
+        roots.update(root.expanduser().resolve(strict=False) for root in request.source_roots)
+        if not roots:
+            roots.add(paths.raw_sources)
+    return sorted(roots)
 
 
 def _mark_failed(

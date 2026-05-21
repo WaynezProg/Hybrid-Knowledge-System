@@ -19,6 +19,7 @@ from hks.commands import llm as llm_command
 from hks.commands import pageindex as pageindex_command
 from hks.commands import query as query_command
 from hks.commands import source as source_command
+from hks.commands import update as update_command
 from hks.commands import watch as watch_command
 from hks.commands import wiki as wiki_command
 from hks.commands import workspace as workspace_command
@@ -99,6 +100,11 @@ class WatchProfile(StrEnum):
     derived_refresh = "derived-refresh"
     wiki_apply = "wiki-apply"
     full = "full"
+
+
+class UpdateProfile(StrEnum):
+    ingest_only = "ingest-only"
+    derived_refresh = "derived-refresh"
 
 
 def version_callback(value: bool) -> None:
@@ -228,6 +234,48 @@ def query(
     ] = WritebackMode.auto,
 ) -> None:
     run_command("query", query_command.run, question, writeback=writeback.value)
+
+
+@app.command(
+    "update",
+    help=(
+        "適合每天變動的文件知識庫。\n\n"
+        "Authoritative source 仍是 source-root / raw files；update 會根據 "
+        "manifest fingerprint 判斷 stale/new/missing。\n"
+        "--dry-run 可先看會改什麼；只有 --prune 才會處理 missing source。"
+    ),
+)
+def update(
+    source_root: Annotated[
+        Path,
+        typer.Argument(help="Authoritative source root to synchronize."),
+    ],
+    profile: Annotated[
+        UpdateProfile,
+        typer.Option(
+            "--profile",
+            case_sensitive=False,
+            help="Update profile: ingest-only or derived-refresh.",
+        ),
+    ] = UpdateProfile.ingest_only,
+    prune: Annotated[
+        bool,
+        typer.Option("--prune", help="Remove artifacts for missing sources."),
+    ] = False,
+    dry_run: Annotated[
+        bool,
+        typer.Option("--dry-run", help="Plan changes without mutating authoritative layers."),
+    ] = False,
+) -> None:
+    mode = "dry-run" if dry_run else "execute"
+    run_command(
+        "update",
+        update_command.run,
+        source_root,
+        mode=mode,
+        profile=profile.value,
+        prune=prune,
+    )
 
 
 @source_app.command("list")

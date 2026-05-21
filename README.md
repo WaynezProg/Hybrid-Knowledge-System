@@ -54,6 +54,27 @@ uv run ks ingest <file-or-dir>
 
 支援 `txt`、`md`、`pdf`、`docx`、`xlsx`、`pptx`、`png`、`jpg`、`jpeg`。以 SHA256 + parser fingerprint 做 idempotency，重複 ingest 不會產生重複 artifact。圖片 ingest 需要本機 `tesseract`。
 
+### Daily update workflow
+
+```bash
+# initial build
+uv run ks ingest ./docs
+
+# daily update
+uv run ks update ./docs
+
+# preview changes first
+uv run ks update ./docs --dry-run
+
+# update and rebuild derived graph
+uv run ks update ./docs --profile derived-refresh
+
+# remove deleted sources
+uv run ks update ./docs --prune
+```
+
+`ingest` 是第一次建立 runtime；`update` 是日常同步。Authoritative source 仍是 `source-root` / raw files，update 會根據 manifest fingerprint 判斷 stale / new / missing。`watch` 是底層規劃與自動化 API；memory / agent event-sourcing 是未來功能，不在目前 scope。
+
 ### Query
 
 ```bash

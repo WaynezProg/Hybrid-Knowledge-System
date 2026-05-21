@@ -115,9 +115,11 @@
 ### 4.10 Watch / Refresh Workflow
 
 * `ks watch scan|run|status`
+* `ks update <source-root>` 是日常更新入口，包裝 `watch run` 的正確流程
 * `scan` 與 `run --mode=dry-run` 只寫 `$KS_ROOT/watch/` operational state，不改 authoritative layers
 * `run --mode=execute --profile=ingest-only` 透過既有 ingest 更新 `wiki / graph / vector / manifest`
 * 成功 response 使用 `trace.steps[kind="watch_summary"]`
+* `ks update` 成功 response 使用 `trace.steps[kind="update_summary"]`
 * MCP tools：`hks_watch_scan`、`hks_watch_run`、`hks_watch_status`
 * HTTP endpoints：`/watch/scan`、`/watch/run`、`/watch/status`
 

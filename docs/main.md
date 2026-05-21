@@ -38,6 +38,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
   * `ks wiki synthesize`
   * `ks graphify build`
   * `ks watch scan|run|status`
+  * `ks update`
   * `hks-mcp`
   * `hks-api`（optional loopback facade）
 
@@ -58,7 +59,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * 已完成：008 可對已 ingest source 產生 schema-validated LLM classification / summary / fact / entity / relation candidates，並可 explicit store 到 `$KS_ROOT/llm/extractions/`。
 * 已完成：009 可從 008 stored artifact 產生 wiki synthesis candidate，preview / store 預設不改 authoritative layers，只有 caller-explicit `apply` 會寫入 `wiki/` page、index 與 log。
 * 已完成：010 可從既有 wiki / graph / 008 / 009 lineage 產生 derived Graphify artifacts、community clustering、static HTML 與 audit report。
-* 已完成：011 提供 bounded watch scan / run / status，處理明確 source roots 或 saved watch config 的 refresh plan 與 re-ingest。
+* 已完成：011 提供 bounded watch scan / run / status，處理明確 source roots 或 saved watch config 的 refresh plan 與 re-ingest；`ks update` 是日常同步用的高階包裝入口。
 * 已完成：012 提供 read-only source catalog 與 named workspace registry，讓使用者或 agent 可以查看已 ingest sources、選擇 `KS_ROOT`，並對指定 workspace query。
 * 尚未完成：常駐 daemon / OS filesystem watcher。
 
@@ -105,7 +106,7 @@ stdout 契約統一：
 }
 ```
 
-`ks ingest`、`ks query`、`ks source`、`ks workspace`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`、`ks graphify build`、`ks watch scan|run|status` 共用同一 top-level JSON shape。
+`ks ingest`、`ks query`、`ks update`、`ks source`、`ks workspace`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`、`ks graphify build`、`ks watch scan|run|status` 共用同一 top-level JSON shape。
 `hks-mcp` 與 `hks-api` 的成功 payload 也共用此 shape；adapter 錯誤才使用 `{ok:false,error:{code,exit_code,message,details},response?}` envelope。
 
 `ks llm classify` 的 successful extraction 使用 `trace.route="wiki"`、`source=[]`、`trace.steps[kind="llm_extraction_summary"]`。這是 008 為避免擴 route/source enum 做出的 contract choice；consumer 不得把它解讀成 `ks query` no-hit。
@@ -128,6 +129,8 @@ Source / route 語意對照：
 | `ks graphify build --mode preview\|store` | `graph` | `["wiki","graph"]` 或實際讀取到的穩定 source layer | 產生 derived Graphify artifacts；不得把 `"graphify"` 放入 top-level `source` |
 | `ks watch scan` / `ks watch run --mode dry-run` / `ks watch status` | `wiki` | `[]` | 產生或讀取 `$KS_ROOT/watch/` operational state；不代表 query no-hit |
 | `ks watch run --mode execute --profile ingest-only` | `wiki` | `["wiki","graph","vector"]` | caller-explicit refresh 透過既有 ingest 更新穩定 runtime layers |
+| `ks update --dry-run` | `wiki` | `[]` | 高階 daily update preview；委派 watch run dry-run，trace 使用 `update_summary` |
+| `ks update` / `ks update --profile derived-refresh` | `wiki` | `["wiki","graph","vector"]` | 高階 daily update execute；委派 watch run execute，trace 使用 `update_summary` |
 | `ks source list|show` | `wiki` | `[]` | 讀取 manifest-derived catalog；不代表 query no-hit |
 | `ks workspace register|list|show|remove|use` | `wiki` | `[]` | 管理 local workspace registry；不讀取 knowledge layer 作答 |
 | `ks workspace query` | `wiki\|graph\|vector\|page_tree` | `ks query` semantics | 先解析 workspace id 到 `KS_ROOT`，再委派既有 query |
@@ -327,12 +330,13 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 
 ## 13. Watch / Refresh
 
-011 提供 bounded `ks watch scan|run|status`，處理 continuously updated personal knowledge roots，但不是常駐 daemon。
+011 提供 bounded `ks watch scan|run|status`，處理 continuously updated personal knowledge roots，但不是常駐 daemon。`ks update <source-root>` 是日常使用入口，語意上包裝 `watch run --source-root <source-root> --mode execute --profile ingest-only`；`--dry-run` 改成 `watch run --mode dry-run`，`--profile derived-refresh` 會在 ingest 後刷新 derived artifacts。
 
 * `scan`：讀取 manifest、明確 source roots 或 saved watch config、derived lineage，產生 refresh plan；不改 authoritative layers
 * `run --mode=dry-run`：只規劃 action，最多寫 `$KS_ROOT/watch/` operational state
 * `run --mode=execute --profile=ingest-only`：透過既有 ingest pipeline 更新 `wiki / graph / vector / page_tree / manifest`
 * `status`：讀取 latest watch plan / run summary
+* `update`：輸出 `trace.steps[kind="update_summary"]`，detail 仍包含 watch plan/run/latest artifacts 與 source/action counts
 * watch state 位於 `$KS_ROOT/watch/{plans,runs,latest.json,events.jsonl,config.json}`
 * trace 使用 `trace.steps[kind="watch_summary"]`；top-level `source` 不新增 `"watch"`
 

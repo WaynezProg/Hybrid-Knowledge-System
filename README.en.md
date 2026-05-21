@@ -54,6 +54,27 @@ uv run ks ingest <file-or-dir>
 
 Supports `txt`, `md`, `pdf`, `docx`, `xlsx`, `pptx`, `png`, `jpg`, `jpeg`. Uses SHA256 + parser fingerprint for idempotency — re-ingesting the same file is a no-op. Image ingest requires local `tesseract`.
 
+### Daily update workflow
+
+```bash
+# initial build
+uv run ks ingest ./docs
+
+# daily update
+uv run ks update ./docs
+
+# preview changes first
+uv run ks update ./docs --dry-run
+
+# update and rebuild derived graph
+uv run ks update ./docs --profile derived-refresh
+
+# remove deleted sources
+uv run ks update ./docs --prune
+```
+
+`ingest` is for the initial runtime build; `update` is for daily synchronization. The authoritative source remains `source-root` / raw files, and update uses the manifest fingerprint to detect stale / new / missing sources. `watch` is the lower-level planning and automation API. Memory / agent event-sourcing is future scope, not part of this workflow.
+
 ### Query
 
 ```bash
