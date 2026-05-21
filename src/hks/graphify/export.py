@@ -974,7 +974,7 @@ def render_html(graph: GraphifyGraph) -> str:
       pauseButtonEl.textContent = '恢復模擬';
       perfNoteEl.classList.add('is-visible');
       nodes.forEach(n => { n.isFixed = true; });
-      setStatusLine(`<b>效能保護</b> · ${nodes.length} 個節點超過 ${AUTO_PAUSE_NODE_LIMIT}，已自動暫停力學模擬`);
+      setStatusLine({ strong: '效能保護' }, ` · ${nodes.length} 個節點超過 ${AUTO_PAUSE_NODE_LIMIT}，已自動暫停力學模擬`);
     }
 
     initFilters();
@@ -1162,10 +1162,10 @@ def render_html(graph: GraphifyGraph) -> str:
       this.textContent = isPaused ? '恢復模擬' : '暫停模擬';
       if (!isPaused) {
         nodes.forEach(n => { n.isFixed = false; });
-        setStatusLine('<b>模擬中</b> · 力學模擬已恢復');
+        setStatusLine({ strong: '模擬中' }, ' · 力學模擬已恢復');
       } else {
         nodes.forEach(n => { n.isFixed = true; });
-        setStatusLine('<b>已暫停</b> · 力學模擬已暫停');
+        setStatusLine({ strong: '已暫停' }, ' · 力學模擬已暫停');
       }
     });
 
@@ -1281,8 +1281,21 @@ def render_html(graph: GraphifyGraph) -> str:
       return null;
     }
 
-    function setStatusLine(html) {
-      statusLineEl.innerHTML = html;
+    function setStatusLine(...segments) {
+      statusLineEl.replaceChildren();
+      segments.forEach(segment => {
+        if (segment && typeof segment === 'object' && Object.prototype.hasOwnProperty.call(segment, 'strong')) {
+          const labelEl = document.createElement('b');
+          labelEl.textContent = segment.strong;
+          statusLineEl.appendChild(labelEl);
+          return;
+        }
+        statusLineEl.appendChild(document.createTextNode(segment));
+      });
+    }
+
+    function resetStatusLine() {
+      setStatusLine({ strong: '拖曳' }, '平移 · ', { strong: '滾輪' }, '縮放 · ', { strong: '點選' }, '節點或關係');
     }
 
     function hoverNode(targetNode) {
@@ -1297,7 +1310,7 @@ def render_html(graph: GraphifyGraph) -> str:
         const connected = d.edge.source === targetNode.id || d.edge.target === targetNode.id;
         d.line.style.opacity = connected ? 0.9 : 0.04;
       });
-      setStatusLine(`<b>停留</b> · ${escapeHtml(targetNode.id)} · ${escapeHtml(labelForKind(targetNode.kind))} · ${targetNode.degree} 個關聯`);
+      setStatusLine({ strong: '停留' }, ` · ${targetNode.id} · ${labelForKind(targetNode.kind)} · ${targetNode.degree} 個關聯`);
     }
 
     function unhoverNode() {
@@ -1305,7 +1318,7 @@ def render_html(graph: GraphifyGraph) -> str:
 
       nodeDOMs.forEach(d => { d.container.style.opacity = 1.0; });
       linkDOMs.forEach(d => { d.line.style.opacity = 0.4 * (d.edge.confidence_score || 1); });
-      setStatusLine('<b>拖曳</b>平移 · <b>滾輪</b>縮放 · <b>點選</b>節點或關係');
+      resetStatusLine();
     }
 
     function selectNode(d) {
@@ -1331,7 +1344,7 @@ def render_html(graph: GraphifyGraph) -> str:
       applyZoomTransform();
 
       renderNodeDetails(d);
-      setStatusLine(`<b>已選取</b> · ${escapeHtml(d.id)} · ${escapeHtml(labelForKind(d.kind))} · ${d.degree} 個關聯`);
+      setStatusLine({ strong: '已選取' }, ` · ${d.id} · ${labelForKind(d.kind)} · ${d.degree} 個關聯`);
     }
 
     function selectEdge(edge) {
@@ -1351,7 +1364,7 @@ def render_html(graph: GraphifyGraph) -> str:
       });
 
       renderEdgeDetails(edge);
-      setStatusLine(`<b>關係</b> · ${escapeHtml(edge.source)} → ${escapeHtml(edge.target)} · ${escapeHtml(edge.relation)}`);
+      setStatusLine({ strong: '關係' }, ` · ${edge.source} → ${edge.target} · ${edge.relation}`);
     }
 
     function clearSelection() {
@@ -1375,7 +1388,7 @@ def render_html(graph: GraphifyGraph) -> str:
         highlightCommunity(communities.find(c => c.community_id === activeCommunityId));
       } else {
         initDefaultRightSidebar();
-        setStatusLine('<b>拖曳</b>平移 · <b>滾輪</b>縮放 · <b>點選</b>節點或關係');
+        resetStatusLine();
       }
     }
 
@@ -1404,7 +1417,7 @@ def render_html(graph: GraphifyGraph) -> str:
       });
 
       renderCommunityDetails(community);
-      setStatusLine(`<b>社群</b> · ${escapeHtml(community.community_id)} · ${community.node_ids.length} 個節點`);
+      setStatusLine({ strong: '社群' }, ` · ${community.community_id} · ${community.node_ids.length} 個節點`);
     }
 
     function clearCommunityHighlight() {

@@ -124,6 +124,14 @@ def test_graphify_html_initial_layout_guards_empty_graphs() -> None:
     assert "idx / nodes.length" not in html
 
 
+def test_graphify_html_status_line_does_not_accept_html_strings() -> None:
+    html = render_html(_graph())
+
+    assert "function setStatusLine(...segments)" in html
+    assert "document.createTextNode(segment)" in html
+    assert "statusLineEl.innerHTML" not in html
+
+
 def test_graphify_html_keeps_payload_safe_for_untrusted_labels() -> None:
     unsafe = 'Project "</script><img src=x onerror=alert(1)>'
     html = render_html(
