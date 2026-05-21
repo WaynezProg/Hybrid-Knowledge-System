@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hmac
 from dataclasses import dataclass
+from pathlib import Path
 
 from starlette.middleware.base import RequestResponseEndpoint
 from starlette.requests import Request
@@ -12,6 +13,9 @@ from starlette.responses import JSONResponse, Response
 from hks.core.config import config_value
 
 DEFAULT_ALLOWED_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+HTTP_INGEST_BLOCKED_PATH_SEGMENTS = frozenset(
+    {".git", ".ssh", ".env", "node_modules", ".venv", "__pycache__"}
+)
 
 _MUTATING_POST_PATHS = frozenset(
     {
@@ -78,6 +82,95 @@ def _host_from_header(value: str | None) -> str | None:
             return None
         return hostname.rstrip(".").lower()
     return host.rstrip(".").lower()
+
+
+def parse_ingest_roots(value: str | None = None) -> dict[str, Path]:
+    configured = config_value("HKS_API_INGEST_ROOTS") if value is None else value
+    if not configured:
+        return {}
+
+    roots: dict[str, Path] = {}
+    for token in configured.split(","):
+        pair = token.strip()
+        if not pair:
+            continue
+        root_id, separator, root = pair.partition("=")
+        root_id = root_id.strip()
+        root = root.strip()
+        if not separator or not root_id or not root:
+            continue
+        roots[root_id] = Path(root).expanduser().resolve(strict=False)
+    return roots
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
+
+
+def _ingest_failure(status_code: int, code: str, message: str) -> HttpSecurityFailure:
+    return HttpSecurityFailure(
+        status_code=status_code,
+        code=code,
+        message=message,
+        details=[],
+    )
+
+
+def resolve_http_ingest_path(
+    *, path: str, source_root_id: str | None = None
+) -> Path | HttpSecurityFailure:
+    roots = parse_ingest_roots()
+    if not roots:
+        return _ingest_failure(
+            403,
+            "HTTP_INGEST_ROOTS_NOT_CONFIGURED",
+            "HKS_API_INGEST_ROOTS must be configured for HTTP ingest",
+        )
+
+    if source_root_id is None:
+        if len(roots) != 1:
+            return _ingest_failure(
+                400,
+                "HTTP_INGEST_SOURCE_ROOT_REQUIRED",
+                "source_root_id is required when multiple HTTP ingest roots are configured",
+            )
+        source_root = next(iter(roots.values()))
+    else:
+        if source_root_id not in roots:
+            return _ingest_failure(
+                400,
+                "HTTP_INGEST_SOURCE_ROOT_UNKNOWN",
+                "source_root_id is not configured for HTTP ingest",
+            )
+        source_root = roots[source_root_id]
+
+    relative_path = Path(path)
+    if relative_path.is_absolute():
+        return _ingest_failure(
+            400,
+            "HTTP_INGEST_PATH_FORBIDDEN",
+            "HTTP ingest path must be relative to a configured source root",
+        )
+
+    if any(part in {"..", *HTTP_INGEST_BLOCKED_PATH_SEGMENTS} for part in relative_path.parts):
+        return _ingest_failure(
+            400,
+            "HTTP_INGEST_PATH_FORBIDDEN",
+            "HTTP ingest path contains a forbidden segment",
+        )
+
+    resolved_path = (source_root / relative_path).resolve(strict=False)
+    if not _is_relative_to(resolved_path, source_root):
+        return _ingest_failure(
+            400,
+            "HTTP_INGEST_PATH_FORBIDDEN",
+            "HTTP ingest path escapes the configured source root",
+        )
+    return resolved_path
 
 
 def is_mutating_request(request: Request) -> bool:

@@ -14,7 +14,13 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from hks.adapters import core
-from hks.adapters.http_security import http_security_dispatch
+from hks.adapters.http_security import (
+    HTTP_INGEST_BLOCKED_PATH_SEGMENTS,
+    HttpSecurityFailure,
+    http_security_dispatch,
+    resolve_http_ingest_path,
+    security_error_response,
+)
 from hks.adapters.models import AdapterToolError
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
@@ -78,7 +84,29 @@ async def query_endpoint(request: Request) -> Response:
 
 
 async def ingest_endpoint(request: Request) -> Response:
-    return await _adapter_response(request, core.hks_ingest)
+    try:
+        payload = await _json(request)
+    except Exception as error:
+        return _usage_response(str(error))
+
+    source_root_id = payload.pop("source_root_id", None)
+    if source_root_id is not None and not isinstance(source_root_id, str):
+        return _usage_response("source_root_id must be a string")
+
+    path = payload.get("path")
+    if not isinstance(path, str):
+        return _usage_response("path must be a string")
+
+    resolved_path = resolve_http_ingest_path(path=path, source_root_id=source_root_id)
+    if isinstance(resolved_path, HttpSecurityFailure):
+        return security_error_response(resolved_path)
+    payload["path"] = str(resolved_path)
+
+    return _response(
+        core.hks_ingest,
+        **payload,
+        skip_dir_names=set(HTTP_INGEST_BLOCKED_PATH_SEGMENTS),
+    )
 
 
 async def lint_endpoint(request: Request) -> Response:

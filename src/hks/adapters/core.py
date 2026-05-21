@@ -174,6 +174,7 @@ def hks_ingest(
     pptx_notes: str = "include",
     ks_root: str | None = None,
     request_id: str | None = None,
+    skip_dir_names: set[str] | None = None,
 ) -> dict[str, Any]:
     payload = {"path": path, "prune": prune, "pptx_notes": pptx_notes, "ks_root": ks_root}
     try:
@@ -189,6 +190,7 @@ def hks_ingest(
         Path(path),
         prune=prune,
         pptx_notes=notes == "include",
+        skip_dir_names=skip_dir_names,
         ks_root=ks_root,
         request_id=request_id,
     )
