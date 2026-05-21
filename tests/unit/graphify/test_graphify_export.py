@@ -41,6 +41,13 @@ def _graph() -> GraphifyGraph:
     )
 
 
+def _graphify_payload(html: str) -> str:
+    return html.split('<script type="application/json" id="graphify-data">', 1)[1].split(
+        "</script>",
+        1,
+    )[0]
+
+
 def test_graphify_html_has_no_remote_dependency() -> None:
     html = render_html(_graph())
 
@@ -192,15 +199,20 @@ def test_graphify_html_keeps_payload_safe_for_untrusted_labels() -> None:
         )
     )
 
-    payload = html.split('<script type="application/json" id="graphify-data">', 1)[1].split(
-        "</script>",
-        1,
-    )[0]
-    data = json.loads(payload)
+    data = json.loads(_graphify_payload(html))
     assert data["nodes"][0]["label"] == unsafe
     assert "</script><img" not in html
     assert "<img src=x" not in html
     assert "onclick=\"selectNodeById" not in html
+
+
+def test_graphify_html_embeds_parseable_json_payload() -> None:
+    html = render_html(_graph())
+
+    data = json.loads(_graphify_payload(html))
+
+    assert data["nodes"][0]["id"] == "wiki:project-atlas"
+    assert data["communities"][0]["community_id"] == "community:001"
 
 
 def test_graphify_report_separates_evidence_counts() -> None:
