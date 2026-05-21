@@ -48,11 +48,12 @@ def _allowed_hosts() -> set[str]:
     configured = config_value("HKS_API_HOST_ALLOWLIST")
     if not configured:
         return set(DEFAULT_ALLOWED_HOSTS)
-    return {
-        host.strip().strip("[]").rstrip(".").lower()
-        for host in configured.split(",")
-        if host.strip()
-    }
+    hosts: set[str] = set()
+    for token in configured.split(","):
+        host = _host_from_header(token)
+        if host is not None:
+            hosts.add(host)
+    return hosts
 
 
 def _host_from_header(value: str | None) -> str | None:

@@ -74,6 +74,29 @@ def test_http_security_host_allowlist_override_replaces_defaults(
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
+    ("allowlist", "host"),
+    [
+        ("127.0.0.1:8766", "127.0.0.1:8766"),
+        ("localhost:8766", "localhost:8766"),
+        ("[::1]:8766", "[::1]:8766"),
+    ],
+)
+def test_http_security_host_allowlist_normalizes_host_header_forms(
+    allowlist: str,
+    host: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_ks_root: Path,
+) -> None:
+    monkeypatch.setenv("HKS_API_HOST_ALLOWLIST", allowlist)
+    _init_empty_runtime(tmp_ks_root)
+
+    response = TestClient(create_app()).post("/lint", json={}, headers={"host": host})
+
+    assert response.status_code not in {400, 401, 403}
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
     "path",
     [
         "/ingest",
