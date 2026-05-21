@@ -175,13 +175,34 @@ def resolve_ks_root(root: Path | str | None = None) -> Path:
     return (Path.cwd() / "ks").resolve(strict=False)
 ```
 
-- [ ] **Step 5: Run runtime context tests**
+- [ ] **Step 5: Remove module-level path constants from `paths.py`**
+
+`src/hks/core/paths.py` currently ends with:
+
+```python
+_DEFAULT_PATHS = runtime_paths()
+
+KS_ROOT = _DEFAULT_PATHS.root
+RAW_SOURCES_DIR = _DEFAULT_PATHS.raw_sources
+WIKI_DIR = _DEFAULT_PATHS.wiki
+WIKI_PAGES_DIR = _DEFAULT_PATHS.wiki_pages
+PAGE_TREES_DIR = _DEFAULT_PATHS.page_trees
+GRAPH_DIR = _DEFAULT_PATHS.graph_dir
+GRAPH_FILE = _DEFAULT_PATHS.graph_file
+VECTOR_DB_DIR = _DEFAULT_PATHS.vector_db
+MANIFEST_PATH = _DEFAULT_PATHS.manifest
+LOCK_PATH = _DEFAULT_PATHS.lock
+```
+
+These are evaluated at import-time and are process-global. Any code that imported them directly would bypass the contextvar entirely. Delete all 12 lines. Verified: no module in `src/` or `tests/` imports these constants — they are safe to remove.
+
+- [ ] **Step 6: Run runtime context tests**
 
 Run: `uv run pytest tests/unit/core/test_runtime_context.py -q`
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add src/hks/core/runtime_context.py src/hks/core/paths.py tests/unit/core/test_runtime_context.py
@@ -222,6 +243,8 @@ def test_hks_query_uses_scoped_ks_root_without_mutating_environment(
 
     assert payload["answer"] == "Atlas summary"
     assert core.os.environ["KS_ROOT"] == "/existing/root"
+    # scoped root must NOT appear in process environment
+    assert str(scoped_root.resolve(strict=False)) not in core.os.environ.get("KS_ROOT", "")
 ```
 
 - [ ] **Step 2: Run the updated adapter test to verify it fails**
@@ -350,29 +373,45 @@ def test_workspace_query_uses_context_without_env_mutation(monkeypatch, tmp_path
 
 @pytest.mark.integration
 def test_parallel_adapter_queries_keep_distinct_roots(monkeypatch, tmp_path) -> None:
+    """Verify contextvar isolation under true OS-thread concurrency.
+
+    Uses ThreadPoolExecutor so both calls run simultaneously in separate threads.
+    Each thread gets its own contextvar copy via run_in_executor's context
+    propagation, so they cannot overwrite each other's KS_ROOT.
+    anyio.gather does not exist in this project's anyio version, and async task
+    groups run coroutines sequentially (no true concurrency for sync code).
+    ThreadPoolExecutor is the correct tool to stress-test the contextvar boundary.
+    """
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+
     first_root = tmp_path / "first-ks"
     second_root = tmp_path / "second-ks"
-    seen: list[tuple[str, str]] = []
+    seen: dict[str, str] = {}
 
-    async def run_query(root, question):
-        def fake_query(q: str, *, writeback: str) -> QueryResponse:
-            seen.append((q, runtime_paths().root.as_posix()))
-            return _response(q)
+    def fake_query(q: str, *, writeback: str) -> QueryResponse:
+        seen[q] = runtime_paths().root.as_posix()
+        return _response(q)
 
-        monkeypatch.setattr(query_command, "run", fake_query)
-        return core.hks_query(question=question, writeback="no", ks_root=str(root))
+    monkeypatch.setattr(query_command, "run", fake_query)
 
-    first, second = anyio.run(
-        lambda: anyio.gather(
-            run_query(first_root, "first"),
-            run_query(second_root, "second"),
-        )
-    )
+    async def run_both() -> tuple[dict, dict]:
+        loop = asyncio.get_event_loop()
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            f1 = loop.run_in_executor(
+                pool, lambda: core.hks_query(question="first", writeback="no", ks_root=str(first_root))
+            )
+            f2 = loop.run_in_executor(
+                pool, lambda: core.hks_query(question="second", writeback="no", ks_root=str(second_root))
+            )
+            return await asyncio.gather(f1, f2)
+
+    first, second = anyio.run(run_both)
 
     assert first["answer"] == "first"
     assert second["answer"] == "second"
-    assert ("first", first_root.resolve(strict=False).as_posix()) in seen
-    assert ("second", second_root.resolve(strict=False).as_posix()) in seen
+    assert seen.get("first") == first_root.resolve(strict=False).as_posix()
+    assert seen.get("second") == second_root.resolve(strict=False).as_posix()
 ```
 
 - [ ] **Step 2: Run workspace test to verify it fails**
@@ -404,27 +443,7 @@ with scoped_ks_root(record.ks_root):
     return query_command.run(question, writeback=writeback)
 ```
 
-- [ ] **Step 4: Fix the parallel test helper if needed**
-
-If `anyio.gather` is unavailable in the installed anyio version, replace the test body with a task group:
-
-```python
-    results: dict[str, dict] = {}
-
-    async def runner(name: str, root, question: str) -> None:
-        results[name] = core.hks_query(question=question, writeback="no", ks_root=str(root))
-
-    async def run_both() -> None:
-        async with anyio.create_task_group() as tg:
-            tg.start_soon(runner, "first", first_root, "first")
-            tg.start_soon(runner, "second", second_root, "second")
-
-    anyio.run(run_both)
-    first = results["first"]
-    second = results["second"]
-```
-
-- [ ] **Step 5: Run runtime context integration tests**
+- [ ] **Step 4: Run runtime context integration tests**
 
 Run: `uv run pytest tests/integration/test_adapter_runtime_context.py -q`
 
@@ -531,8 +550,8 @@ def test_read_only_endpoint_does_not_require_token(monkeypatch) -> None:
 
     response = _client().post("/lint", headers=_host_headers(), json={})
 
-    assert response.status_code in {200, 400}
-    assert response.json()["error"]["code"] != "HTTP_AUTH_REQUIRED" if response.status_code == 400 else True
+    assert response.status_code != 401
+    assert response.status_code != 403
 ```
 
 - [ ] **Step 2: Run tests to verify they fail**
@@ -543,7 +562,7 @@ Expected: FAIL because `http_security.py` and middleware do not exist.
 
 - [ ] **Step 3: Add `HKS_API_*` config mappings**
 
-In `src/hks/core/config.py`, add to `ENV_TO_CONFIG`:
+In `src/hks/core/config.py`, add to `_KNOWN_ENV_PATHS`:
 
 ```python
     "HKS_API_TOKEN": ("api", "token"),
@@ -564,7 +583,6 @@ from __future__ import annotations
 import hmac
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -620,15 +638,15 @@ def _reject_browser_requests() -> bool:
     return raw not in {"0", "false", "no", "off"}
 
 
-async def _json_payload(request: Request) -> dict[str, Any]:
-    try:
-        payload = await request.json()
-    except Exception:
-        return {}
-    return payload if isinstance(payload, dict) else {}
+def is_mutating_request(request: Request) -> bool:
+    """Return True if this request targets a mutating endpoint.
 
-
-async def is_mutating_request(request: Request) -> bool:
+    /workspaces and /workspaces/{id} are treated as always-mutating regardless
+    of the action field in the body. This avoids consuming the request body in
+    middleware (which could interact with Starlette's body-caching) and closes
+    a gap where a malformed JSON body would default to 'list'/'show' and bypass
+    auth before hitting the endpoint's own parse error.
+    """
     path = request.url.path
     method = request.method.upper()
     if method not in {"POST", "PUT", "PATCH", "DELETE"}:
@@ -644,10 +662,8 @@ async def is_mutating_request(request: Request) -> bool:
         "/coord/handoff",
     }:
         return True
-    if path == "/workspaces":
-        return (await _json_payload(request)).get("action", "list") == "register"
-    if path.startswith("/workspaces/"):
-        return (await _json_payload(request)).get("action", "show") == "remove"
+    if path == "/workspaces" or path.startswith("/workspaces/"):
+        return True
     return False
 
 
@@ -656,7 +672,7 @@ async def guard_http_request(request: Request) -> HttpSecurityFailure | None:
     if host not in _allowed_hosts():
         return HttpSecurityFailure(400, "HTTP_HOST_FORBIDDEN", "Host header is not allowed")
 
-    mutating = await is_mutating_request(request)
+    mutating = is_mutating_request(request)
     if not mutating:
         return None
 
@@ -1019,6 +1035,8 @@ Pass it to `ingest_command.run`:
         skip_dir_names=skip_dir_names,
 ```
 
+> **Note on `validate_tool_input`**: `hks_ingest` calls `validate_tool_input("hks_ingest", ...)` before `_run_command`. After HTTP path resolution, `payload["path"]` is an absolute resolved path (e.g. `/Users/me/sources/atlas.md`). Verify that the `hks_ingest` JSON schema allows absolute paths — if the schema enforces relative paths, add `skip_dir_names` to the excluded fields or pass `path` outside `payload` validation.
+
 - [ ] **Step 6: Add directory-prune traversal to ingest pipeline**
 
 In `src/hks/ingest/pipeline.py`, add `import os`.
@@ -1116,7 +1134,7 @@ def test_http_adapter_query_ingest_lint_endpoints(monkeypatch, working_docs, tmp
     assert ingest.status_code == 200
 ```
 
-For read-only calls in the same test, pass `headers=_headers()` and `ks_root` in JSON.
+For read-only calls (`/query`, `/lint`) in the same test, pass `headers=_headers()` (Host only) and `ks_root` in JSON.
 
 - [ ] **Step 2: Update catalog HTTP workspace register test**
 
@@ -1130,7 +1148,7 @@ def _headers(token: str | None = None) -> dict[str, str]:
     return headers
 ```
 
-Change the test signature:
+Change the test signature to include `monkeypatch`:
 
 ```python
 def test_http_catalog_sources_and_workspace_query(monkeypatch, tmp_path, working_docs) -> None:
@@ -1152,6 +1170,23 @@ Pass headers:
             "registry_path": str(registry),
         },
     ).json()
+```
+
+Also update `test_http_catalog_error_uses_adapter_envelope` — the invalid workspace register call also needs a Host header and bearer token, otherwise the middleware will reject it with `HTTP_HOST_FORBIDDEN` before the validation error can fire:
+
+```python
+def test_http_catalog_error_uses_adapter_envelope(monkeypatch) -> None:
+    monkeypatch.setenv("HKS_API_TOKEN", "secret")
+    response = TestClient(create_app()).post(
+        "/workspaces",
+        headers={"host": "127.0.0.1", "authorization": "Bearer secret"},
+        json={"action": "register", "workspace_id": "../bad", "ks_root": "/tmp/ks"},
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["ok"] is False
+    assert payload["error"]["exit_code"] == 2
 ```
 
 - [ ] **Step 3: Search for remaining TestClient HTTP calls**
