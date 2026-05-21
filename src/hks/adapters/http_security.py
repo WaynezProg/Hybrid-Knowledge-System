@@ -16,9 +16,12 @@ DEFAULT_ALLOWED_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
 _MUTATING_POST_PATHS = frozenset(
     {
         "/ingest",
+        "/query",
+        "/pageindex/enrich",
         "/llm/classify",
         "/wiki/synthesize",
         "/graphify/build",
+        "/watch/scan",
         "/watch/run",
         "/coord/session",
         "/coord/lease",
@@ -32,18 +35,18 @@ class HttpSecurityFailure:
     status_code: int
     code: str
     message: str
-    details: dict[str, object]
+    details: list[str]
 
 
 def _parse_bool(value: str | None, *, default: bool) -> bool:
-    if value in (None, ""):
+    if not value:
         return default
     return value.strip().lower() not in {"0", "false", "no", "off"}
 
 
 def _allowed_hosts() -> set[str]:
     configured = config_value("HKS_API_HOST_ALLOWLIST")
-    if configured in (None, ""):
+    if not configured:
         return set(DEFAULT_ALLOWED_HOSTS)
     return {
         host.strip().strip("[]").rstrip(".").lower()
@@ -62,9 +65,17 @@ def _host_from_header(value: str | None) -> str | None:
         end = host.find("]")
         if end == -1:
             return None
+        remainder = host[end + 1 :]
+        if remainder and not (
+            remainder.startswith(":") and remainder[1:].isdigit()
+        ):
+            return None
         return host[1:end].lower()
     if host.count(":") == 1:
-        return host.rsplit(":", 1)[0].rstrip(".").lower()
+        hostname, port = host.rsplit(":", 1)
+        if not port.isdigit():
+            return None
+        return hostname.rstrip(".").lower()
     return host.rstrip(".").lower()
 
 
@@ -72,14 +83,17 @@ def is_mutating_request(request: Request) -> bool:
     if request.method.upper() != "POST":
         return False
 
-    path = request.url.path.rstrip("/") or "/"
+    path = str(request.scope.get("path", "")).rstrip("/") or "/"
     if path in _MUTATING_POST_PATHS:
         return True
     if path == "/workspaces":
         return True
     if path.startswith("/workspaces/"):
         suffix = path.removeprefix("/workspaces/")
-        return bool(suffix) and "/" not in suffix
+        parts = suffix.split("/")
+        if len(parts) == 1 and parts[0]:
+            return True
+        return len(parts) == 2 and bool(parts[0]) and parts[1] == "query"
     return False
 
 
@@ -102,7 +116,7 @@ def guard_http_request(request: Request) -> HttpSecurityFailure | None:
             status_code=400,
             code="HTTP_HOST_FORBIDDEN",
             message="Host header is not allowed",
-            details={"host": host},
+            details=[f"host={host}" if host is not None else "host=<invalid>"],
         )
 
     if not is_mutating_request(request):
@@ -114,7 +128,7 @@ def guard_http_request(request: Request) -> HttpSecurityFailure | None:
             status_code=403,
             code="HTTP_MUTATION_TOKEN_NOT_CONFIGURED",
             message="HKS_API_TOKEN must be configured for HTTP mutations",
-            details={},
+            details=[],
         )
     assert token is not None
 
@@ -123,7 +137,7 @@ def guard_http_request(request: Request) -> HttpSecurityFailure | None:
             status_code=401,
             code="HTTP_AUTH_REQUIRED",
             message="HTTP mutation requires Authorization: Bearer token",
-            details={},
+            details=[],
         )
 
     if _parse_bool(config_value("HKS_API_REJECT_BROWSER_REQUESTS"), default=True):
@@ -132,7 +146,7 @@ def guard_http_request(request: Request) -> HttpSecurityFailure | None:
                 status_code=403,
                 code="HTTP_BROWSER_REQUEST_FORBIDDEN",
                 message="Browser-style HTTP mutation requests are forbidden",
-                details={},
+                details=[],
             )
 
     return None
