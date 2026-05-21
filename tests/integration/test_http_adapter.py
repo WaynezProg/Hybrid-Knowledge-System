@@ -9,30 +9,52 @@ from hks.adapters.http_server import create_app
 from hks.core.schema import validate
 
 
+def _headers(token: str | None = None) -> dict[str, str]:
+    headers = {"host": "127.0.0.1"}
+    if token is not None:
+        headers["authorization"] = f"Bearer {token}"
+    return headers
+
+
 @pytest.mark.integration
-def test_http_adapter_query_ingest_lint_endpoints(working_docs) -> None:
+def test_http_adapter_query_ingest_lint_endpoints(working_docs, monkeypatch) -> None:
+    monkeypatch.setenv("HKS_API_TOKEN", "secret")
+    monkeypatch.setenv("HKS_API_INGEST_ROOTS", f"docs={working_docs.parent}")
     client = TestClient(create_app())
 
-    ingest = client.post("/ingest", json={"path": str(working_docs)})
+    ingest = client.post(
+        "/ingest",
+        json={"source_root_id": "docs", "path": working_docs.name},
+        headers=_headers("secret"),
+    )
     assert ingest.status_code == 200
     validate(ingest.json())
 
-    query = client.post("/query", json={"question": "Project Atlas summary"})
+    query = client.post(
+        "/query",
+        json={"question": "Project Atlas summary"},
+        headers=_headers("secret"),
+    )
     assert query.status_code == 200
     assert query.json()["source"] == ["wiki"]
     validate(query.json())
 
-    lint = client.post("/lint", json={})
+    lint = client.post("/lint", json={}, headers=_headers())
     assert lint.status_code == 200
     assert lint.json()["trace"]["steps"][0]["kind"] == "lint_summary"
     validate(lint.json())
 
 
 @pytest.mark.integration
-def test_http_adapter_maps_adapter_error_to_status_and_envelope() -> None:
+def test_http_adapter_maps_adapter_error_to_status_and_envelope(monkeypatch) -> None:
+    monkeypatch.setenv("HKS_API_TOKEN", "secret")
     client = TestClient(create_app())
 
-    response = client.post("/query", json={"question": "Project Atlas summary"})
+    response = client.post(
+        "/query",
+        json={"question": "Project Atlas summary"},
+        headers=_headers("secret"),
+    )
 
     assert response.status_code == 400
     payload = response.json()
@@ -45,7 +67,7 @@ def test_http_adapter_maps_adapter_error_to_status_and_envelope() -> None:
 def test_http_adapter_rejects_non_object_json_with_usage_envelope() -> None:
     client = TestClient(create_app())
 
-    response = client.post("/lint", json=[])
+    response = client.post("/lint", json=[], headers=_headers())
 
     assert response.status_code == 400
     payload = response.json()

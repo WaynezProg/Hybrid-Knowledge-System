@@ -32,8 +32,16 @@ def _detail(payload: dict[str, Any]) -> dict[str, Any]:
     return detail
 
 
+def _headers(token: str | None = None) -> dict[str, str]:
+    headers = {"host": "127.0.0.1"}
+    if token is not None:
+        headers["authorization"] = f"Bearer {token}"
+    return headers
+
+
 @pytest.mark.integration
-def test_llm_cli_mcp_http_details_are_semantically_equivalent(working_docs) -> None:
+def test_llm_cli_mcp_http_details_are_semantically_equivalent(working_docs, monkeypatch) -> None:
+    monkeypatch.setenv("HKS_API_TOKEN", "secret")
     core.hks_ingest(path=str(working_docs))
 
     cli_payload = core.hks_llm_classify(source_relpath="project-atlas.txt")
@@ -41,6 +49,7 @@ def test_llm_cli_mcp_http_details_are_semantically_equivalent(working_docs) -> N
     http_payload = TestClient(create_app()).post(
         "/llm/classify",
         json={"source_relpath": "project-atlas.txt"},
+        headers=_headers("secret"),
     ).json()
 
     assert _detail(cli_payload) == _detail(mcp_payload) == _detail(http_payload)

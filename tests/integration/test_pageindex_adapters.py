@@ -28,6 +28,13 @@ async def _call_tool(name: str, payload: dict[str, Any]) -> dict[str, Any]:
     return _tool_payload(await server.call_tool(name, payload))
 
 
+def _headers(token: str | None = None) -> dict[str, str]:
+    headers = {"host": "127.0.0.1"}
+    if token is not None:
+        headers["authorization"] = f"Bearer {token}"
+    return headers
+
+
 @pytest.mark.integration
 def test_pageindex_core_mcp_http_show_are_equivalent(working_docs) -> None:
     core.hks_ingest(path=str(working_docs))
@@ -38,7 +45,10 @@ def test_pageindex_core_mcp_http_show_are_equivalent(working_docs) -> None:
         "hks_pageindex_show",
         {"source_relpath": "project-atlas.txt"},
     )
-    http_payload = TestClient(create_app()).get("/pageindex/project-atlas.txt").json()
+    http_payload = TestClient(create_app()).get(
+        "/pageindex/project-atlas.txt",
+        headers=_headers(),
+    ).json()
 
     validate(core_payload)
     assert core_payload["trace"]["steps"][0]["kind"] == "pageindex_summary"
@@ -50,7 +60,8 @@ def test_pageindex_core_mcp_http_show_are_equivalent(working_docs) -> None:
 
 
 @pytest.mark.integration
-def test_pageindex_enrich_adapters_validate_choices(working_docs) -> None:
+def test_pageindex_enrich_adapters_validate_choices(working_docs, monkeypatch) -> None:
+    monkeypatch.setenv("HKS_API_TOKEN", "secret")
     core.hks_ingest(path=str(working_docs))
 
     payload = anyio.run(
@@ -65,6 +76,7 @@ def test_pageindex_enrich_adapters_validate_choices(working_docs) -> None:
     response = TestClient(create_app()).post(
         "/pageindex/enrich",
         json={"source_relpath": "project-atlas.txt", "provider": "unknown"},
+        headers=_headers("secret"),
     )
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "USAGE"
