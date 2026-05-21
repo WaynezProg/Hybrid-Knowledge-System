@@ -390,7 +390,7 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 
 ## 16. Runtime configuration
 
-常用環境變數不在本文件重複列完整清單，避免 drift。請以 [README.md#常用環境變數](../README.md#常用環境變數) 與 [README.en.md#useful-environment-variables](../README.en.md#useful-environment-variables) 為準。
+常用環境變數不在本文件重複列完整清單，避免 drift。請以 [README.md#設定](../README.md#設定) 與 [README.en.md#configuration](../README.en.md#configuration) 為準；完整說明見 [docs/configuration.md](./configuration.md)。
 
 檔案大小上限分三組：`HKS_MAX_FILE_MB` 管 `txt / md / pdf`，`HKS_OFFICE_MAX_FILE_MB` 管 Office，`HKS_IMAGE_MAX_FILE_MB` 管 image。
 

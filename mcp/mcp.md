@@ -26,5 +26,6 @@ uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
 
 - Query/ingest/lint: `hks_query`, `hks_ingest`, `hks_lint`
 - Catalog/workspace: `hks_source_*`, `hks_workspace_*`
+- PageIndex: `hks_pageindex_show`, `hks_pageindex_enrich`
 - LLM/wiki/graphify/watch: `hks_llm_classify`, `hks_wiki_synthesize`, `hks_graphify_build`, `hks_watch_*`
 - Coordination: `hks_coord_*`

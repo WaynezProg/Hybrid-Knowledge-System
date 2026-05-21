@@ -121,6 +121,28 @@
       }
     },
     {
+      "name": "hks_pageindex_show",
+      "description": "Show the page tree for a specific source.",
+      "required": ["source_relpath"],
+      "properties": {
+        "source_relpath": "string",
+        "ks_root": "string|null"
+      }
+    },
+    {
+      "name": "hks_pageindex_enrich",
+      "description": "Enrich page trees with LLM summaries.",
+      "required": [],
+      "properties": {
+        "source_relpath": "string|null",
+        "mode": "preview|store",
+        "provider": "fake|string",
+        "model": "string|null",
+        "force": "boolean",
+        "ks_root": "string|null"
+      }
+    },
+    {
       "name": "hks_llm_classify",
       "description": "Run LLM-assisted classification/extraction for one ingested source.",
       "required": ["source_relpath"],

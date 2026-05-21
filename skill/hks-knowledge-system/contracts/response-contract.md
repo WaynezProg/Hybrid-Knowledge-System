@@ -5,10 +5,17 @@ CLI success payloads share this top-level JSON shape:
 ```json
 {
   "answer": "...",
-  "source": ["wiki", "graph", "vector"],
-  "confidence": 0.0,
+  "source": ["wiki"],
+  "confidence": 0.88,
+  "evidence": [
+    {
+      "source_relpath": "atlas.txt",
+      "route": "wiki",
+      "quote": "original source snippet"
+    }
+  ],
   "trace": {
-    "route": "wiki|graph|vector",
+    "route": "wiki",
     "steps": []
   }
 }
@@ -16,26 +23,35 @@ CLI success payloads share this top-level JSON shape:
 
 ## Source Semantics
 
-`source` 只允許 stable HKS layers:
+`source` only allows stable HKS layers:
 
 ```text
 wiki
 graph
 vector
+page_tree
 ```
 
-不要新增 `graphify`、`watch`、`catalog`、`workspace` 到 top-level `source`。
+Do not add `graphify`, `watch`, `catalog`, or `workspace` to top-level `source`.
 
-## `source=[]` 不一定是 no-hit
+## Evidence
 
-必須依 command 解讀：
+`evidence[]` lists provenance for the winning candidate:
 
-- `ks query` 的 `source=[]` 才接近 no-hit / no usable source。
-- `ks llm classify --mode preview|store` 的 `source=[]` 表示產生 candidate artifact。
-- `ks wiki synthesize --mode preview|store` 的 `source=[]` 表示產生 candidate，不寫 authoritative wiki。
-- `ks watch scan|status` 的 `source=[]` 表示 operational state。
-- `ks source list|show` 的 `source=[]` 表示 catalog response。
+- Required fields: `source_relpath`, `route`, `quote`
+- Optional fields: `section_path` (vector / page_tree), `page_range` (PDF)
+- Evidence only describes the selected answer candidate, not all fused retrieval candidates
+
+## `source=[]` Is Not Always No-Hit
+
+Interpret by command:
+
+- `ks query` with `source=[]` is a genuine no-hit / no usable source.
+- `ks llm classify --mode preview|store` with `source=[]` means candidate artifact produced.
+- `ks wiki synthesize --mode preview|store` with `source=[]` means candidate produced, authoritative wiki untouched.
+- `ks watch scan|status` with `source=[]` means operational state.
+- `ks source list|show` with `source=[]` means catalog response.
 
 ## Adapter Error Boundary
 
-CLI 走 top-level HKS payload。MCP / HTTP adapter 錯誤 envelope 放在 `mcp/` 文件，不在 CLI skill 內展開。
+CLI uses top-level HKS payload. MCP / HTTP adapter error envelope is documented in `mcp/`; it is not part of the CLI skill contract.
