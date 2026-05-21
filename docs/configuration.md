@@ -105,7 +105,7 @@ LLM OpenAI-compatible provider、PageTree enrich、query reranker 都沿用同�
 - `HKS_API_REJECT_BROWSER_REQUESTS`：拒絕帶 `Origin` 或 `Sec-Fetch-Site` 的 mutating requests，預設 true。
 - `HKS_API_INGEST_ROOTS`：逗號分隔的 named source roots，例如 `docs=/Users/me/docs,shared=/Volumes/shared`。
 
-HTTP `/ingest` 只接受 `HKS_API_INGEST_ROOTS` 底下的 relative paths，request 需帶 `source_root_id` 與相對 `path`。CLI `ks ingest` 與 MCP `hks_ingest` 維持 local-tool path semantics，可由可信任 agent automation 使用任意本機路徑。
+HTTP `/ingest` 只接受 `HKS_API_INGEST_ROOTS` 底下的 relative paths。多個 ingest roots 時 request 必須帶 `source_root_id`；單一 root 時可省略，但建議明確帶。CLI `ks ingest` 與 MCP `hks_ingest` 維持 local-tool path semantics，可由可信任 agent automation 使用任意本機路徑。
 
 ## 啟用設定
 

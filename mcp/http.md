@@ -12,7 +12,7 @@ export HKS_API_INGEST_ROOTS='fixtures=/Users/me/hks/tests/fixtures'
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
-Set `HKS_API_TOKEN` before using mutating or writeback-capable endpoints. Set `HKS_API_INGEST_ROOTS` when HTTP clients need `/ingest`; HTTP ingest only accepts a configured `source_root_id` plus a relative `path`.
+Set `HKS_API_TOKEN` before using mutating or writeback-capable endpoints. Set `HKS_API_INGEST_ROOTS` when HTTP clients need `/ingest`; HTTP ingest only accepts relative paths under configured roots. `source_root_id` is required when multiple roots are configured and optional with one root, but explicit IDs are recommended.
 
 ## Common Requests
 

@@ -56,7 +56,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
 Default binding is loopback only. Do not use `--allow-non-loopback` unless the user explicitly accepts exposing the service outside the local machine.
-Mutating or writeback-capable HTTP endpoints require `Authorization: Bearer $HKS_API_TOKEN`. HTTP `/ingest` is allowlisted: it accepts `source_root_id` plus a relative `path` under `HKS_API_INGEST_ROOTS`. MCP `hks_ingest` and CLI `ks ingest` keep trusted local path semantics for arbitrary local paths.
+Mutating or writeback-capable HTTP endpoints require `Authorization: Bearer $HKS_API_TOKEN`. HTTP `/ingest` is allowlisted: it accepts relative paths under `HKS_API_INGEST_ROOTS`; `source_root_id` is required when multiple roots are configured and optional with one root, but explicit IDs are recommended. MCP `hks_ingest` and CLI `ks ingest` keep trusted local path semantics for arbitrary local paths.
 
 Implemented endpoint groups:
 
