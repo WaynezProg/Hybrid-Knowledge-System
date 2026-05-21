@@ -168,6 +168,8 @@ Route policy：
 
 `--writeback=yes` 仍是 explicit caller mutation，可以越過 auto eligibility，但 trace 必須標示 `"forced": true`。forced writeback 同時寫入 coordination `events.jsonl`，讓 `ks lint` 能偵測非自然回寫。
 
+> **Status:** Implemented — see `docs/superpowers/plans/2026-05-22-015-confidence-writeback-gate.md`.
+
 ### Rerank Trace Contract
 
 LLM rerank fallback 不再靜默。`merge` 或新增 `rerank` trace step 必須包含：

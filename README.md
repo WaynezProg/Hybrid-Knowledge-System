@@ -84,7 +84,7 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 所有 query 走 fused retrieval：同時從 wiki / graph / vector / page_tree 收集 candidates，以 LLM reranker 排序（無 API key 時 fallback RRF）。Response 包含 `evidence[]` 溯源。
 
 Write-back 模式：
-- `auto`（預設）：`confidence >= 0.75` 時自動寫回 wiki
+- `auto`（預設）：`writeback_eligible=true` 且 `calibrated_confidence >= 0.75` 時自動寫回 wiki
 - `yes` / `no`：強制 / 禁止
 - `ask`：TTY 互動詢問
 
@@ -191,6 +191,9 @@ uv run hks-api --host 127.0.0.1 --port 8766
   "answer": "...",
   "source": ["graph"],
   "confidence": 0.88,
+  "retrieval_score": 0.88,
+  "calibrated_confidence": 0.88,
+  "writeback_eligible": true,
   "evidence": [
     {"source_relpath": "atlas.txt", "route": "graph", "quote": "Atlas depends on Mobile Gateway..."}
   ],
@@ -201,12 +204,15 @@ uv run hks-api --host 127.0.0.1 --port 8766
       {"kind": "wiki_lookup", "detail": {"hit": false}},
       {"kind": "graph_lookup", "detail": {"hit": true, "relpaths": ["atlas.txt"]}},
       {"kind": "vector_lookup", "detail": {}},
+      {"kind": "rerank", "detail": {"strategy": "rrf", "status": "primary"}},
       {"kind": "merge", "detail": {"strategy": "rrf", "candidate_count": 3}}
     ]
   }
 }
 ```
 
+- `confidence`：raw retrieval score；`retrieval_score` 等值保留給未來遷移
+- `calibrated_confidence` + `writeback_eligible`：`auto` write-back 的實際 gate
 - `evidence[]`：溯源資訊，含 `source_relpath`、`route`、`quote`
 - `trace.steps`：pipeline 每一步的記錄
 - 無命中時 `source=[]`，仍 exit `0`
@@ -234,7 +240,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 | `HKS_LLM_PROVIDER` | `fake` | LLM provider；`openai` 需另設 API key |
 | `HKS_LLM_NETWORK_OPT_IN` | — | 設為 `1` 才允許非 fake provider |
 | `HKS_LLM_PROVIDER_OPENAI_API_KEY` | — | OpenAI API key |
-| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto write-back confidence 門檻 |
+| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto write-back calibrated confidence floor；仍需 `writeback_eligible=true` |
 | `HKS_WORKSPACE_REGISTRY` | user config path | Workspace registry JSON 路徑 |
 
 結構化設定檔用 `config/hks.yaml`（從 `config/hks.yaml.example` 複製）。讀取優先序：process env > `config/hks.env` > `config/hks.yaml` / `config/hks.json` > default。

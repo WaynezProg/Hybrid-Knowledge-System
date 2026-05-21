@@ -9,6 +9,25 @@ from hks.core.schema import validate
 
 
 @pytest.mark.contract
+def test_confidence_fields_optional_and_valid() -> None:
+    old_payload = {
+        "answer": "test",
+        "source": ["wiki"],
+        "confidence": 0.8,
+        "trace": {"route": "wiki", "steps": []},
+    }
+    validate(old_payload)
+
+    new_payload = {
+        **old_payload,
+        "retrieval_score": 0.8,
+        "calibrated_confidence": 0.8,
+        "writeback_eligible": True,
+    }
+    validate(new_payload)
+
+
+@pytest.mark.contract
 def test_office_queries_validate_against_phase2_contract(
     cli_runner, working_office_docs
 ) -> None:

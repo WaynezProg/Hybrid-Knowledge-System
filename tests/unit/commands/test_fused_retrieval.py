@@ -192,9 +192,10 @@ class TestRerankCandidates:
             Candidate(text="b", source_route="vector", score=0.5, metadata={}),
         ]
 
-        ranked, strategy = _rerank_candidates("question", candidates)
+        ranked, strategy, detail = _rerank_candidates("question", candidates)
 
         assert strategy == "rrf"
+        assert detail["strategy"] == "rrf"
         assert len(ranked) == 2
 
     def test_uses_rrf_when_api_key_set_without_network_opt_in(
@@ -213,10 +214,50 @@ class TestRerankCandidates:
             Candidate(text="b", source_route="vector", score=0.5, metadata={}),
         ]
 
-        ranked, strategy = _rerank_candidates("question", candidates)
+        ranked, strategy, detail = _rerank_candidates("question", candidates)
 
         assert strategy == "rrf"
+        assert detail["strategy"] == "rrf"
         assert [candidate.text for candidate in ranked] == ["a", "b"]
+
+
+class TestRerankTrace:
+    def test_rrf_strategy_returns_rrf_primary_detail(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        candidates = [
+            Candidate(text="a", source_route="wiki", score=1.0, metadata={}),
+        ]
+        ranked, strategy, rerank_detail = _rerank_candidates("q", candidates)
+
+        assert ranked[0].text == "a"
+        assert strategy == "rrf"
+        assert rerank_detail["strategy"] == "rrf"
+        assert rerank_detail["status"] == "primary"
+
+    def test_llm_fallback_captures_reason(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("HKS_LLM_NETWORK_OPT_IN", "1")
+        monkeypatch.setenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", "sk-test")
+
+        def mock_openai_chat(**_kwargs: object) -> object:
+            raise TimeoutError("mock timeout")
+
+        monkeypatch.setattr("hks.commands.query._openai_chat", mock_openai_chat)
+
+        candidates = [
+            Candidate(text="a", source_route="wiki", score=1.0, metadata={}),
+        ]
+        ranked, strategy, rerank_detail = _rerank_candidates("q", candidates)
+
+        assert ranked[0].text == "a"
+        assert strategy == "llm-rerank"
+        assert rerank_detail["strategy"] == "llm"
+        assert rerank_detail["status"] == "fallback"
+        assert rerank_detail["fallback_strategy"] == "rrf"
+        assert rerank_detail["reason"] == "openai_timeout"
 
 
 class TestCandidateEvidence:

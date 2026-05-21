@@ -4,12 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 import typer
 
 from hks.core.config import config_value
 from hks.storage.wiki import EventStatus
+
+if TYPE_CHECKING:
+    from hks.retrieval.confidence import ConfidenceAssessment
 
 type WritebackFlag = Literal["auto", "yes", "no", "ask"]
 type DecisionAction = Literal["commit", "decline", "skip-non-tty"]
@@ -19,6 +22,7 @@ type DecisionAction = Literal["commit", "decline", "skip-non-tty"]
 class Decision:
     action: DecisionAction
     status: EventStatus
+    forced: bool = False
 
 
 def prompt_user() -> bool:
@@ -32,16 +36,20 @@ def auto_threshold() -> float:
 def decide(
     flag: WritebackFlag,
     *,
-    confidence: float,
+    assessment: ConfidenceAssessment | None = None,
+    confidence: float | None = None,
     is_tty: bool,
     prompt: Callable[[], bool] | None = None,
 ) -> Decision:
     if flag == "yes":
-        return Decision(action="commit", status="committed")
+        return Decision(action="commit", status="forced-committed", forced=True)
     if flag == "no":
         return Decision(action="decline", status="declined")
     if flag == "auto":
-        if confidence >= auto_threshold():
+        if assessment is not None:
+            return _decide_auto_with_assessment(assessment)
+        raw_confidence = confidence if confidence is not None else 0.0
+        if raw_confidence >= auto_threshold():
             return Decision(action="commit", status="auto-committed")
         return Decision(action="decline", status="auto-skipped-low-confidence")
     if not is_tty:
@@ -50,3 +58,11 @@ def decide(
     if confirmed:
         return Decision(action="commit", status="committed")
     return Decision(action="decline", status="declined")
+
+
+def _decide_auto_with_assessment(assessment: ConfidenceAssessment) -> Decision:
+    if not assessment.writeback_eligible:
+        return Decision(action="decline", status="auto-skipped-ineligible")
+    if assessment.calibrated_confidence >= auto_threshold():
+        return Decision(action="commit", status="auto-committed")
+    return Decision(action="decline", status="auto-skipped-low-confidence")
