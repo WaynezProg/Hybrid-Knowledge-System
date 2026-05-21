@@ -962,8 +962,9 @@ def render_html(graph: GraphifyGraph) -> str:
     let width = canvasContainer.clientWidth || 800;
     let height = canvasContainer.clientHeight || 600;
 
+    const initialDenominator = Math.max(nodes.length, 1);
     nodes.forEach((n, idx) => {
-      const angle = (idx / nodes.length) * 2 * Math.PI;
+      const angle = (idx / initialDenominator) * 2 * Math.PI;
       const radius = 100 + Math.random() * 150;
       n.x = width / 2 + Math.cos(angle) * radius;
       n.y = height / 2 + Math.sin(angle) * radius;

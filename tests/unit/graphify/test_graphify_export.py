@@ -108,6 +108,22 @@ def test_graphify_html_auto_pauses_large_graphs() -> None:
     assert "id=\"perf-note\"" in html
 
 
+def test_graphify_html_initial_layout_guards_empty_graphs() -> None:
+    empty_graph = GraphifyGraph(
+        generated_at="2026-04-26T00:00:00+00:00",
+        input_layers=["wiki"],
+        nodes=[],
+        edges=[],
+        communities=[],
+    )
+
+    html = render_html(empty_graph)
+
+    assert "const initialDenominator = Math.max(nodes.length, 1);" in html
+    assert "idx / initialDenominator" in html
+    assert "idx / nodes.length" not in html
+
+
 def test_graphify_html_keeps_payload_safe_for_untrusted_labels() -> None:
     unsafe = 'Project "</script><img src=x onerror=alert(1)>'
     html = render_html(
