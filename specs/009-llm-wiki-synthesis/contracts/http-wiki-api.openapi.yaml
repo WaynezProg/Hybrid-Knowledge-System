@@ -10,6 +10,8 @@ paths:
     post:
       summary: Synthesize a wiki page candidate from an 008 extraction artifact
       operationId: wikiSynthesize
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -36,6 +38,11 @@ paths:
               schema:
                 $ref: "#/components/schemas/AdapterError"
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Local bearer token supplied through HKS_API_TOKEN for guarded HTTP operations.
   schemas:
     WikiSynthesizeRequest:
       type: object

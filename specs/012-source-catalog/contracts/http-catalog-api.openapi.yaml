@@ -62,6 +62,8 @@ paths:
   /workspaces:
     post:
       summary: List or register workspaces
+      security:
+        - BearerAuth: []
       requestBody:
         required: false
         content:
@@ -99,6 +101,8 @@ paths:
   /workspaces/{workspace_id}:
     post:
       summary: Show, remove, or use one workspace
+      security:
+        - BearerAuth: []
       parameters:
         - name: workspace_id
           in: path
@@ -129,6 +133,8 @@ paths:
   /workspaces/{workspace_id}/query:
     post:
       summary: Query one registered workspace
+      security:
+        - BearerAuth: []
       parameters:
         - name: workspace_id
           in: path
@@ -160,3 +166,9 @@ paths:
           description: Adapter error envelope
         "500":
           description: Adapter error envelope
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      description: Local bearer token supplied through HKS_API_TOKEN for guarded HTTP operations.
