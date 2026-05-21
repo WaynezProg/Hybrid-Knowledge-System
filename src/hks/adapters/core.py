@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, cast
 
@@ -112,7 +113,7 @@ def _run_command(
     **kwargs: Any,
 ) -> dict[str, Any]:
     try:
-        with scoped_ks_root(ks_root):
+        with nullcontext() if ks_root is None else scoped_ks_root(ks_root):
             response = cast(QueryResponse, handler(*args, **kwargs))
     except KSError as error:
         raise _to_adapter_error(error, request_id=request_id) from error
