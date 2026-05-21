@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from hks.core.config import config_value
+from hks.core.runtime_context import current_ks_root
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +28,10 @@ def resolve_ks_root(root: Path | str | None = None) -> Path:
 
     if root is not None:
         return Path(root).expanduser().resolve(strict=False)
+
+    scoped_root = current_ks_root()
+    if scoped_root is not None:
+        return scoped_root
 
     env_root = config_value("KS_ROOT")
     if env_root:
@@ -76,17 +81,3 @@ def runtime_paths(root: Path | str | None = None) -> RuntimePaths:
         manifest=ks_root / "manifest.json",
         lock=ks_root / ".lock",
     )
-
-
-_DEFAULT_PATHS = runtime_paths()
-
-KS_ROOT = _DEFAULT_PATHS.root
-RAW_SOURCES_DIR = _DEFAULT_PATHS.raw_sources
-WIKI_DIR = _DEFAULT_PATHS.wiki
-WIKI_PAGES_DIR = _DEFAULT_PATHS.wiki_pages
-PAGE_TREES_DIR = _DEFAULT_PATHS.page_trees
-GRAPH_DIR = _DEFAULT_PATHS.graph_dir
-GRAPH_FILE = _DEFAULT_PATHS.graph_file
-VECTOR_DB_DIR = _DEFAULT_PATHS.vector_db
-MANIFEST_PATH = _DEFAULT_PATHS.manifest
-LOCK_PATH = _DEFAULT_PATHS.lock
