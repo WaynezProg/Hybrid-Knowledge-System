@@ -55,7 +55,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 目前 runtime 已完成可執行的本地知識系統與 derived Graphify pipeline：
 
 * 已完成：來源 ingest 後同步更新 `wiki / graph / vector / page_tree / manifest`；修改來源後重跑 `ks ingest` 可依 hash / parser fingerprint 更新資料庫。
-* 已完成：query 會同時收集 wiki、graph、vector、page_tree candidates，再以 LLM rerank 或 RRF 排序；高 confidence 結果可 write-back 成 wiki page。
+* 已完成：query 會同時收集 wiki、graph、vector、page_tree candidates，再以 LLM rerank 或 RRF 排序；auto write-back 需同時通過 calibrated confidence 與 route-specific evidence eligibility。
 * 已完成：008 可對已 ingest source 產生 schema-validated LLM classification / summary / fact / entity / relation candidates，並可 explicit store 到 `$KS_ROOT/llm/extractions/`。
 * 已完成：009 可從 008 stored artifact 產生 wiki synthesis candidate，preview / store 預設不改 authoritative layers，只有 caller-explicit `apply` 會寫入 `wiki/` page、index 與 log。
 * 已完成：010 可從既有 wiki / graph / 008 / 009 lineage 產生 derived Graphify artifacts、community clustering、static HTML 與 audit report。
@@ -90,6 +90,9 @@ stdout 契約統一：
   "answer": "...",
   "source": ["wiki", "graph", "vector", "page_tree"],
   "confidence": 0.0,
+  "retrieval_score": 0.0,
+  "calibrated_confidence": 0.0,
+  "writeback_eligible": false,
   "trace": {
     "route": "wiki|graph|vector|page_tree",
     "steps": []
@@ -135,7 +138,7 @@ Source / route 語意對照：
 | `ks workspace register|list|show|remove|use` | `wiki` | `[]` | 管理 local workspace registry；不讀取 knowledge layer 作答 |
 | `ks workspace query` | `wiki\|graph\|vector\|page_tree` | `ks query` semantics | 先解析 workspace id 到 `KS_ROOT`，再委派既有 query |
 
-`ks query` 成功命中時可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector / page_tree evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
+`ks query` 成功命中時會輸出 `retrieval_score`、`calibrated_confidence`、`writeback_eligible`；`confidence` 保持 raw retrieval score 以維持 backward compatibility。命中時也可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector / page_tree evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
 
 ---
 
@@ -180,6 +183,7 @@ Source / route 語意對照：
 
 * `HKS_LLM_NETWORK_OPT_IN=1` 且有 OpenAI-compatible key 時，使用 LLM rerank
 * 未 explicit opt-in 或缺 credential 時，使用 deterministic RRF rerank
+* trace 會包含 `rerank` step；LLM rerank 失敗時會記錄 fallback reason
 * page_tree 只把有 LLM-enriched summary 的 section node 作為候選；裸標題仍主要由 wiki / vector 覆蓋
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
 
@@ -190,12 +194,12 @@ Source / route 語意對照：
 ### 目前行為
 
 * 預設模式：`auto`
-* `confidence >= HKS_WRITEBACK_AUTO_THRESHOLD`（預設 `0.75`）→ 自動回寫 wiki
+* `writeback_eligible=true` 且 `calibrated_confidence >= HKS_WRITEBACK_AUTO_THRESHOLD`（預設 `0.75`）→ 自動回寫 wiki
 * `--writeback=no` → 禁用
-* `--writeback=yes` → 強制回寫
+* `--writeback=yes` → 強制回寫，trace 標示 `forced=true`，並寫入 coordination `events.jsonl`
 * `--writeback=ask` → 舊互動模式，相容保留
 
-自動 write-back page 會帶 `## Related`，連回本次答案涉及的既有 wiki pages。
+`wiki` route 預設不具 auto write-back eligibility；需使用 explicit `--writeback=yes` 才會把既有 wiki 回答再沉澱成新頁面。自動 write-back page 會帶 `## Related`，連回本次答案涉及的既有 wiki pages。
 
 ---
 

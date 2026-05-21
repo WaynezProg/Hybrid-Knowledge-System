@@ -33,8 +33,9 @@ def test_rerank_eval(case: dict) -> None:
         for c in case["candidates"]
     ]
 
-    ranked = _llm_rerank(case["question"], candidates)
+    ranked, detail = _llm_rerank(case["question"], candidates)
 
+    assert detail["strategy"] in {"llm", "rrf"}
     assert ranked[0].source_route == case["expected_top_route"], (
         f"Expected top route {case['expected_top_route']}, got {ranked[0].source_route}"
     )

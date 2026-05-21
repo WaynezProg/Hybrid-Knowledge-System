@@ -13,8 +13,8 @@ from hks.writeback.gate import WritebackFlag, decide
     [
         ("auto", 0.9, False, "auto-committed"),
         ("auto", 0.2, False, "auto-skipped-low-confidence"),
-        ("yes", 0.1, True, "committed"),
-        ("yes", 0.1, False, "committed"),
+        ("yes", 0.1, True, "forced-committed"),
+        ("yes", 0.1, False, "forced-committed"),
         ("no", 0.9, True, "declined"),
         ("no", 0.9, False, "declined"),
         ("ask", 0.9, False, "skip-non-tty"),
@@ -29,6 +29,8 @@ def test_decide_without_prompt(flag: str, confidence: float, is_tty: bool, expec
     )
 
     assert decision.status == expected
+    if flag == "yes":
+        assert decision.forced is True
 
 
 @pytest.mark.unit

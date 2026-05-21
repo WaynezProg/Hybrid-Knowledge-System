@@ -50,6 +50,8 @@ agent 或使用者執行 query 時，routing 不再只是直接 keyword if/else�
 
 ### User Story 3 — 高 Confidence 預設自動 Write-back（Priority: P2）
 
+> Post-merge note: 015-confidence-writeback-gate supersedes this story's confidence-only auto write-back rule. Current auto write-back requires `writeback_eligible=true` and `calibrated_confidence >= HKS_WRITEBACK_AUTO_THRESHOLD`; `--writeback=yes` remains the explicit forced mutation path.
+
 使用者在不顯式指定 `--writeback` 的情況下，對高 confidence 問題執行 query，系統會自動寫回 wiki，並在新頁面加上 related cross-links。
 
 **Why this priority**：這是原始 Phase 2 定義的一部分，但即使不做，也不影響 graph query 本身，所以列 P2。

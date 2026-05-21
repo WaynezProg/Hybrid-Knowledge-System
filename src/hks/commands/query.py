@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import cast
+
+import httpx
 
 from hks.core.manifest import Manifest, resume_or_rebuild, utc_now_iso
 from hks.core.paths import runtime_paths
@@ -14,8 +17,10 @@ from hks.core.schema import QueryResponse, Route, Trace, TraceStep
 from hks.errors import ExitCode, KSError
 from hks.graph.query import answer_query
 from hks.graph.store import GraphStore
+from hks.llm.providers import _openai_chat
 from hks.page_tree.model import TreeNode
 from hks.page_tree.store import TreeStore
+from hks.retrieval.confidence import ConfidenceAssessment, assess
 from hks.routing.router import route as route_query
 from hks.routing.rules import load_rules
 from hks.storage.vector import SearchHit, VectorStore
@@ -369,6 +374,7 @@ def _collect_graph_candidates(
             score=graph_result.confidence,
             metadata={
                 "relpaths": graph_result.relpaths,
+                "edge_ids": graph_result.edge_ids,
                 "evidence_by_relpath": evidence_by_relpath,
             },
         )
@@ -522,16 +528,25 @@ def _rrf_rerank(candidates: list[Candidate], *, k: int = 60) -> list[Candidate]:
 def _llm_rerank(
     question: str,
     candidates: list[Candidate],
-) -> list[Candidate]:
+) -> tuple[list[Candidate], dict[str, object]]:
     from hks.core.config import config_value
     from hks.llm.config import hosted_provider_ready
-    from hks.llm.providers import _openai_chat
 
     if not hosted_provider_ready("openai"):
-        return _rrf_rerank(candidates)
+        return _rrf_rerank(candidates), {
+            "strategy": "rrf",
+            "status": "fallback",
+            "fallback_strategy": "rrf",
+            "reason": "provider_not_ready",
+        }
     api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
     if not api_key:
-        return _rrf_rerank(candidates)
+        return _rrf_rerank(candidates), {
+            "strategy": "rrf",
+            "status": "fallback",
+            "fallback_strategy": "rrf",
+            "reason": "credential_missing",
+        }
     endpoint = config_value("HKS_LLM_PROVIDER_OPENAI_ENDPOINT") or "https://api.openai.com/v1"
     model = config_value("HKS_LLM_MODEL") or "gpt-4o-mini"
 
@@ -563,9 +578,11 @@ def _llm_rerank(
             messages=messages,
             timeout=30,
         )
+        if not isinstance(result, dict):
+            raise ValueError("rerank response is not an object")
         ranking = result.get("ranking", [])
         if not isinstance(ranking, list):
-            return _rrf_rerank(candidates)
+            raise TypeError("rerank response missing ranking list")
 
         ranked: list[Candidate] = []
         seen: set[int] = set()
@@ -583,22 +600,39 @@ def _llm_rerank(
         for i, c in enumerate(capped):
             if i not in seen:
                 ranked.append(c)
-        return ranked
-    except Exception:
-        return _rrf_rerank(candidates)
+        return ranked, {"strategy": "llm", "status": "success"}
+    except Exception as exc:
+        return _rrf_rerank(candidates), {
+            "strategy": "llm",
+            "status": "fallback",
+            "fallback_strategy": "rrf",
+            "reason": _classify_rerank_error(exc),
+        }
+
+
+def _classify_rerank_error(exc: Exception) -> str:
+    if isinstance(exc, TimeoutError):
+        return "openai_timeout"
+    if isinstance(exc, httpx.HTTPStatusError):
+        return "openai_http_error"
+    if isinstance(exc, json.JSONDecodeError):
+        return "openai_invalid_json"
+    if isinstance(exc, (KeyError, IndexError, TypeError, ValueError)):
+        return "openai_invalid_ranking"
+    return "unexpected_error"
 
 
 def _rerank_candidates(
     question: str,
     candidates: list[Candidate],
-) -> tuple[list[Candidate], str]:
+) -> tuple[list[Candidate], str, dict[str, object]]:
     from hks.llm.config import hosted_provider_ready
 
     if hosted_provider_ready("openai"):
-        ranked = _llm_rerank(question, candidates)
-        return ranked, "llm-rerank"
+        ranked, detail = _llm_rerank(question, candidates)
+        return ranked, "llm-rerank", detail
     ranked = _rrf_rerank(candidates)
-    return ranked, "rrf"
+    return ranked, "rrf", {"strategy": "rrf", "status": "primary"}
 
 
 def run(question: str, *, writeback: str = "auto") -> QueryResponse:
@@ -661,7 +695,8 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
             question=question, response=response, writeback=writeback, wiki_store=wiki_store
         )
 
-    ranked, strategy = _rerank_candidates(question, all_candidates)
+    ranked, strategy, rerank_detail = _rerank_candidates(question, all_candidates)
+    steps.append(TraceStep(kind="rerank", detail=rerank_detail))
     steps.append(
         TraceStep(
             kind="merge",
@@ -678,15 +713,30 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
 
     winner = ranked[0]
 
+    evidence = _candidate_evidence(winner)
+    assessment = assess(
+        route=winner.source_route,
+        raw_score=winner.score,
+        evidence=evidence,
+        metadata=dict(winner.metadata),
+    )
+
     response = QueryResponse(
         answer=winner.text,
         source=[winner.source_route],
         confidence=winner.score,
         trace=Trace(route=winner.source_route, steps=steps),
-        evidence=_candidate_evidence(winner),
+        evidence=evidence,
+        retrieval_score=assessment.retrieval_score,
+        calibrated_confidence=assessment.calibrated_confidence,
+        writeback_eligible=assessment.writeback_eligible,
     )
     return _maybe_writeback(
-        question=question, response=response, writeback=writeback, wiki_store=wiki_store
+        question=question,
+        response=response,
+        writeback=writeback,
+        wiki_store=wiki_store,
+        assessment=assessment,
     )
 
 
@@ -696,6 +746,7 @@ def _maybe_writeback(
     response: QueryResponse,
     writeback: str,
     wiki_store: WikiStore,
+    assessment: ConfidenceAssessment | None = None,
 ) -> QueryResponse:
     if not response.source:
         response.trace.steps.append(
@@ -705,6 +756,7 @@ def _maybe_writeback(
 
     decision = decide(
         cast(WritebackFlag, writeback),
+        assessment=assessment,
         confidence=response.confidence,
         is_tty=sys.stdout.isatty(),
     )
@@ -718,8 +770,11 @@ def _maybe_writeback(
                     status=decision.status,
                     context=context,
                     wiki_store=wiki_store,
+                    forced=decision.forced,
                 )
             )
+            if decision.forced:
+                _record_forced_writeback_event(question=question, response=response)
         except Exception as exc:
             response.trace.steps.append(
                 TraceStep(kind="writeback", detail={"status": "failed", "error": str(exc)})
@@ -733,12 +788,16 @@ def _maybe_writeback(
             ) from exc
         return response
 
-    if decision.status in {"declined", "auto-skipped-low-confidence"}:
+    if decision.status in {
+        "declined",
+        "auto-skipped-ineligible",
+        "auto-skipped-low-confidence",
+    }:
         wiki_store.append_log(
             LogEntry(
                 timestamp=utc_now_iso(),
                 event="writeback",
-                status="declined",
+                status=decision.status,
                 query=question,
                 route=response.trace.route,
                 source=response.source,
@@ -747,6 +806,27 @@ def _maybe_writeback(
         )
     response.trace.steps.append(TraceStep(kind="writeback", detail={"status": decision.status}))
     return response
+
+
+def _record_forced_writeback_event(*, question: str, response: QueryResponse) -> None:
+    try:
+        from hks.coordination.store import CoordinationStore
+
+        CoordinationStore(runtime_paths()).append_events(
+            [
+                {
+                    "type": "forced_writeback",
+                    "timestamp": utc_now_iso(),
+                    "query": question,
+                    "route": response.trace.route,
+                    "confidence": response.confidence,
+                    "calibrated_confidence": response.calibrated_confidence,
+                    "writeback_eligible": response.writeback_eligible,
+                }
+            ]
+        )
+    except Exception:
+        return
 
 
 def _build_writeback_context(response: QueryResponse, wiki_store: WikiStore) -> WritebackContext:

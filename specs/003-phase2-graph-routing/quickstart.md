@@ -24,5 +24,5 @@ tail -n 20 "$KS_ROOT/wiki/log.md"
 
 - relation query 回 `trace.route="graph"`
 - `graph/graph.json` 存在
-- summary query 預設觸發 `auto-committed`
+- 015 之後，summary query 若命中 wiki route，預設會觸發 `auto-skipped-ineligible`；需 `--writeback=yes` 才會 forced write-back
 - 新 write-back page 含 `## Related`

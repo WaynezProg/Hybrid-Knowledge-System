@@ -20,6 +20,7 @@ type TraceKind = Literal[
     "vector_lookup",
     "page_tree_lookup",
     "fallback",
+    "rerank",
     "merge",
     "writeback",
     "error",
@@ -64,6 +65,9 @@ class QueryResponse:
     confidence: float
     trace: Trace
     evidence: list[dict[str, Any]] = field(default_factory=list)
+    retrieval_score: float | None = None
+    calibrated_confidence: float | None = None
+    writeback_eligible: bool | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -74,6 +78,12 @@ class QueryResponse:
         }
         if self.evidence:
             payload["evidence"] = self.evidence
+        if self.retrieval_score is not None:
+            payload["retrieval_score"] = self.retrieval_score
+        if self.calibrated_confidence is not None:
+            payload["calibrated_confidence"] = self.calibrated_confidence
+        if self.writeback_eligible is not None:
+            payload["writeback_eligible"] = self.writeback_eligible
         return payload
 
     def to_json(self) -> str:

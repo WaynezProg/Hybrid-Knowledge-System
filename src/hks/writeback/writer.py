@@ -20,6 +20,7 @@ def commit(
     status: EventStatus = "committed",
     context: WritebackContext | None = None,
     wiki_store: WikiStore | None = None,
+    forced: bool = False,
 ) -> list[TraceStep]:
     store = wiki_store or WikiStore()
     related_pages = _related_pages(store, context)
@@ -49,17 +50,15 @@ def commit(
             confidence=response.confidence,
         )
     )
-    return [
-        TraceStep(
-            kind="writeback",
-            detail={
-                "status": status,
-                "slug": page.slug,
-                "path": f"pages/{page.slug}.md",
-                "related": [related.slug for related in related_pages],
-            },
-        )
-    ]
+    detail: dict[str, object] = {
+        "status": status,
+        "slug": page.slug,
+        "path": f"pages/{page.slug}.md",
+        "related": [related.slug for related in related_pages],
+    }
+    if forced:
+        detail["forced"] = True
+    return [TraceStep(kind="writeback", detail=detail)]
 
 
 def _related_pages(store: WikiStore, context: WritebackContext | None) -> list[WikiPage]:
