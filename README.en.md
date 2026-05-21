@@ -1,5 +1,7 @@
 # Hybrid Knowledge System (HKS)
 
+[![ci](https://github.com/WaynezProg/Hybrid-Knowledge-System/actions/workflows/ci.yml/badge.svg)](https://github.com/WaynezProg/Hybrid-Knowledge-System/actions/workflows/ci.yml)
+
 [繁體中文](./README.md)
 
 Hybrid Knowledge System is a CLI-first, domain-agnostic knowledge system. The current runtime has completed Phase 1-3 and 008-012: ingest supports `txt / md / pdf / docx / xlsx / pptx / png / jpg / jpeg`, query uses fused retrieval to collect candidates from wiki / graph / vector / page_tree simultaneously and rank them with an LLM reranker (RRF fallback when no API key), high-confidence answers auto write back by default, and the system ships image ingest, the lint system, multi-agent coordination, local MCP / HTTP adapters, LLM-assisted classification/extraction, LLM-assisted wiki synthesis, derived Graphify artifacts, a bounded watch/re-ingest workflow, and source catalog / workspace selection.
