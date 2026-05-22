@@ -1,114 +1,61 @@
-"""Unit tests for _build_writeback_context evidence collection."""
+"""Unit tests for query writeback queue item construction."""
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
-from hks.commands.query import _build_writeback_context
-from hks.core.paths import runtime_paths
-from hks.core.schema import QueryResponse, Trace, TraceStep
-from hks.storage.wiki import WikiStore
+from hks.commands.query import _build_queue_item
+from hks.core.schema import QueryResponse, Trace
+from hks.retrieval.confidence import ConfidenceAssessment
 
 
-def _make_response(
-    *,
-    steps: list[TraceStep] | None = None,
-    evidence: list[dict[str, object]] | None = None,
-) -> QueryResponse:
+def _make_response() -> QueryResponse:
     return QueryResponse(
         answer="test answer",
         source=["wiki"],
         confidence=0.9,
-        trace=Trace(route="wiki", steps=steps or []),
-        evidence=evidence or [],
-    )
-
-
-@pytest.mark.unit
-def test_writeback_context_collects_relpaths_from_trace_steps(tmp_ks_root: Path) -> None:
-    store = WikiStore(runtime_paths(tmp_ks_root))
-    store.write_page(
-        title="Atlas",
-        summary="atlas summary",
-        body="# Atlas\n\ncontent",
-        source_relpath="atlas.txt",
-        origin="ingest",
-    )
-    response = _make_response(
-        steps=[
-            TraceStep(
-                kind="wiki_lookup",
-                detail={"hit": True, "slug": "atlas", "source_relpath": "atlas.txt"},
-            ),
-        ],
-    )
-    context = _build_writeback_context(response, store)
-    assert "atlas" in context.related_slugs
-
-
-@pytest.mark.unit
-def test_writeback_context_collects_relpaths_from_evidence(tmp_ks_root: Path) -> None:
-    """Evidence items (e.g. from page_tree winners) must contribute to related slugs."""
-    store = WikiStore(runtime_paths(tmp_ks_root))
-    store.write_page(
-        title="Atlas",
-        summary="atlas summary",
-        body="# Atlas\n\ncontent",
-        source_relpath="atlas.txt",
-        origin="ingest",
-    )
-    response = _make_response(
+        trace=Trace(route="wiki", steps=[]),
         evidence=[
-            {"source_relpath": "atlas.txt", "route": "page_tree", "quote": "some text"},
+            {"source_relpath": "atlas.txt", "route": "wiki", "quote": "atlas"},
         ],
+        retrieval_score=0.9,
+        writeback_eligible=False,
     )
-    context = _build_writeback_context(response, store)
-    assert "atlas" in context.related_slugs
 
 
 @pytest.mark.unit
-def test_writeback_context_deduplicates_trace_and_evidence(tmp_ks_root: Path) -> None:
-    """Same relpath from both trace step and evidence should only produce one slug."""
-    store = WikiStore(runtime_paths(tmp_ks_root))
-    store.write_page(
-        title="Atlas",
-        summary="atlas summary",
-        body="# Atlas\n\ncontent",
-        source_relpath="atlas.txt",
-        origin="ingest",
+def test_build_queue_item_copies_query_response_fields() -> None:
+    assessment = ConfidenceAssessment(
+        retrieval_score=0.9,
+        confidence=0.9,
+        writeback_eligible=False,
+        reasons=["wiki route: auto writeback ineligible (use --writeback=yes)"],
     )
-    response = _make_response(
-        steps=[
-            TraceStep(
-                kind="vector_lookup",
-                detail={"source_relpath": "atlas.txt"},
-            ),
-        ],
-        evidence=[
-            {"source_relpath": "atlas.txt", "route": "page_tree", "quote": "text"},
-        ],
+
+    item = _build_queue_item(
+        question="summary Atlas",
+        response=_make_response(),
+        assessment=assessment,
     )
-    context = _build_writeback_context(response, store)
-    assert context.related_slugs.count("atlas") == 1
+
+    assert item.question == "summary Atlas"
+    assert item.answer == "test answer"
+    assert item.route == "wiki"
+    assert item.source == ["wiki"]
+    assert item.evidence == [{"quote": "atlas", "route": "wiki", "source_relpath": "atlas.txt"}]
+    assert item.retrieval_score == 0.9
+    assert item.writeback_eligible is False
+    assert item.reasons == ["wiki route: auto writeback ineligible (use --writeback=yes)"]
 
 
 @pytest.mark.unit
-def test_writeback_context_handles_empty_evidence(tmp_ks_root: Path) -> None:
-    store = WikiStore(runtime_paths(tmp_ks_root))
-    response = _make_response()
-    context = _build_writeback_context(response, store)
-    assert context.related_slugs == []
-
-
-@pytest.mark.unit
-def test_writeback_context_skips_evidence_without_source_relpath(tmp_ks_root: Path) -> None:
-    store = WikiStore(runtime_paths(tmp_ks_root))
-    response = _make_response(
-        evidence=[
-            {"route": "graph", "quote": "some text"},  # no source_relpath
-        ],
+def test_build_queue_item_uses_response_values_when_assessment_missing() -> None:
+    item = _build_queue_item(
+        question="summary Atlas",
+        response=_make_response(),
+        assessment=None,
     )
-    context = _build_writeback_context(response, store)
-    assert context.related_slugs == []
+
+    assert item.retrieval_score == 0.9
+    assert item.writeback_eligible is False
+    assert item.reasons == []
