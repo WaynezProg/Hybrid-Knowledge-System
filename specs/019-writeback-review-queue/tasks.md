@@ -78,12 +78,12 @@
 
 **Purpose**: Add reviewer-facing queue management.
 
-- [ ] T035 Create `tests/unit/commands/test_writeback_cli.py` for list/show/approve/reject JSON shape and missing-id errors
-- [ ] T036 Create `src/hks/commands/writeback.py` with `list_pending`, `show`, `approve`, and `reject` handlers returning `QueryResponse`
-- [ ] T037 Register `writeback_app` in `src/hks/cli.py`
-- [ ] T038 Add CLI subcommands `ks writeback list`, `ks writeback show <id>`, `ks writeback approve <id>`, and `ks writeback reject <id>`
-- [ ] T039 Update `tests/contract/test_exit_codes.py` for missing writeback id error payload and exit code `66`
-- [ ] T040 Run `uv run pytest tests/unit/commands/test_writeback_cli.py tests/contract/test_exit_codes.py -q`
+- [x] T035 Create `tests/unit/commands/test_writeback_cli.py` for list/show/approve/reject JSON shape and missing-id errors
+- [x] T036 Create `src/hks/commands/writeback.py` with `list_pending`, `show`, `approve`, and `reject` handlers returning `QueryResponse`
+- [x] T037 Register `writeback_app` in `src/hks/cli.py`
+- [x] T038 Add CLI subcommands `ks writeback list`, `ks writeback show <id>`, `ks writeback approve <id>`, and `ks writeback reject <id>`
+- [x] T039 Update `tests/contract/test_exit_codes.py` for missing writeback id error payload and exit code `66`
+- [x] T040 Run `uv run pytest tests/unit/commands/test_writeback_cli.py tests/contract/test_exit_codes.py -q`
 
 **Checkpoint**: Queue can be reviewed and decided entirely through CLI.
 
