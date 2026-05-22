@@ -23,6 +23,7 @@ from hks.commands import update as update_command
 from hks.commands import watch as watch_command
 from hks.commands import wiki as wiki_command
 from hks.commands import workspace as workspace_command
+from hks.commands import writeback as writeback_command
 from hks.core.schema import QueryResponse, Route, build_error_response
 from hks.errors import ExitCode, KSError
 from hks.lint.models import FixMode, SeverityThreshold
@@ -40,6 +41,7 @@ watch_app = typer.Typer(add_completion=False, no_args_is_help=True)
 pageindex_app = typer.Typer(add_completion=False, no_args_is_help=True)
 source_app = typer.Typer(add_completion=False, no_args_is_help=True)
 workspace_app = typer.Typer(add_completion=False, no_args_is_help=True)
+writeback_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_session_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_lease_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_handoff_app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -54,6 +56,7 @@ app.add_typer(watch_app, name="watch")
 app.add_typer(pageindex_app, name="pageindex")
 app.add_typer(source_app, name="source")
 app.add_typer(workspace_app, name="workspace")
+app.add_typer(writeback_app, name="writeback")
 
 
 class WritebackMode(StrEnum):
@@ -315,6 +318,32 @@ def source_show(
     ] = None,
 ) -> None:
     run_command("source show", source_command.run_show, relpath, ks_root=ks_root)
+
+
+@writeback_app.command("list")
+def writeback_list() -> None:
+    run_command("writeback list", writeback_command.run_list)
+
+
+@writeback_app.command("show")
+def writeback_show(
+    item_id: Annotated[str, typer.Argument(help="Pending writeback queue item id.")],
+) -> None:
+    run_command("writeback show", writeback_command.run_show, item_id)
+
+
+@writeback_app.command("approve")
+def writeback_approve(
+    item_id: Annotated[str, typer.Argument(help="Pending writeback queue item id.")],
+) -> None:
+    run_command("writeback approve", writeback_command.run_approve, item_id)
+
+
+@writeback_app.command("reject")
+def writeback_reject(
+    item_id: Annotated[str, typer.Argument(help="Pending writeback queue item id.")],
+) -> None:
+    run_command("writeback reject", writeback_command.run_reject, item_id)
 
 
 @workspace_app.command("list")
