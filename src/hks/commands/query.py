@@ -127,7 +127,7 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
     response = QueryResponse(
         answer=winner.text,
         source=[winner.source_route],
-        confidence=winner.score,
+        confidence=assessment.calibrated_confidence,
         trace=Trace(route=winner.source_route, steps=steps),
         evidence=evidence,
         retrieval_score=assessment.retrieval_score,

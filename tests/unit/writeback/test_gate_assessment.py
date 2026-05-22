@@ -6,20 +6,22 @@ from hks.retrieval.confidence import ConfidenceAssessment
 from hks.writeback.gate import decide
 
 
-def _eligible(score: float = 0.9) -> ConfidenceAssessment:
+def _eligible(score: float = 0.9, auto_threshold: float = 0.75) -> ConfidenceAssessment:
     return ConfidenceAssessment(
         retrieval_score=score,
         calibrated_confidence=score,
         writeback_eligible=True,
+        auto_threshold=auto_threshold,
         reasons=["test eligible"],
     )
 
 
-def _ineligible(score: float = 0.9) -> ConfidenceAssessment:
+def _ineligible(score: float = 0.9, auto_threshold: float = 0.75) -> ConfidenceAssessment:
     return ConfidenceAssessment(
         retrieval_score=score,
         calibrated_confidence=score,
         writeback_eligible=False,
+        auto_threshold=auto_threshold,
         reasons=["test ineligible"],
     )
 
@@ -57,6 +59,19 @@ class TestDecideWithAssessment:
     def test_ask_non_tty_skips(self) -> None:
         decision = decide("ask", assessment=_eligible(0.9), is_tty=False)
         assert decision.action == "skip-non-tty"
+
+
+    def test_auto_eligible_uses_per_route_threshold(self) -> None:
+        """Vector route threshold 0.65: score 0.70 commits (would fail global 0.75)."""
+        decision = decide("auto", assessment=_eligible(0.70, auto_threshold=0.65), is_tty=False)
+        assert decision.action == "commit"
+        assert decision.status == "auto-committed"
+
+    def test_auto_eligible_below_per_route_threshold_declines(self) -> None:
+        """Page_tree route threshold 0.50: score 0.45 declines."""
+        decision = decide("auto", assessment=_eligible(0.45, auto_threshold=0.50), is_tty=False)
+        assert decision.action == "decline"
+        assert decision.status == "auto-skipped-low-confidence"
 
 
 class TestDecideBackwardCompat:

@@ -99,6 +99,7 @@ def test_http_security_host_allowlist_normalizes_host_header_forms(
 @pytest.mark.parametrize(
     "path",
     [
+        "/query",
         "/ingest",
         "/pageindex/enrich",
         "/llm/classify",
@@ -124,22 +125,6 @@ def test_http_security_guards_all_mutating_endpoints(
 
     assert response.status_code == 403
     assert response.json()["error"]["code"] == "HTTP_MUTATION_TOKEN_NOT_CONFIGURED"
-
-
-@pytest.mark.integration
-def test_http_security_leaves_read_only_query_unauthenticated(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """``/query`` is read-only by default and must not require a bearer token."""
-    monkeypatch.delenv("HKS_API_TOKEN", raising=False)
-
-    response = TestClient(create_app()).post(
-        "/query",
-        json={"question": "anything"},
-        headers=ALLOWED_HOST,
-    )
-
-    assert response.status_code not in {401, 403}
 
 
 @pytest.mark.integration

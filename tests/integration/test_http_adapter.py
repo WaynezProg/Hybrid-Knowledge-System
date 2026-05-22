@@ -33,7 +33,7 @@ def test_http_adapter_query_ingest_lint_endpoints(working_docs, monkeypatch) -> 
     query = client.post(
         "/query",
         json={"question": "Project Atlas summary"},
-        headers=_headers(),
+        headers=_headers("secret"),
     )
     assert query.status_code == 200
     assert query.json()["source"] == ["wiki"]
@@ -46,13 +46,16 @@ def test_http_adapter_query_ingest_lint_endpoints(working_docs, monkeypatch) -> 
 
 
 @pytest.mark.integration
-def test_http_adapter_maps_adapter_error_to_status_and_envelope() -> None:
+def test_http_adapter_maps_adapter_error_to_status_and_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HKS_API_TOKEN", "secret")
     client = TestClient(create_app())
 
     response = client.post(
         "/query",
         json={"question": "Project Atlas summary"},
-        headers=_headers(),
+        headers=_headers("secret"),
     )
 
     assert response.status_code == 400

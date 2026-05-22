@@ -22,6 +22,7 @@ class ConfidenceAssessment:
     retrieval_score: float
     calibrated_confidence: float
     writeback_eligible: bool
+    auto_threshold: float = 0.75
     reasons: list[str] = field(default_factory=list)
 
 
@@ -51,6 +52,7 @@ def assess(
         retrieval_score=retrieval_score,
         calibrated_confidence=calibrated,
         writeback_eligible=False,
+        auto_threshold=999.0,
         reasons=[f"unknown route: {route}"],
     )
 
@@ -60,6 +62,7 @@ def _assess_wiki(retrieval_score: float, calibrated: float) -> ConfidenceAssessm
         retrieval_score=retrieval_score,
         calibrated_confidence=calibrated,
         writeback_eligible=False,
+        auto_threshold=_AUTO_THRESHOLDS["wiki"],
         reasons=["wiki route: auto writeback ineligible (use --writeback=yes)"],
     )
 
@@ -102,6 +105,7 @@ def _assess_graph(
         retrieval_score=retrieval_score,
         calibrated_confidence=calibrated,
         writeback_eligible=eligible,
+        auto_threshold=_AUTO_THRESHOLDS["graph"],
         reasons=reasons,
     )
 
@@ -138,6 +142,7 @@ def _assess_vector(
         retrieval_score=retrieval_score,
         calibrated_confidence=calibrated,
         writeback_eligible=eligible,
+        auto_threshold=_AUTO_THRESHOLDS["vector"],
         reasons=reasons,
     )
 
@@ -182,6 +187,7 @@ def _assess_page_tree(
         retrieval_score=retrieval_score,
         calibrated_confidence=calibrated,
         writeback_eligible=eligible,
+        auto_threshold=_AUTO_THRESHOLDS["page_tree"],
         reasons=reasons,
     )
 

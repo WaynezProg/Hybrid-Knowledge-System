@@ -121,7 +121,7 @@ def test_query_response_includes_015_confidence_fields(
     assert isinstance(payload["retrieval_score"], (int, float))
     assert isinstance(payload["calibrated_confidence"], (int, float))
     assert isinstance(payload["writeback_eligible"], bool)
-    assert payload["retrieval_score"] == payload["confidence"]
+    assert payload["confidence"] == payload["calibrated_confidence"]
 
 
 @pytest.mark.integration

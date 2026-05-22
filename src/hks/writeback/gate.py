@@ -63,6 +63,6 @@ def decide(
 def _decide_auto_with_assessment(assessment: ConfidenceAssessment) -> Decision:
     if not assessment.writeback_eligible:
         return Decision(action="decline", status="auto-skipped-ineligible")
-    if assessment.calibrated_confidence >= auto_threshold():
+    if assessment.calibrated_confidence >= assessment.auto_threshold:
         return Decision(action="commit", status="auto-committed")
     return Decision(action="decline", status="auto-skipped-low-confidence")
