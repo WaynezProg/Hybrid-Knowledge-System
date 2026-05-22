@@ -13,6 +13,9 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * 010：完成（derived Graphify artifacts、community clustering、static HTML、audit report）
 * 011：完成（bounded watch scan / run / status；非 daemon）
 * 012：完成（source catalog / workspace selection）
+* 013：完成（PageIndex / page_tree ingest、pageindex show/enrich、page_tree retrieval）
+* 014-017：完成（runtime isolation / HTTP safety、write-back confidence gate、retrieval quality gate、query refactor）
+* 019：設計通過，待 implementation（write-back review queue；目前 runtime 尚未改成 queue）
 
 ---
 
@@ -61,9 +64,12 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * 已完成：010 可從既有 wiki / graph / 008 / 009 lineage 產生 derived Graphify artifacts、community clustering、static HTML 與 audit report。
 * 已完成：011 提供 bounded watch scan / run / status，處理明確 source roots 或 saved watch config 的 refresh plan 與 re-ingest；`ks update` 是日常同步用的高階包裝入口。
 * 已完成：012 提供 read-only source catalog 與 named workspace registry，讓使用者或 agent 可以查看已 ingest sources、選擇 `KS_ROOT`，並對指定 workspace query。
+* 已完成：013 提供 `$KS_ROOT/page_trees/*.json` PageIndex-style hierarchy、`ks pageindex show/enrich`，並讓 query 把 page_tree summaries 納入 fused retrieval。
+* 已完成：014-017 收斂 runtime isolation、HTTP safety、route-specific write-back confidence gate、離線 retrieval quality gate 與 query module 分層。
+* 待實作：019 write-back review queue。現行 `ks query --writeback=auto|yes` 仍會依既有 gate 直接寫入 wiki，不是 enqueue。
 * 尚未完成：常駐 daemon / OS filesystem watcher。
 
-換句話說，HKS 現在是 agent 可調用的 local knowledge runtime；LLM-assisted extraction、wiki synthesis、Graphify、watch 與 source catalog 已由 008-012 交付，剩餘產品願景主要是常駐 daemon / OS watcher 與更高階操作體驗。
+換句話說，HKS 現在是 agent 可調用的 local knowledge runtime；LLM-assisted extraction、wiki synthesis、Graphify、watch、source catalog 與 PageIndex 已由 008-013 交付，剩餘產品願景主要是常駐 daemon / OS watcher、write-back review queue 與更高階操作體驗。
 
 ---
 
@@ -71,6 +77,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 
 ```bash
 ks ingest <file|dir>
+ks update <source-root> [--dry-run] [--profile ingest-only|derived-refresh] [--prune]
 ks query "<question>" [--writeback auto|yes|no|ask]
 ks source list|show
 ks workspace register|list|show|remove|use|query
@@ -79,6 +86,8 @@ ks coord session|lease|handoff|status|lint
 ks llm classify <source-relpath> [--mode preview|store] [--provider fake]
 ks wiki synthesize --mode preview|store|apply [--source-relpath <relpath>|--candidate-artifact-id <id>]
 ks graphify build [--mode preview|store] [--provider fake]
+ks pageindex show <source-relpath>
+ks pageindex enrich [--source-relpath <relpath>] --mode preview|store [--provider fake|openai]
 hks-mcp --transport stdio|streamable-http
 hks-api
 ```
@@ -109,7 +118,7 @@ stdout 契約統一：
 }
 ```
 
-`ks ingest`、`ks query`、`ks update`、`ks source`、`ks workspace`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`、`ks graphify build`、`ks watch scan|run|status` 共用同一 top-level JSON shape。
+`ks ingest`、`ks query`、`ks update`、`ks source`、`ks workspace`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`、`ks graphify build`、`ks pageindex show|enrich`、`ks watch scan|run|status` 共用同一 top-level JSON shape。
 `hks-mcp` 與 `hks-api` 的成功 payload 也共用此 shape；adapter 錯誤才使用 `{ok:false,error:{code,exit_code,message,details},response?}` envelope。
 
 `ks llm classify` 的 successful extraction 使用 `trace.route="wiki"`、`source=[]`、`trace.steps[kind="llm_extraction_summary"]`。這是 008 為避免擴 route/source enum 做出的 contract choice；consumer 不得把它解讀成 `ks query` no-hit。
@@ -137,8 +146,10 @@ Source / route 語意對照：
 | `ks source list|show` | `wiki` | `[]` | 讀取 manifest-derived catalog；不代表 query no-hit |
 | `ks workspace register|list|show|remove|use` | `wiki` | `[]` | 管理 local workspace registry；不讀取 knowledge layer 作答 |
 | `ks workspace query` | `wiki\|graph\|vector\|page_tree` | `ks query` semantics | 先解析 workspace id 到 `KS_ROOT`，再委派既有 query |
+| `ks pageindex show` | `wiki` | `["wiki"]` 或 `[]` | 讀取已 ingest source 的 page_tree；找不到 tree 時 `source=[]` |
+| `ks pageindex enrich --mode preview\|store` | `wiki` | `["wiki"]` | 對既有 page_tree 做 optional LLM enrichment；store 只覆寫 page_tree artifact |
 
-`ks query` 成功命中時會輸出 `retrieval_score`、`calibrated_confidence`、`writeback_eligible`；`confidence` 保持 raw retrieval score 以維持 backward compatibility。命中時也可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector / page_tree evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
+`ks query` 成功命中時會輸出 `retrieval_score`、`calibrated_confidence`、`writeback_eligible`；`confidence` 目前取自 `calibrated_confidence` 以維持 backward compatibility，`retrieval_score` 保留未 clamp 的 raw score。命中時也可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector / page_tree evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
 
 ---
 
@@ -204,6 +215,8 @@ Source / route 語意對照：
 
 `wiki` route 預設不具 auto write-back eligibility；需使用 explicit `--writeback=yes` 才會把既有 wiki 回答再沉澱成新頁面。自動 write-back page 會帶 `## Related`，連回本次答案涉及的既有 wiki pages。
 
+019 已有 review queue 設計與 plan，但尚未實作。現在不要把 `ks writeback list|approve|reject` 或 `$KS_ROOT/writeback/queue/` 當成可用 runtime contract。
+
 ---
 
 ## 7. Graph Schema
@@ -245,6 +258,8 @@ graph persistence 位於 `/ks/graph/graph.json`。
     graph.json
   /vector
     db/
+  /page_trees
+    <tree-slug>.json
   /coordination
     state.json
     events.jsonl
@@ -280,6 +295,7 @@ graph persistence 位於 `/ks/graph/graph.json`。
 
 `coordination/state.json` 存 agent sessions、resource leases、handoff notes；`events.jsonl` 是 append-only coordination event log。
 `llm/extractions/*.json` 存 008 extraction candidate artifact；`llm/wiki-candidates/*.json` 存 009 wiki synthesis candidate artifact。兩者都不是 authoritative wiki / graph / vector / page_tree state；只有 `ks wiki synthesize --mode apply` 成功後寫入的 `origin=llm_wiki` page 才是 applied wiki state。
+`page_trees/*.json` 存 013 PageIndex-style tree。Rule-based tree 由 ingest 建立；`ks pageindex enrich --mode store` 可用 LLM summary 覆寫 tree artifact，但不修改 wiki / graph / vector。
 
 Workspace registry 不屬於任何單一 `$KS_ROOT`，預設位於使用者 config path，可用 `HKS_WORKSPACE_REGISTRY` 指向 explicit JSON。Registry 只保存 workspace id 到 `KS_ROOT` 的 mapping；不修改任何 registered runtime 的 `wiki / graph / vector / page_tree / manifest`。
 
@@ -364,9 +380,23 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 * `workspace query`：解析 workspace id 後委派既有 `ks query`
 * MCP 暴露 `hks_source_list`、`hks_source_show`、`hks_workspace_*`；HTTP facade 暴露 `/catalog/*` 與 `/workspaces/*`
 
+多知識庫路徑擺放：
+
+* 每個知識庫一個獨立 `$KS_ROOT`，例如 `.hks-runs/atlas/ks` 與 `.hks-runs/borealis/ks`
+* source files 放在 runtime 外，例如 `sources/atlas/`；不要人工編輯 `$KS_ROOT/raw_sources/`
+* workspace registry 放在共同上層，例如 `.hks-runs/workspaces.json`，或用 `HKS_WORKSPACE_REGISTRY` / XDG config；不要放進某一個 `$KS_ROOT`
+
+## 15. PageIndex / PageTree
+
+013 在 ingest 時為每個 source 建立 PageIndex-style tree，存於 `$KS_ROOT/page_trees/<tree-slug>.json`，並由 manifest 的 `derived.page_tree` 指回 source。
+
+* `ks pageindex show <source-relpath>`：讀取既有 tree，回傳 `trace.steps[kind="pageindex_summary"]`
+* `ks pageindex enrich --mode preview|store`：可用 fake/openai provider 對 tree node 填入 LLM summary；preview 不寫入，store 只更新 page_tree artifact
+* query 的 fused retrieval 會讀取 page_tree summary，命中時 route 為 `page_tree`，evidence 可帶 `section_path` 與 `page_range`
+
 ---
 
-## 15. Phase Status
+## 16. Phase Status
 
 ### Phase 1
 
@@ -401,10 +431,16 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 * [x] 010 Graphify clustering / visualization / audit report
 * [x] 011 continuous update / watch workflow
 * [x] 012 source catalog / workspace selection
+* [x] 013 PageIndex / page_tree integration
+* [x] 014 runtime isolation / HTTP safety
+* [x] 015 confidence write-back gate
+* [x] 016 retrieval quality gate
+* [x] 017 query refactor
+* [ ] 019 write-back review queue
 
 ---
 
-## 16. Runtime configuration
+## 17. Runtime configuration
 
 常用環境變數不在本文件重複列完整清單，避免 drift。請以 [README.md#設定](../README.md#設定) 與 [README.en.md#configuration](../README.en.md#configuration) 為準；完整說明見 [docs/configuration.md](./configuration.md)。
 
@@ -412,7 +448,7 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 
 ---
 
-## 17. 非目標
+## 18. 非目標
 
 目前仍不做：
 

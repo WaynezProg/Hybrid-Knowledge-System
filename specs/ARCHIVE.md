@@ -9,10 +9,21 @@
 
 ## Active
 
-目前沒有 active feature spec。
+- `019-writeback-review-queue`
+  - Status: Design approved, implementation pending
+  - Canonical artifacts: [spec.md](./019-writeback-review-queue/spec.md), [plan.md](./019-writeback-review-queue/plan.md), [tasks.md](./019-writeback-review-queue/tasks.md)
+  - Runtime note: current `ks query --writeback=auto|yes` still uses direct wiki write-back; queue commands are not implemented yet.
 
 ## Implemented local gates
 
+- `014-runtime-isolation-security`
+  - Status: Complete
+  - Implemented on: 2026-05-21
+  - Canonical artifacts: [plan](../docs/superpowers/plans/2026-05-21-014-runtime-isolation-security.md)
+- `015-confidence-writeback-gate`
+  - Status: Complete
+  - Implemented on: 2026-05-22
+  - Canonical artifacts: [plan](../docs/superpowers/plans/2026-05-22-015-confidence-writeback-gate.md)
 - `016-retrieval-quality-gate`
   - Status: Complete
   - Implemented on: 2026-05-22
@@ -84,3 +95,8 @@
   - Archived on: 2026-04-26
   - Merged into: `main`
   - Canonical artifacts: [spec.md](./012-source-catalog/spec.md), [plan.md](./012-source-catalog/plan.md), [tasks.md](./012-source-catalog/tasks.md)
+- `013-pageindex-integration`
+  - Status: Complete
+  - Archived on: 2026-05-23
+  - Merged into: `main`
+  - Canonical artifacts: [spec.md](./013-pageindex-integration/spec.md), [plan.md](./013-pageindex-integration/plan.md), [ARCHIVE.md](./013-pageindex-integration/ARCHIVE.md)

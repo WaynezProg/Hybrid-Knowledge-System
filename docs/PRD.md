@@ -30,7 +30,7 @@
 
 ### 4.0 Current runtime boundary
 
-目前已完成的是 local-first HKS runtime，已包含 LLM-assisted wiki synthesis、derived Graphify artifacts、bounded watch/re-ingest workflow，以及 source catalog / workspace selection；常駐 daemon 仍未完成。
+目前已完成的是 local-first HKS runtime，已包含 LLM-assisted wiki synthesis、derived Graphify artifacts、bounded watch/re-ingest workflow、source catalog / workspace selection、PageIndex / page_tree retrieval，以及 runtime safety / retrieval quality gate；常駐 daemon 與 write-back review queue 仍未完成。
 
 * HKS 負責 ingest、wiki / graph / vector 同步、query routing、write-back、lint、coordination。
 * 外部 agent（Codex / Claude Code / OpenClaw 等）負責 LLM reasoning、任務拆解與是否呼叫 HKS。
@@ -38,6 +38,8 @@
 * 010 已提供 derived Graphify community clustering、HTML visualization、JSON export、audit report；它不修改 authoritative `graph/graph.json`。
 * 011 已提供 bounded `ks watch scan|run|status`；它不是常駐 daemon，scan / dry-run 不改 authoritative layers。
 * 012 已提供 `ks source` 與 `ks workspace`，讓使用者或 agent 可以查看已 ingest sources、管理多個 named `KS_ROOT`，並對指定 workspace query。
+* 013 已提供 PageIndex-style `page_trees/` artifact、`ks pageindex show/enrich`，並把 page_tree summaries 納入 fused retrieval。
+* 019 write-back review queue 已完成設計與 implementation plan，但尚未進 runtime；目前 `ks query --writeback=auto|yes` 仍是直接寫 wiki 的既有行為。
 
 ### 4.1 Ingest
 
@@ -57,13 +59,15 @@
 * summary → wiki
 * relation / impact / dependency / why → graph
 * detail / clause → vector
-* graph miss / wiki miss → vector fallback
+* 實作已改為 fused retrieval：wiki / graph / vector / page_tree 同時收集候選，再由 LLM reranker 或 RRF 排序
 
 ### 4.3 Write-back
 
-* 高 confidence 答案預設自動 write-back
-* `--writeback=no` 可關閉
+* 預設 `--writeback=no`，agent / automation 省略參數不會寫頁
+* `--writeback=auto` 是顯式 opt-in；需通過 route-specific confidence / evidence eligibility
+* `--writeback=yes` 強制寫 wiki，並標記 forced trace / coordination event
 * 新頁面要帶 related cross-links
+* 019 會把 direct write-back 改成 review queue，但目前尚未實作
 
 ### 4.4 Lint
 
@@ -74,7 +78,7 @@
 
 * `hks-mcp` 以 local MCP server 暴露 query / ingest / lint / coordination / LLM tools
 * 支援 stdio 與 loopback Streamable HTTP transport
-* `hks-api` 是 optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`、`/coord/*`、`/llm/classify`、`/wiki/synthesize`、`/graphify/build`
+* `hks-api` 是 optional loopback HTTP facade，提供 `/query`、`/ingest`、`/lint`、`/coord/*`、`/llm/classify`、`/wiki/synthesize`、`/graphify/build`、`/pageindex/*`
 * 成功 payload 沿用現有 top-level JSON contract；錯誤 payload 使用 adapter error envelope
 
 ### 4.6 Multi-agent Coordination
@@ -131,6 +135,15 @@
 * `workspace query` 委派既有 query，維持相同 response contract
 * MCP tools：`hks_source_list`、`hks_source_show`、`hks_workspace_list`、`hks_workspace_register`、`hks_workspace_show`、`hks_workspace_remove`、`hks_workspace_use`、`hks_workspace_query`
 * HTTP endpoints：`/catalog/sources`、`/catalog/sources/{relpath}`、`/workspaces`、`/workspaces/{workspace_id}`、`/workspaces/{workspace_id}/query`
+
+### 4.12 PageIndex / PageTree
+
+* `ks ingest` 產生 `$KS_ROOT/page_trees/*.json`，保留 source section hierarchy
+* `ks pageindex show <source-relpath>` 顯示已 ingest source 的 tree
+* `ks pageindex enrich --mode preview|store` 可用 LLM summary enrichment；store 只更新 page_tree artifact
+* query 可命中 `page_tree` route，evidence 可包含 `section_path` / `page_range`
+* MCP tools：`hks_pageindex_show`、`hks_pageindex_enrich`
+* HTTP endpoints：`/pageindex/{relpath}`、`/pageindex/enrich`
 
 ---
 
@@ -190,3 +203,6 @@
 * [x] Graphify pipeline：community clustering、HTML visualization、audit report
 * [x] Watch / re-ingest workflow for continuously updated personal knowledge roots
 * [x] Source catalog / workspace selection
+* [x] PageIndex / page_tree integration
+* [x] Runtime isolation / HTTP safety、confidence write-back gate、retrieval quality gate、query refactor
+* [ ] Write-back review queue

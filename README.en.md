@@ -103,6 +103,38 @@ uv run ks workspace register atlas --ks-root "$PWD/.hks-runs/atlas/ks" --label "
 uv run ks workspace query atlas "What are the risks?" --writeback=no
 ```
 
+Multi-knowledge-base placement rule: use one independent `$KS_ROOT` per knowledge base, keep source files outside `$KS_ROOT`, and keep the workspace registry outside every runtime.
+
+```text
+project/
+  sources/
+    atlas/
+    borealis/
+  .hks-runs/
+    atlas/ks/
+    borealis/ks/
+    workspaces.json
+```
+
+```bash
+export HKS_WORKSPACE_REGISTRY="$PWD/.hks-runs/workspaces.json"
+KS_ROOT="$PWD/.hks-runs/atlas/ks" uv run ks ingest "$PWD/sources/atlas"
+KS_ROOT="$PWD/.hks-runs/borealis/ks" uv run ks ingest "$PWD/sources/borealis"
+uv run ks workspace register atlas --ks-root "$PWD/.hks-runs/atlas/ks" --label "Atlas" --force
+uv run ks workspace register borealis --ks-root "$PWD/.hks-runs/borealis/ks" --label "Borealis" --force
+```
+
+`ks workspace use <id>` only returns a shell-safe `export KS_ROOT=...`; it cannot mutate the parent shell. Agent automation should prefer `ks workspace query <id> ...`.
+
+### PageIndex
+
+```bash
+uv run ks pageindex show project-atlas.txt | jq .
+uv run ks pageindex enrich --source-relpath project-atlas.txt --mode preview --provider fake | jq .
+```
+
+Ingest writes `$KS_ROOT/page_trees/*.json`; query includes page_tree summaries in fused retrieval, and evidence may include `section_path` / `page_range`.
+
 ### LLM Classification & Wiki Synthesis
 
 ```bash
@@ -212,7 +244,8 @@ All commands share the same top-level JSON shape:
 }
 ```
 
-- `confidence`: raw retrieval score; `retrieval_score` keeps the same value for migration
+- `confidence`: clamped score from `calibrated_confidence`; kept as the compatibility field
+- `retrieval_score`: raw retrieval score before clamp
 - `calibrated_confidence` + `writeback_eligible`: the actual `auto` write-back gate
 - `evidence[]`: provenance with `source_relpath`, `route`, `quote`
 - `trace.steps`: records each pipeline step
@@ -278,6 +311,8 @@ uv run mypy src/hks
 - [specs/010-graphify-pipeline/spec.md](./specs/010-graphify-pipeline/spec.md) — Graphify pipeline
 - [specs/011-continuous-watch/spec.md](./specs/011-continuous-watch/spec.md) — Watch / re-ingest
 - [specs/012-source-catalog/spec.md](./specs/012-source-catalog/spec.md) — Source catalog / workspace
+- [specs/013-pageindex-integration/spec.md](./specs/013-pageindex-integration/spec.md) — PageIndex / page_tree
+- [specs/019-writeback-review-queue/spec.md](./specs/019-writeback-review-queue/spec.md) — Write-back review queue design (pending implementation)
 - [specs/005-phase3-lint-impl/contracts/query-response.schema.json](./specs/005-phase3-lint-impl/contracts/query-response.schema.json) — Response contract
 - [specs/ARCHIVE.md](./specs/ARCHIVE.md) — Archive index
 

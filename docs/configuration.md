@@ -134,6 +134,34 @@ export HKS_WORKSPACE_REGISTRY="$HKS_REPO_ROOT/.hks-runs/workspaces.json"
 EOF
 ```
 
+## 多知識庫路徑擺放
+
+一個知識庫就是一個獨立 `$KS_ROOT`。不要把 source files 放進 `$KS_ROOT`；`$KS_ROOT` 是 HKS runtime output，裡面會有 `raw_sources/`、`wiki/`、`graph/`、`vector/`、`page_trees/`、`manifest.json` 等產物。Workspace registry 也不要放進任何單一 `$KS_ROOT`，它應該放在共同上層或使用者 config path。
+
+建議 repo-local 佈局：
+
+```text
+project/
+  sources/
+    atlas/
+    borealis/
+  .hks-runs/
+    atlas/ks/
+    borealis/ks/
+    workspaces.json
+```
+
+```bash
+export HKS_WORKSPACE_REGISTRY="$PWD/.hks-runs/workspaces.json"
+KS_ROOT="$PWD/.hks-runs/atlas/ks" uv run ks ingest "$PWD/sources/atlas"
+KS_ROOT="$PWD/.hks-runs/borealis/ks" uv run ks ingest "$PWD/sources/borealis"
+uv run ks workspace register atlas --ks-root "$PWD/.hks-runs/atlas/ks" --label "Atlas" --force
+uv run ks workspace register borealis --ks-root "$PWD/.hks-runs/borealis/ks" --label "Borealis" --force
+uv run ks workspace query atlas "風險有哪些？" --writeback=no
+```
+
+需要切到一般 `ks query` 時，用 `eval "$(uv run ks workspace use atlas | jq -r '.trace.steps[0].detail.export_command')"`；agent automation 則建議直接用 `ks workspace query <id> ...`，避免隱式 shell 狀態造成查錯知識庫。
+
 ## 驗證設定
 
 看 YAML / JSON 會匯出哪些 env：

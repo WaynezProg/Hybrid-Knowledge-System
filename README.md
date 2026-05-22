@@ -105,6 +105,38 @@ uv run ks workspace register atlas --ks-root "$PWD/.hks-runs/atlas/ks" --label "
 uv run ks workspace query atlas "風險有哪些？" --writeback=no
 ```
 
+多知識庫路徑擺放原則：每個知識庫一個獨立 `$KS_ROOT`，source files 不要放進 `$KS_ROOT`，workspace registry 放在所有 runtime 外面。
+
+```text
+project/
+  sources/
+    atlas/
+    borealis/
+  .hks-runs/
+    atlas/ks/
+    borealis/ks/
+    workspaces.json
+```
+
+```bash
+export HKS_WORKSPACE_REGISTRY="$PWD/.hks-runs/workspaces.json"
+KS_ROOT="$PWD/.hks-runs/atlas/ks" uv run ks ingest "$PWD/sources/atlas"
+KS_ROOT="$PWD/.hks-runs/borealis/ks" uv run ks ingest "$PWD/sources/borealis"
+uv run ks workspace register atlas --ks-root "$PWD/.hks-runs/atlas/ks" --label "Atlas" --force
+uv run ks workspace register borealis --ks-root "$PWD/.hks-runs/borealis/ks" --label "Borealis" --force
+```
+
+`ks workspace use <id>` 只回傳 shell-safe `export KS_ROOT=...`，不會改 parent shell；agent automation 建議直接用 `ks workspace query <id> ...`。
+
+### PageIndex
+
+```bash
+uv run ks pageindex show project-atlas.txt | jq .
+uv run ks pageindex enrich --source-relpath project-atlas.txt --mode preview --provider fake | jq .
+```
+
+Ingest 會產生 `$KS_ROOT/page_trees/*.json`；query 會把 page_tree summary 納入 fused retrieval，回傳 evidence 時可帶 `section_path` / `page_range`。
+
 ### LLM Classification & Wiki Synthesis
 
 ```bash
@@ -281,6 +313,8 @@ uv run mypy src/hks
 - [specs/010-graphify-pipeline/spec.md](./specs/010-graphify-pipeline/spec.md) — Graphify pipeline
 - [specs/011-continuous-watch/spec.md](./specs/011-continuous-watch/spec.md) — Watch / re-ingest
 - [specs/012-source-catalog/spec.md](./specs/012-source-catalog/spec.md) — Source catalog / workspace
+- [specs/013-pageindex-integration/spec.md](./specs/013-pageindex-integration/spec.md) — PageIndex / page_tree
+- [specs/019-writeback-review-queue/spec.md](./specs/019-writeback-review-queue/spec.md) — Write-back review queue 設計（待實作）
 - [specs/005-phase3-lint-impl/contracts/query-response.schema.json](./specs/005-phase3-lint-impl/contracts/query-response.schema.json) — Response contract
 - [specs/ARCHIVE.md](./specs/ARCHIVE.md) — Archive index
 

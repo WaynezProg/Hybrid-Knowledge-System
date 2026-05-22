@@ -2,7 +2,7 @@
 
 **Feature Branch**: `013-pageindex-integration`
 **Created**: 2026-05-19
-**Status**: Draft
+**Status**: Complete / archived in place
 **Input**: Integrate VectifyAI/PageIndex hierarchical tree concept into HKS wiki layer; fix document structure loss; improve routing, graph extraction, and test coverage.
 
 ## Clarifications

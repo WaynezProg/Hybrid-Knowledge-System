@@ -4,7 +4,7 @@ This file provides guidance to Codex (Codex.ai/code) when working with code in t
 
 ## Repository status
 
-此 repo 已有完整 Python runtime，Phase 1-3 均已完成並 merge 到 `main`。目前不是 pre-implementation repo。
+此 repo 已有完整 Python runtime，Phase 1-3 與 008-013 runtime surface 均已完成並 merge 到 `main`。目前不是 pre-implementation repo。
 
 權威來源：
 
@@ -51,21 +51,25 @@ Agent / MCP / HTTP -> ks / adapter -> Core
                                       ├── wiki   (/ks/wiki/{index.md,log.md,pages/})
                                       ├── graph  (/ks/graph/graph.json)
                                       ├── vector (/ks/vector/db/)
-                                      └── coordination (/ks/coordination/{state.json,events.jsonl})
-raw_sources (immutable) -> ingestion -> wiki + graph + vector + manifest
+                                      ├── page_trees (/ks/page_trees/*.json)
+                                      ├── coordination (/ks/coordination/{state.json,events.jsonl})
+                                      ├── llm / graphify / watch derived artifacts
+                                      └── manifest.json
+workspace registry (outside any KS_ROOT) -> named KS_ROOT selection
+raw_sources (immutable) -> ingestion -> wiki + graph + vector + page_trees + manifest
 ```
 
 關鍵契約：
 
 - **Ingestion 是寫入時整理**：parse -> normalize -> extract -> update，同步更新 `raw_sources`、`wiki`、`graph`、`vector`、`manifest`。
 - **Query 走 fused retrieval**：同時從 wiki / graph / vector / page_tree 收集 candidates，以 LLM reranker 排序（無 API key 時 fallback RRF）；response 含 `evidence[]` 溯源。
-- **Write-back 預設 auto**：`confidence >= HKS_WRITEBACK_AUTO_THRESHOLD` 時自動寫回 wiki；agent / CI workflow 若不想產生頁面請顯式帶 `--writeback=no`。
+- **Write-back 預設 no**：agent / automation 省略 `--writeback` 不會產生頁面；只有顯式 `--writeback=auto` 且通過 route-specific eligibility 才自動寫回 wiki，`--writeback=yes` 是強制寫回。019 review queue 尚未實作，不能把它當成現行行為。
 - **Lint 已不是 stub**：`ks lint` 檢查跨層一致性；`--strict` 控制 exit code；`--fix=apply` 只執行 allowlist 修復。
 - **MCP / HTTP adapter 已是正式介面**：`hks-mcp` 與 `hks-api` 不再是非目標。
 
 ## Stable contracts
 
-`ks ingest`、`ks query`、`ks lint`、`ks coord` 與 adapter 成功 payload 共用 top-level JSON shape：
+`ks ingest`、`ks query`、`ks update`、`ks source`、`ks workspace`、`ks pageindex`、`ks lint`、`ks coord` 與 adapter 成功 payload 共用 top-level JSON shape：
 
 ```json
 {"answer":"...","source":["wiki"],"confidence":0.88,"evidence":[{"source_relpath":"atlas.txt","route":"wiki","quote":"..."}],"trace":{"route":"wiki","steps":[]}}
@@ -97,8 +101,10 @@ Phase 1-3 已完成；現在的重點是避免回歸，不是阻止已完成能�
 | `010-graphify-pipeline` | archived | `ks graphify build` derived graph + HTML + communities + audit |
 | `011-continuous-watch` | archived | `ks watch scan/run/status` bounded refresh |
 | `012-source-catalog` | archived | `ks source` 唯讀 catalog + `ks workspace` 註冊/查詢多 `KS_ROOT` |
+| `013-pageindex-integration` | archived | ingest 產生 `$KS_ROOT/page_trees/*.json`；`ks pageindex show/enrich`；page_tree retrieval evidence |
+| `019-writeback-review-queue` | active design | 待實作；現行 write-back 仍是 query 直寫 wiki |
 
-不要把現有 graph、auto write-back、lint、MCP/API、coordination、LLM extraction、wiki synthesis、graphify、watch 當成越界刪除。修改這些行為時，請更新對應 docs、contract tests 與 runtime tests。
+不要把現有 graph、auto write-back、lint、MCP/API、coordination、LLM extraction、wiki synthesis、graphify、watch、pageindex、workspace registry 當成越界刪除。修改這些行為時，請更新對應 docs、contract tests 與 runtime tests。
 
 ## Graph schema
 
@@ -133,11 +139,14 @@ Phase 1-3 已完成；現在的重點是避免回歸，不是阻止已完成能�
 - 010 derived artifacts under `$KS_ROOT/graphify/runs/<run-id>/`; latest pointer under `$KS_ROOT/graphify/latest.json`; no writes to authoritative layers
 - 011 operational artifacts under `$KS_ROOT/watch/{plans,runs,latest.json,events.jsonl,config.json}`; no new authoritative layer
 - 012 read-only source catalog over `manifest.json`; workspace registry persisted through `HKS_WORKSPACE_REGISTRY` / XDG config, not inside `KS_ROOT`
+- 013 page tree artifacts under `$KS_ROOT/page_trees/*.json`; rule-based at ingest, optional LLM enrichment through `ks pageindex enrich`
+- 019 write-back review queue is design/plan only; current runtime still emits `calibrated_confidence` and direct write-back pages
 
 ## Recent Changes
 - Fused retrieval: query 同時從 wiki / graph / vector / page_tree 收集 candidates，LLM reranker 排序（RRF fallback）；response 新增 `evidence[]` 溯源
 - OpenAI-compatible LLM provider: env-gated `openai` provider for classify / synthesize / graphify / enrich
 - Obsidian compatibility: frontmatter 全面 JSON-quoted，writeback link text escape `[]\`
+- 013-pageindex-integration: ingest page tree、`ks pageindex show/enrich`、page_tree retrieval evidence
 - 012-source-catalog: `ks source list/show` + `ks workspace register/list/show/remove/use/query`
 - 011-continuous-watch: bounded `ks watch scan/run/status`
 - 010-graphify-pipeline: derived Graphify artifacts, communities, interactive HTML dashboard, audit report
