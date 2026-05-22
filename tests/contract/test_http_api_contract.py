@@ -7,6 +7,7 @@ from hks.adapters.contracts import load_http_openapi
 GUARDED_OPERATIONS = {
     ("/query", "post"),
     ("/ingest", "post"),
+    ("/lint", "post"),
     ("/pageindex/enrich", "post"),
     ("/coord/session", "post"),
     ("/coord/lease", "post"),
@@ -14,7 +15,6 @@ GUARDED_OPERATIONS = {
 }
 
 READ_ONLY_OPERATIONS = {
-    ("/lint", "post"),
     ("/pageindex/{relpath}", "get"),
     ("/coord/status", "post"),
 }

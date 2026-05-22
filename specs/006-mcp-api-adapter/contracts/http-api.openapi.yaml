@@ -71,6 +71,9 @@ paths:
   /lint:
     post:
       summary: Run HKS lint
+      description: Guarded because lint can apply fixes when fix_mode is apply.
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:

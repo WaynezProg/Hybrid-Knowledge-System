@@ -21,6 +21,7 @@ _MUTATING_POST_PATHS = frozenset(
     {
         "/query",
         "/ingest",
+        "/lint",
         "/pageindex/enrich",
         "/llm/classify",
         "/wiki/synthesize",

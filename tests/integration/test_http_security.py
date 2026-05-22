@@ -47,10 +47,12 @@ def test_http_security_allows_default_hosts_with_ports(
     monkeypatch: pytest.MonkeyPatch,
     tmp_ks_root: Path,
 ) -> None:
-    monkeypatch.delenv("HKS_API_TOKEN", raising=False)
+    monkeypatch.setenv("HKS_API_TOKEN", "secret-token")
     _init_empty_runtime(tmp_ks_root)
 
-    response = TestClient(create_app()).post("/lint", json={}, headers={"host": host})
+    response = TestClient(create_app()).post(
+        "/lint", json={}, headers={"host": host, **VALID_BEARER}
+    )
 
     assert response.status_code not in {400, 401, 403}
 
@@ -61,11 +63,14 @@ def test_http_security_host_allowlist_override_replaces_defaults(
     tmp_ks_root: Path,
 ) -> None:
     monkeypatch.setenv("HKS_API_HOST_ALLOWLIST", "api.local")
+    monkeypatch.setenv("HKS_API_TOKEN", "secret-token")
     _init_empty_runtime(tmp_ks_root)
     client = TestClient(create_app())
 
-    allowed = client.post("/lint", json={}, headers={"host": "api.local:8766"})
-    rejected = client.post("/lint", json={}, headers=ALLOWED_HOST)
+    allowed = client.post(
+        "/lint", json={}, headers={"host": "api.local:8766", **VALID_BEARER}
+    )
+    rejected = client.post("/lint", json={}, headers={**ALLOWED_HOST, **VALID_BEARER})
 
     assert allowed.status_code not in {400, 401, 403}
     assert rejected.status_code == 400
@@ -88,9 +93,12 @@ def test_http_security_host_allowlist_normalizes_host_header_forms(
     tmp_ks_root: Path,
 ) -> None:
     monkeypatch.setenv("HKS_API_HOST_ALLOWLIST", allowlist)
+    monkeypatch.setenv("HKS_API_TOKEN", "secret-token")
     _init_empty_runtime(tmp_ks_root)
 
-    response = TestClient(create_app()).post("/lint", json={}, headers={"host": host})
+    response = TestClient(create_app()).post(
+        "/lint", json={}, headers={"host": host, **VALID_BEARER}
+    )
 
     assert response.status_code not in {400, 401, 403}
 
@@ -101,6 +109,7 @@ def test_http_security_host_allowlist_normalizes_host_header_forms(
     [
         "/query",
         "/ingest",
+        "/lint",
         "/pageindex/enrich",
         "/llm/classify",
         "/wiki/synthesize",
@@ -192,11 +201,17 @@ def test_http_security_allows_browser_style_mutation_when_reject_is_disabled(
 
 
 @pytest.mark.integration
-def test_http_security_leaves_read_only_lint_unauthenticated(
+def test_http_security_allows_lint_with_valid_bearer(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_ks_root: Path,
 ) -> None:
-    monkeypatch.delenv("HKS_API_TOKEN", raising=False)
+    monkeypatch.setenv("HKS_API_TOKEN", "secret-token")
+    _init_empty_runtime(tmp_ks_root)
 
-    response = TestClient(create_app()).post("/lint", json={}, headers=ALLOWED_HOST)
+    response = TestClient(create_app()).post(
+        "/lint",
+        json={},
+        headers={**ALLOWED_HOST, **VALID_BEARER},
+    )
 
     assert response.status_code not in {401, 403}

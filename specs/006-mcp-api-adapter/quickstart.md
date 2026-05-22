@@ -82,18 +82,23 @@ uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
 ## 6. Optional HTTP facade
 
 ```bash
+export HKS_API_TOKEN="dev-secret"
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
 呼叫 endpoints：
 
 ```bash
+export HKS_API_TOKEN="dev-secret"
+
 curl -s http://127.0.0.1:8766/query \
   -H 'content-type: application/json' \
+  -H "authorization: Bearer $HKS_API_TOKEN" \
   -d '{"question":"summary Atlas"}' | jq .
 
 curl -s http://127.0.0.1:8766/lint \
   -H 'content-type: application/json' \
+  -H "authorization: Bearer $HKS_API_TOKEN" \
   -d '{}' | jq .
 ```
 

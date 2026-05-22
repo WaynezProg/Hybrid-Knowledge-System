@@ -39,7 +39,7 @@ def test_http_adapter_query_ingest_lint_endpoints(working_docs, monkeypatch) -> 
     assert query.json()["source"] == ["wiki"]
     validate(query.json())
 
-    lint = client.post("/lint", json={}, headers=_headers())
+    lint = client.post("/lint", json={}, headers=_headers("secret"))
     assert lint.status_code == 200
     assert lint.json()["trace"]["steps"][0]["kind"] == "lint_summary"
     validate(lint.json())
@@ -66,10 +66,13 @@ def test_http_adapter_maps_adapter_error_to_status_and_envelope(
 
 
 @pytest.mark.integration
-def test_http_adapter_rejects_non_object_json_with_usage_envelope() -> None:
+def test_http_adapter_rejects_non_object_json_with_usage_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HKS_API_TOKEN", "secret")
     client = TestClient(create_app())
 
-    response = client.post("/lint", json=[], headers=_headers())
+    response = client.post("/lint", json=[], headers=_headers("secret"))
 
     assert response.status_code == 400
     payload = response.json()
