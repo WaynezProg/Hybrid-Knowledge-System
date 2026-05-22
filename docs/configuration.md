@@ -94,7 +94,7 @@ llm:
 
 這些欄位會對應到既有 env contract，例如 `HKS_MAX_FILE_MB`、`HKS_IMAGE_TIMEOUT_SEC`、`HKS_WRITEBACK_AUTO_THRESHOLD`、`HKS_LLM_PROVIDER_OPENAI_API_KEY`。
 
-015 之後，CLI 預設 `writeback=no`；只有顯式 `--writeback=auto` 才會進入 auto write-back gate。`HKS_WRITEBACK_AUTO_THRESHOLD` 只控制 legacy fallback；有 `ConfidenceAssessment` 時以 route-specific `auto_threshold` 與 `writeback_eligible=true` 為準。`--writeback=yes` 會繞過 eligibility 與 threshold，但 response trace 會標示 `forced=true`，並寫入 coordination `events.jsonl`。
+015 之後，CLI 預設 `writeback=no`；只有顯式 `--writeback=auto` 才會進入 auto write-back gate。019 之後，query write-back 不會直接寫 wiki：`auto` 以 route-specific `auto_threshold` 與 `writeback_eligible=true` 決定是否入 review queue，`yes` 會繞過 eligibility 與 threshold 直接入隊；只有 `ks writeback approve <id>` 會寫 evidence-backed wiki page。`HKS_WRITEBACK_AUTO_THRESHOLD` 只控制 legacy fallback；不再寫入 coordination `forced_writeback` event。
 
 LLM OpenAI-compatible provider、PageTree enrich、query reranker 都沿用同一個 hosted/network gate：`llm.network_opt_in: true`（或 `HKS_LLM_NETWORK_OPT_IN=1`）加上 `llm.providers.openai.api_key`（或 `HKS_LLM_PROVIDER_OPENAI_API_KEY` / `OPENAI_API_KEY`）。只設定 embedding OpenAI key 不會自動允許 chat/rerank 打網路；endpoint 也不與 embeddings endpoint 共用。
 

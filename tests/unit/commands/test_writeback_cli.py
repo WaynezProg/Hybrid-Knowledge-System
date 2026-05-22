@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 
 from hks.cli import app
 from hks.commands import writeback as writeback_command
+from hks.core.manifest import Manifest, ManifestEntry, compute_sha256, save_manifest, utc_now_iso
 from hks.core.paths import runtime_paths
 from hks.core.schema import TraceStep
 from hks.errors import ExitCode, KSError
@@ -45,6 +46,27 @@ def _seed_item(
     )
     enqueue(item, paths=runtime_paths())
     return item.id
+
+
+def _seed_source(relpath: str = "atlas.txt") -> None:
+    paths = runtime_paths()
+    raw_path = paths.raw_sources / relpath
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_text("Atlas source quote", encoding="utf-8")
+    save_manifest(
+        Manifest(
+            entries={
+                relpath: ManifestEntry(
+                    relpath=relpath,
+                    sha256=compute_sha256(raw_path),
+                    format="txt",
+                    size_bytes=raw_path.stat().st_size,
+                    ingested_at=utc_now_iso(),
+                )
+            }
+        ),
+        paths.manifest,
+    )
 
 
 @pytest.mark.unit
@@ -114,7 +136,28 @@ def test_writeback_show_unknown_retrieval_score_uses_zero_confidence(
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    ("retrieval_score", "expected_confidence"),
+    [(1.2, 1.0), (-0.2, 0.0)],
+)
+def test_writeback_show_clamps_confidence_to_response_schema_range(
+    cli_runner: CliRunner,
+    retrieval_score: float,
+    expected_confidence: float,
+) -> None:
+    item_id = _seed_item(retrieval_score=retrieval_score)
+
+    result = cli_runner.invoke(app, ["writeback", "show", item_id])
+
+    assert result.exit_code == 0, result.output
+    payload = _payload(result)
+    assert payload["confidence"] == expected_confidence
+    assert payload["retrieval_score"] == retrieval_score
+
+
+@pytest.mark.unit
 def test_writeback_approve_promotes_then_archives(cli_runner: CliRunner) -> None:
+    _seed_source()
     item_id = _seed_item()
 
     result = cli_runner.invoke(app, ["writeback", "approve", item_id])
@@ -158,6 +201,7 @@ def test_writeback_approve_archive_failure_after_promote_reports_partial_success
     cli_runner: CliRunner,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _seed_source()
     item_id = _seed_item()
 
     def fail_archive_locked(**_: object) -> object:

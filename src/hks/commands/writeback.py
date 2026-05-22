@@ -109,7 +109,9 @@ def _preview(question: str) -> str:
 
 
 def _confidence(item: WritebackQueueItem) -> float:
-    return item.retrieval_score if item.retrieval_score is not None else 0.0
+    if item.retrieval_score is None:
+        return 0.0
+    return max(0.0, min(item.retrieval_score, 1.0))
 
 
 def _first_writeback_step(steps: list[TraceStep]) -> TraceStep:

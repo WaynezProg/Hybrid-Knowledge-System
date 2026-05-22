@@ -61,9 +61,9 @@
 
 ### 4.3 Write-back
 
-* 高 confidence 答案預設自動 write-back
-* `--writeback=no` 可關閉
-* 新頁面要帶 related cross-links
+* `ks query` 不直接寫 wiki；`--writeback=auto` 只在 high-confidence 且 evidence-eligible 時入 review queue
+* `--writeback=no` 預設關閉入隊；`--writeback=yes` 直接送審
+* `ks writeback approve <id>` 是唯一寫入 evidence-backed wiki page 與 related cross-links 的路徑
 
 ### 4.4 Lint
 
@@ -167,13 +167,13 @@
 * [x] wiki + vector
 * [x] rule-based routing
 * [x] ingest：`txt / md / pdf`
-* [x] 半自動 write-back
+* [x] manual write-back enqueue mode compatibility
 
 ### Phase 2
 
 * [x] graph（entity / relation）
 * [x] routing backend 升級
-* [x] 全自動 write-back
+* [x] auto write-back enqueue mode compatibility
 * [x] ingest：`docx / xlsx / pptx`
 
 ### Phase 3

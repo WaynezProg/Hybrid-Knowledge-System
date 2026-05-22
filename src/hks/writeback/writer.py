@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from hks.core.manifest import load_manifest
 from hks.core.schema import TraceStep
 from hks.errors import ExitCode, KSError
 from hks.storage.wiki import LogEntry, WikiPage, WikiStore
@@ -43,7 +44,7 @@ def promote(
     wiki_store: WikiStore | None = None,
 ) -> list[TraceStep]:
     store = wiki_store or WikiStore()
-    evidence_items = valid_evidence_items(item)
+    evidence_items = _source_backed_evidence_items(store, valid_evidence_items(item))
     if not evidence_items:
         raise KSError(
             "writeback approval 需要至少一筆真實來源 evidence",
@@ -100,6 +101,22 @@ def promote(
         "related": [related.slug for related in related_pages],
     }
     return [TraceStep(kind="writeback", detail=detail)]
+
+
+def _source_backed_evidence_items(
+    store: WikiStore,
+    evidence_items: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    if not evidence_items:
+        return []
+    manifest = load_manifest(store.paths.manifest)
+    backed: list[dict[str, str]] = []
+    for evidence in evidence_items:
+        source_relpath = evidence["source_relpath"]
+        raw_source = store.paths.raw_sources / source_relpath
+        if source_relpath in manifest.entries and raw_source.is_file():
+            backed.append(evidence)
+    return backed
 
 
 def _ensure_promotable_slug(store: WikiStore, slug: str) -> None:

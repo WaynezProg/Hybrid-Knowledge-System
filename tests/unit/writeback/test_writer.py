@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from hks.core.paths import runtime_paths
+from hks.core.manifest import Manifest, ManifestEntry, compute_sha256, save_manifest, utc_now_iso
+from hks.core.paths import RuntimePaths, runtime_paths
 from hks.errors import KSError
 from hks.storage.wiki import WikiStore
 from hks.writeback.queue import WritebackQueueItem, build_item
@@ -36,10 +37,31 @@ def _item(
     )
 
 
+def _seed_source(paths: RuntimePaths, relpath: str = "atlas.txt") -> None:
+    raw_path = paths.raw_sources / relpath
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    raw_path.write_text("Atlas source quote", encoding="utf-8")
+    save_manifest(
+        Manifest(
+            entries={
+                relpath: ManifestEntry(
+                    relpath=relpath,
+                    sha256=compute_sha256(raw_path),
+                    format="txt",
+                    size_bytes=raw_path.stat().st_size,
+                    ingested_at=utc_now_iso(),
+                )
+            }
+        ),
+        paths.manifest,
+    )
+
+
 @pytest.mark.unit
 @pytest.mark.us3
 def test_promote_persists_evidence_backed_page_log_and_related_links(tmp_path) -> None:
     paths = runtime_paths(tmp_path / "ks")
+    _seed_source(paths)
     store = WikiStore(paths)
     store.write_page(
         title="Project [A]\\Beta",
@@ -103,7 +125,9 @@ def test_promote_requires_real_source_evidence(tmp_path, evidence) -> None:
 
 @pytest.mark.unit
 def test_promote_conflicts_with_existing_ingest_page(tmp_path) -> None:
-    store = WikiStore(runtime_paths(tmp_path / "ks"))
+    paths = runtime_paths(tmp_path / "ks")
+    _seed_source(paths)
+    store = WikiStore(paths)
     store.write_page(
         title="Project A summary",
         summary="ingested",
@@ -122,7 +146,9 @@ def test_promote_conflicts_with_existing_ingest_page(tmp_path) -> None:
 @pytest.mark.unit
 @pytest.mark.parametrize("origin", ["writeback", "llm_wiki"])
 def test_promote_overwrites_existing_generated_page_same_slug(tmp_path, origin) -> None:
-    store = WikiStore(runtime_paths(tmp_path / "ks"))
+    paths = runtime_paths(tmp_path / "ks")
+    _seed_source(paths)
+    store = WikiStore(paths)
     store.write_page(
         title="Project A summary",
         summary="old",
@@ -138,3 +164,25 @@ def test_promote_overwrites_existing_generated_page_same_slug(tmp_path, origin) 
     assert page.origin == "writeback"
     assert page.summary == "Atlas summary answer"
     assert "Atlas source quote" in page.body
+
+
+@pytest.mark.unit
+def test_promote_rejects_evidence_source_missing_from_manifest_and_raw_sources(tmp_path) -> None:
+    store = WikiStore(runtime_paths(tmp_path / "ks"))
+
+    with pytest.raises(KSError) as exc_info:
+        promote(
+            item=_item(
+                evidence=[
+                    {
+                        "source_relpath": "does-not-exist.md",
+                        "route": "wiki",
+                        "quote": "Invented source quote",
+                    }
+                ]
+            ),
+            wiki_store=store,
+        )
+
+    assert exc_info.value.code == "WRITEBACK_EVIDENCE_REQUIRED"
+    assert not list(store.paths.wiki_pages.glob("*.md"))
