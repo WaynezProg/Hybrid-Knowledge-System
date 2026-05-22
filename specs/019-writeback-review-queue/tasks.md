@@ -33,12 +33,12 @@
 
 **Purpose**: Preserve auto safety while removing misleading calibrated naming.
 
-- [ ] T011 Update `tests/unit/retrieval/test_confidence.py` to assert `ConfidenceAssessment.confidence`
-- [ ] T012 Add confidence unit coverage for invalid `<writeback>` provenance
-- [ ] T013 Modify `src/hks/retrieval/confidence.py`: rename `calibrated_confidence` to `confidence`, keep internal `_AUTO_THRESHOLDS`, keep `auto_threshold` internal, and mark `<writeback>` evidence ineligible
-- [ ] T014 Update `tests/unit/writeback/test_gate.py` and `tests/unit/writeback/test_gate_assessment.py` for intent actions `enqueue`, `skip`, and `skip-non-tty`
-- [ ] T015 Modify `src/hks/writeback/gate.py` so `decide()` no longer evaluates confidence and never returns direct commit actions
-- [ ] T016 Run `uv run pytest tests/unit/retrieval/test_confidence.py tests/unit/writeback/test_gate.py tests/unit/writeback/test_gate_assessment.py -q`
+- [x] T011 Update `tests/unit/retrieval/test_confidence.py` to assert `ConfidenceAssessment.confidence`
+- [x] T012 Add confidence unit coverage for invalid `<writeback>` provenance
+- [x] T013 Modify `src/hks/retrieval/confidence.py`: rename `calibrated_confidence` to `confidence`, keep internal `_AUTO_THRESHOLDS`, keep `auto_threshold` internal, and mark `<writeback>` evidence ineligible
+- [x] T014 Update `tests/unit/writeback/test_gate.py` and `tests/unit/writeback/test_gate_assessment.py` for intent actions `enqueue`, `skip`, and `skip-non-tty`
+- [x] T015 Modify `src/hks/writeback/gate.py` so `decide()` no longer evaluates confidence and never returns direct commit actions
+- [x] T016 Run `uv run pytest tests/unit/retrieval/test_confidence.py tests/unit/writeback/test_gate.py tests/unit/writeback/test_gate_assessment.py -q`
 
 **Checkpoint**: `writeback_eligible` still represents auto eligibility; gate only expresses caller intent.
 
