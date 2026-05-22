@@ -1,7 +1,7 @@
 # 019-writeback-review-queue — Write-back Review Queue 設計
 
 - 日期：2026-05-22
-- 狀態：implementation complete，待 final gates
+- 狀態：implementation complete，final gates passed
 - 範圍：HKS write-back 從「query answer 直寫 wiki」改為「review queue → approve → evidence-backed wiki page」；併入 `confidence` 欄位群清理。
 
 ## 1. 動機
