@@ -22,6 +22,7 @@ def isolated_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
         "HKS_OPENAI_EMBEDDING_DIMENSIONS",
         "HKS_OFFICE_TIMEOUT_SEC",
         "HKS_LLM_NETWORK_OPT_IN",
+        "HKS_API_REQUIRE_TOKEN_FOR_READS",
         "HKS_LLM_PROVIDER_OPENAI_API_KEY",
     ):
         monkeypatch.delenv(name, raising=False)
@@ -48,6 +49,8 @@ llm:
   providers:
     openai:
       api_key: "llm-key"
+api:
+  require_token_for_reads: true
 """.strip(),
         encoding="utf-8",
     )
@@ -59,6 +62,7 @@ llm:
     assert config_value("HKS_OPENAI_EMBEDDING_DIMENSIONS") == "256"
     assert config_value("HKS_OFFICE_TIMEOUT_SEC") == "45"
     assert config_value("HKS_LLM_NETWORK_OPT_IN") == "1"
+    assert config_value("HKS_API_REQUIRE_TOKEN_FOR_READS") == "1"
     assert config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") == "llm-key"
 
 

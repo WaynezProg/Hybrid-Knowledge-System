@@ -46,6 +46,7 @@ _KNOWN_ENV_PATHS: dict[str, tuple[str, ...]] = {
     "HKS_LLM_NETWORK_OPT_IN": ("llm", "network_opt_in"),
     "HKS_API_TOKEN": ("api", "token"),
     "HKS_API_HOST_ALLOWLIST": ("api", "host_allowlist"),
+    "HKS_API_REQUIRE_TOKEN_FOR_READS": ("api", "require_token_for_reads"),
     "HKS_API_REJECT_BROWSER_REQUESTS": ("api", "reject_browser_requests"),
     "HKS_API_INGEST_ROOTS": ("api", "ingest_roots"),
 }

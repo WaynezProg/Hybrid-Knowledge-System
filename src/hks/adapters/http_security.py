@@ -212,6 +212,10 @@ def is_mutating_request(request: Request) -> bool:
     return False
 
 
+def _read_auth_required() -> bool:
+    return _parse_bool(config_value("HKS_API_REQUIRE_TOKEN_FOR_READS"), default=False)
+
+
 def _authorization_matches(request: Request, token: str) -> bool:
     authorization = request.headers.get("authorization", "")
     scheme, separator, credential = authorization.partition(" ")
@@ -234,11 +238,19 @@ def guard_http_request(request: Request) -> HttpSecurityFailure | None:
             details=[f"host={host}" if host is not None else "host=<invalid>"],
         )
 
-    if not is_mutating_request(request):
+    is_mutating = is_mutating_request(request)
+    if not is_mutating and not _read_auth_required():
         return None
 
     token = config_value("HKS_API_TOKEN")
     if token in (None, ""):
+        if not is_mutating:
+            return HttpSecurityFailure(
+                status_code=403,
+                code="HTTP_READ_TOKEN_NOT_CONFIGURED",
+                message="HKS_API_TOKEN must be configured when HTTP read authentication is enabled",
+                details=[],
+            )
         return HttpSecurityFailure(
             status_code=403,
             code="HTTP_MUTATION_TOKEN_NOT_CONFIGURED",

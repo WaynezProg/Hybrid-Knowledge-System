@@ -215,3 +215,72 @@ def test_http_security_allows_lint_with_valid_bearer(
     )
 
     assert response.status_code not in {401, 403}
+
+
+@pytest.mark.integration
+def test_http_security_leaves_read_endpoints_unauthenticated_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("HKS_API_REQUIRE_TOKEN_FOR_READS", raising=False)
+    monkeypatch.delenv("HKS_API_TOKEN", raising=False)
+
+    response = TestClient(create_app()).post("/coord/status", json={}, headers=ALLOWED_HOST)
+
+    assert response.status_code not in {401, 403}
+
+
+@pytest.mark.integration
+def test_http_security_requires_token_config_when_read_auth_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HKS_API_REQUIRE_TOKEN_FOR_READS", "true")
+    monkeypatch.delenv("HKS_API_TOKEN", raising=False)
+
+    response = TestClient(create_app()).post("/coord/status", json={}, headers=ALLOWED_HOST)
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "HTTP_READ_TOKEN_NOT_CONFIGURED"
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize(
+    ("method", "path", "json_payload"),
+    [
+        ("get", "/pageindex/project-atlas.txt", None),
+        ("post", "/catalog/sources", {}),
+        ("post", "/coord/status", {}),
+    ],
+)
+def test_http_security_requires_bearer_for_reads_when_enabled(
+    method: str,
+    path: str,
+    json_payload: dict[str, object] | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HKS_API_REQUIRE_TOKEN_FOR_READS", "true")
+    monkeypatch.setenv("HKS_API_TOKEN", "secret-token")
+    client = TestClient(create_app())
+    kwargs: dict[str, object] = {"headers": ALLOWED_HOST}
+    if json_payload is not None:
+        kwargs["json"] = json_payload
+
+    response = getattr(client, method)(path, **kwargs)
+
+    assert response.status_code == 401
+    assert response.json()["error"]["code"] == "HTTP_AUTH_REQUIRED"
+
+
+@pytest.mark.integration
+def test_http_security_allows_read_with_valid_bearer_when_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HKS_API_REQUIRE_TOKEN_FOR_READS", "true")
+    monkeypatch.setenv("HKS_API_TOKEN", "secret-token")
+
+    response = TestClient(create_app()).post(
+        "/coord/status",
+        json={},
+        headers={**ALLOWED_HOST, **VALID_BEARER},
+    )
+
+    assert response.status_code not in {401, 403}

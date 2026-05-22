@@ -89,8 +89,6 @@ uv run hks-api --host 127.0.0.1 --port 8766
 呼叫 endpoints：
 
 ```bash
-export HKS_API_TOKEN="dev-secret"
-
 curl -s http://127.0.0.1:8766/query \
   -H 'content-type: application/json' \
   -H "authorization: Bearer $HKS_API_TOKEN" \

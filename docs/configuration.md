@@ -100,9 +100,10 @@ LLM OpenAI-compatible provider、PageTree enrich、query reranker 都沿用同�
 
 ## HTTP API security
 
-`hks-api` 是 loopback HTTP facade，不是公開服務。HTTP mutating 或 writeback-capable endpoints 受以下 env 控制：
+`hks-api` 是 loopback HTTP facade，不是公開服務。HTTP mutating / writeback-capable endpoints 預設必須帶 token；read-only endpoints 可用 `HKS_API_REQUIRE_TOKEN_FOR_READS=1` 收緊。
 
 - `HKS_API_TOKEN`：HTTP mutating / writeback-capable endpoints 必須使用 `Authorization: Bearer <token>`。
+- `HKS_API_REQUIRE_TOKEN_FOR_READS`：設為 true / 1 時，read-only HTTP endpoints 也必須使用同一個 Bearer token；預設 false。
 - `HKS_API_HOST_ALLOWLIST`：允許的 `Host` header 名稱，預設 `127.0.0.1,localhost,::1`。
 - `HKS_API_REJECT_BROWSER_REQUESTS`：拒絕帶 `Origin` 或 `Sec-Fetch-Site` 的 mutating requests，預設 true。
 - `HKS_API_INGEST_ROOTS`：逗號分隔的 named source roots，例如 `docs=/Users/me/docs,shared=/Volumes/shared`。
