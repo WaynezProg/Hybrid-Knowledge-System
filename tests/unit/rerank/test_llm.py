@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+
+import httpx
 import pytest
 
 from hks.rerank.llm import classify_rerank_error, llm_rerank, rerank_candidates
@@ -72,3 +75,48 @@ def test_llm_fallback_captures_timeout_reason(monkeypatch: pytest.MonkeyPatch) -
 
 def test_classify_rerank_error_maps_value_error_to_invalid_ranking() -> None:
     assert classify_rerank_error(ValueError("bad")) == "openai_invalid_ranking"
+
+
+def test_classify_rerank_error_maps_wrapped_json_decode_error() -> None:
+    cause = json.JSONDecodeError("bad json", "not-json", 0)
+    exc = ValueError("OpenAI response content is not valid JSON")
+    exc.__cause__ = cause
+
+    assert classify_rerank_error(exc) == "openai_invalid_json"
+
+
+def test_classify_rerank_error_maps_httpx_timeout_to_timeout() -> None:
+    assert classify_rerank_error(httpx.TimeoutException("timeout")) == "openai_timeout"
+
+
+def test_classify_rerank_error_maps_httpx_connect_error() -> None:
+    request = httpx.Request("POST", "https://api.test/chat/completions")
+    assert (
+        classify_rerank_error(httpx.ConnectError("connection failed", request=request))
+        == "openai_connect_error"
+    )
+
+
+def test_rerank_candidates_reports_rrf_fallback_strategy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("hks.rerank.llm.hosted_provider_ready", lambda _provider: True)
+
+    def fake_llm_rerank(
+        _question: str,
+        candidates: list[Candidate],
+    ) -> tuple[list[Candidate], dict[str, object]]:
+        return candidates, {
+            "strategy": "llm",
+            "status": "fallback",
+            "fallback_strategy": "rrf",
+            "reason": "openai_timeout",
+        }
+
+    monkeypatch.setattr("hks.rerank.llm.llm_rerank", fake_llm_rerank)
+    candidates = [Candidate(text="a", source_route="wiki", score=1.0, metadata={})]
+
+    _ranked, strategy, detail = rerank_candidates("question", candidates)
+
+    assert strategy == "rrf-fallback"
+    assert detail["status"] == "fallback"

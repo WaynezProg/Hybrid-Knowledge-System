@@ -96,11 +96,17 @@ def llm_rerank(
 
 
 def classify_rerank_error(exc: Exception) -> str:
-    if isinstance(exc, TimeoutError):
+    if isinstance(exc, (TimeoutError, httpx.TimeoutException)):
         return "openai_timeout"
     if isinstance(exc, httpx.HTTPStatusError):
         return "openai_http_error"
-    if isinstance(exc, json.JSONDecodeError):
+    if isinstance(exc, httpx.ConnectError):
+        return "openai_connect_error"
+    if isinstance(exc, httpx.RequestError):
+        return "openai_request_error"
+    if isinstance(exc, json.JSONDecodeError) or isinstance(
+        exc.__cause__, json.JSONDecodeError
+    ):
         return "openai_invalid_json"
     if isinstance(exc, (KeyError, IndexError, TypeError, ValueError)):
         return "openai_invalid_ranking"
@@ -113,6 +119,8 @@ def rerank_candidates(
 ) -> tuple[list[Candidate], str, dict[str, object]]:
     if hosted_provider_ready("openai"):
         ranked, detail = llm_rerank(question, candidates)
+        if detail.get("status") == "fallback":
+            return ranked, "rrf-fallback", detail
         return ranked, "llm-rerank", detail
     ranked = rrf_rerank(candidates)
     return ranked, "rrf", {"strategy": "rrf", "status": "primary"}
