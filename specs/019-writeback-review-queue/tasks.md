@@ -20,12 +20,12 @@
 
 **Purpose**: Add deterministic review queue persistence without touching query behavior.
 
-- [ ] T005 Create `tests/unit/writeback/test_queue.py` with tests for deterministic id, evidence-sensitive id changes, enqueue created/deduped, approved archive already-promoted, rejected archive requeue, sorted list, load missing id, and archive missing id
-- [ ] T006 Create `src/hks/writeback/queue.py` with `WritebackQueueItem`, `EnqueueResult`, `build_item()`, `enqueue()`, `list_pending()`, `load()`, and `archive()`
-- [ ] T007 Use `sha256(json.dumps(..., sort_keys=True, separators=(",", ":")))[:24]` over question, answer, route, and normalized evidence for item ids
-- [ ] T008 Store pending items in `$KS_ROOT/writeback/queue/<id>.json` and decided items in `$KS_ROOT/writeback/archive/<id>.json`
-- [ ] T009 Wrap enqueue/archive in `blocking_file_lock($KS_ROOT/writeback/.locks/<id>.lock)` and use `atomic_write()` for JSON writes
-- [ ] T010 Run `uv run pytest tests/unit/writeback/test_queue.py -q`
+- [x] T005 Create `tests/unit/writeback/test_queue.py` with tests for deterministic id, evidence-sensitive id changes, enqueue created/deduped, approved archive already-promoted, rejected archive requeue, sorted list, load missing id, and archive missing id
+- [x] T006 Create `src/hks/writeback/queue.py` with `WritebackQueueItem`, `EnqueueResult`, `build_item()`, `enqueue()`, `list_pending()`, `load()`, and `archive()`
+- [x] T007 Use `sha256(json.dumps(..., sort_keys=True, separators=(",", ":")))[:24]` over question, answer, route, and normalized evidence for item ids
+- [x] T008 Store pending items in `$KS_ROOT/writeback/queue/<id>.json` and decided items in `$KS_ROOT/writeback/archive/<id>.json`
+- [x] T009 Wrap enqueue/archive in `blocking_file_lock($KS_ROOT/writeback/.locks/<id>.lock)` and use `atomic_write()` for JSON writes
+- [x] T010 Run `uv run pytest tests/unit/writeback/test_queue.py -q`
 
 **Checkpoint**: Queue can be tested independently of CLI and wiki writer.
 
