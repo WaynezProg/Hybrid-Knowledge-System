@@ -6,7 +6,15 @@ import pytest
 
 from hks.core.paths import runtime_paths
 from hks.errors import ExitCode, KSError
-from hks.writeback.queue import archive, build_item, enqueue, list_pending, load
+from hks.writeback.queue import (
+    archive,
+    archive_locked,
+    build_item,
+    enqueue,
+    list_pending,
+    load,
+    locked_pending_item,
+)
 
 
 def _item(
@@ -160,6 +168,31 @@ def test_load_corrupt_queue_artifact_raises_invalid_queue_error(tmp_path) -> Non
 
     assert exc_info.value.exit_code == ExitCode.DATAERR
     assert exc_info.value.code == "WRITEBACK_QUEUE_INVALID"
+
+
+@pytest.mark.unit
+def test_locked_pending_item_yields_current_pending_item(tmp_path) -> None:
+    paths = runtime_paths(tmp_path / "ks")
+    item = _item()
+    enqueue(item, paths=paths)
+
+    with locked_pending_item(item.id, paths=paths) as locked:
+        assert locked.item.id == item.id
+        assert locked.paths == paths
+
+
+@pytest.mark.unit
+def test_archive_locked_archives_without_reentering_item_lock(tmp_path) -> None:
+    paths = runtime_paths(tmp_path / "ks")
+    item = _item()
+    enqueue(item, paths=paths)
+
+    with locked_pending_item(item.id, paths=paths) as locked:
+        archived = archive_locked(locked=locked, status="approved", slug="project-atlas")
+
+    assert archived.status == "approved"
+    assert not (paths.root / "writeback" / "queue" / f"{item.id}.json").exists()
+    assert (paths.root / "writeback" / "archive" / f"{item.id}.json").exists()
 
 
 @pytest.mark.unit

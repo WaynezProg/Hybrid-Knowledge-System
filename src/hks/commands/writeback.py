@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from hks.core.schema import QueryResponse, Trace, TraceStep
+from hks.errors import ExitCode, KSError
 from hks.writeback.queue import (
     WritebackQueueItem,
     archive,
+    archive_locked,
     load,
+    locked_pending_item,
 )
 from hks.writeback.queue import (
     list_pending as queue_list_pending,
@@ -44,11 +47,20 @@ def run_show(item_id: str) -> QueryResponse:
 
 
 def run_approve(item_id: str) -> QueryResponse:
-    item = load(item_id)
-    steps = promote(item=item)
-    approved_step = _first_writeback_step(steps)
-    slug = str(approved_step.detail["slug"])
-    archived = archive(item.id, "approved", slug=slug)
+    with locked_pending_item(item_id) as locked:
+        item = locked.item
+        steps = promote(item=item)
+        approved_step = _first_writeback_step(steps)
+        slug = str(approved_step.detail["slug"])
+        try:
+            archived = archive_locked(locked=locked, status="approved", slug=slug)
+        except Exception as exc:
+            raise KSError(
+                "partial writeback approval: wiki 已寫入但 queue archive 失敗",
+                exit_code=ExitCode.GENERAL,
+                code="WRITEBACK_APPROVE_PARTIAL",
+                details=[f"item_id={item.id}", f"slug={slug}", str(exc)],
+            ) from exc
     detail = {
         **approved_step.detail,
         "archive": archived.to_dict(),
@@ -97,7 +109,7 @@ def _preview(question: str) -> str:
 
 
 def _confidence(item: WritebackQueueItem) -> float:
-    return item.retrieval_score if item.retrieval_score is not None else 1.0
+    return item.retrieval_score if item.retrieval_score is not None else 0.0
 
 
 def _first_writeback_step(steps: list[TraceStep]) -> TraceStep:

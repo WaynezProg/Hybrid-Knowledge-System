@@ -7,7 +7,10 @@ import pytest
 from typer.testing import CliRunner
 
 from hks.cli import app
+from hks.commands import writeback as writeback_command
 from hks.core.paths import runtime_paths
+from hks.core.schema import TraceStep
+from hks.errors import ExitCode, KSError
 from hks.writeback.queue import build_item, enqueue
 
 
@@ -21,6 +24,7 @@ def _seed_item(
     *,
     question: str = "Project Atlas summary",
     created_at: str = "2026-05-22T01:00:00+00:00",
+    retrieval_score: float | None = 0.82,
 ) -> str:
     item = build_item(
         question=question,
@@ -34,7 +38,7 @@ def _seed_item(
                 "quote": "Atlas source quote",
             }
         ],
-        retrieval_score=0.82,
+        retrieval_score=retrieval_score,
         writeback_eligible=True,
         reasons=["vector evidence with source"],
         created_at=created_at,
@@ -96,6 +100,20 @@ def test_writeback_show_outputs_full_pending_item(cli_runner: CliRunner) -> None
 
 
 @pytest.mark.unit
+def test_writeback_show_unknown_retrieval_score_uses_zero_confidence(
+    cli_runner: CliRunner,
+) -> None:
+    item_id = _seed_item(retrieval_score=None)
+
+    result = cli_runner.invoke(app, ["writeback", "show", item_id])
+
+    assert result.exit_code == 0, result.output
+    payload = _payload(result)
+    assert payload["confidence"] == 0.0
+    assert "retrieval_score" not in payload
+
+
+@pytest.mark.unit
 def test_writeback_approve_promotes_then_archives(cli_runner: CliRunner) -> None:
     item_id = _seed_item()
 
@@ -112,6 +130,52 @@ def test_writeback_approve_promotes_then_archives(cli_runner: CliRunner) -> None
     assert detail["archive"]["id"] == item_id
     assert not (runtime_paths().root / "writeback" / "queue" / f"{item_id}.json").exists()
     assert (runtime_paths().root / "writeback" / "archive" / f"{item_id}.json").exists()
+
+
+@pytest.mark.unit
+def test_writeback_approve_missing_pending_item_does_not_promote(
+    cli_runner: CliRunner,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    item_id = _seed_item()
+    cli_runner.invoke(app, ["writeback", "reject", item_id])
+    calls: list[str] = []
+
+    def fake_promote(**_: object) -> list[TraceStep]:
+        calls.append("promote")
+        return []
+
+    monkeypatch.setattr(writeback_command, "promote", fake_promote)
+
+    result = cli_runner.invoke(app, ["writeback", "approve", item_id])
+
+    assert result.exit_code == 66
+    assert calls == []
+
+
+@pytest.mark.unit
+def test_writeback_approve_archive_failure_after_promote_reports_partial_success(
+    cli_runner: CliRunner,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    item_id = _seed_item()
+
+    def fail_archive_locked(**_: object) -> object:
+        raise KSError("archive failed", exit_code=ExitCode.GENERAL, code="ARCHIVE_FAILED")
+
+    monkeypatch.setattr(writeback_command, "archive_locked", fail_archive_locked)
+
+    result = cli_runner.invoke(app, ["writeback", "approve", item_id])
+
+    assert result.exit_code == 1
+    assert (runtime_paths().wiki_pages / "project-atlas-summary.md").exists()
+    assert (runtime_paths().root / "writeback" / "queue" / f"{item_id}.json").exists()
+    payload = _payload(result)
+    detail = payload["trace"]["steps"][0]["detail"]
+    assert detail == {"code": "WRITEBACK_APPROVE_PARTIAL", "exit_code": 1}
+    assert "partial writeback approval" in payload["answer"]
+    assert item_id in result.stderr
+    assert "project-atlas-summary" in result.stderr
 
 
 @pytest.mark.unit

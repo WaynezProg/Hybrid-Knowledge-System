@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal, cast
@@ -83,6 +85,12 @@ class EnqueueResult:
     path: Path | None
 
 
+@dataclass(frozen=True, slots=True)
+class LockedPendingItem:
+    item: WritebackQueueItem
+    paths: RuntimePaths
+
+
 def build_item(
     *,
     question: str,
@@ -148,13 +156,18 @@ def list_pending(*, paths: RuntimePaths | None = None) -> list[WritebackQueueIte
 
 def load(item_id: str, *, paths: RuntimePaths | None = None) -> WritebackQueueItem:
     resolved = paths or runtime_paths()
-    path = _queue_path(item_id, resolved)
-    if not path.exists():
-        raise _missing_queue_item(item_id)
-    item = _read_item(path)
-    if item.status != "pending":
-        raise _missing_queue_item(item_id)
-    return item
+    return _load_pending_unlocked(item_id, resolved)
+
+
+@contextmanager
+def locked_pending_item(
+    item_id: str,
+    *,
+    paths: RuntimePaths | None = None,
+) -> Iterator[LockedPendingItem]:
+    resolved = paths or runtime_paths()
+    with blocking_file_lock(_lock_path(item_id, resolved)):
+        yield LockedPendingItem(item=_load_pending_unlocked(item_id, resolved), paths=resolved)
 
 
 def archive(
@@ -171,18 +184,34 @@ def archive(
             code="WRITEBACK_QUEUE_INVALID",
         )
     resolved = paths or runtime_paths()
-    queue_path = _queue_path(item_id, resolved)
-    archive_path = _archive_path(item_id, resolved)
     with blocking_file_lock(_lock_path(item_id, resolved)):
-        if not queue_path.exists():
-            raise _missing_queue_item(item_id)
-        item = _read_item(queue_path)
-        if item.status != "pending":
-            raise _missing_queue_item(item_id)
-        archived = replace(item, status=status, decided_at=utc_now_iso(), slug=slug)
-        _write_item(archive_path, archived)
-        queue_path.unlink()
-        return archived
+        locked = LockedPendingItem(item=_load_pending_unlocked(item_id, resolved), paths=resolved)
+        return archive_locked(locked=locked, status=status, slug=slug)
+
+
+def archive_locked(
+    *,
+    locked: LockedPendingItem,
+    status: Literal["approved", "rejected"],
+    slug: str | None = None,
+) -> WritebackQueueItem:
+    if status not in _ARCHIVE_STATUSES:
+        raise KSError(
+            f"writeback queue archive status `{status}` 無效",
+            exit_code=ExitCode.DATAERR,
+            code="WRITEBACK_QUEUE_INVALID",
+        )
+    queue_path = _queue_path(locked.item.id, locked.paths)
+    archive_path = _archive_path(locked.item.id, locked.paths)
+    if not queue_path.exists():
+        raise _missing_queue_item(locked.item.id)
+    item = _read_item(queue_path)
+    if item.status != "pending":
+        raise _missing_queue_item(locked.item.id)
+    archived = replace(item, status=status, decided_at=utc_now_iso(), slug=slug)
+    _write_item(archive_path, archived)
+    queue_path.unlink()
+    return archived
 
 
 def _build_id(
@@ -254,6 +283,16 @@ def _read_item(path: Path) -> WritebackQueueItem:
             code="WRITEBACK_QUEUE_INVALID",
             details=[str(exc)],
         ) from exc
+
+
+def _load_pending_unlocked(item_id: str, paths: RuntimePaths) -> WritebackQueueItem:
+    path = _queue_path(item_id, paths)
+    if not path.exists():
+        raise _missing_queue_item(item_id)
+    item = _read_item(path)
+    if item.status != "pending":
+        raise _missing_queue_item(item_id)
+    return item
 
 
 def _write_item(path: Path, item: WritebackQueueItem) -> None:

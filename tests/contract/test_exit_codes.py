@@ -331,11 +331,15 @@ def test_query_embedding_load_failure_returns_general(tmp_path: Path) -> None:
 
 
 @pytest.mark.contract
-def test_writeback_missing_id_returns_noinput_with_valid_json(tmp_path: Path) -> None:
-    result = _run_cli("writeback", "show", "missing", ks_root=tmp_path / "ks")
+@pytest.mark.parametrize("subcommand", ["show", "approve", "reject"])
+def test_writeback_missing_id_returns_noinput_with_valid_json(
+    tmp_path: Path,
+    subcommand: str,
+) -> None:
+    result = _run_cli("writeback", subcommand, "missing", ks_root=tmp_path / "ks")
 
     assert result.returncode == 66
-    assert result.stderr.splitlines()[0].startswith("[ks:writeback show] error:")
+    assert result.stderr.splitlines()[0].startswith(f"[ks:writeback {subcommand}] error:")
     payload = _load_stdout_json(result)
     assert payload["trace"]["steps"][0]["detail"] == {"code": "NOINPUT", "exit_code": 66}
 
