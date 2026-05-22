@@ -6,7 +6,9 @@ import pytest
 
 import hks.commands.query as query_command
 from hks.cli import app
+from hks.core.paths import runtime_paths
 from hks.writeback.gate import Decision
+from hks.writeback.queue import archive
 
 
 @pytest.fixture()
@@ -18,6 +20,14 @@ def ingested_for_writeback(cli_runner, working_docs):
 
 def _wiki_page_count(tmp_ks_root) -> int:
     return len(list((tmp_ks_root / "wiki" / "pages").glob("*.md")))
+
+
+def _wiki_page_snapshot(tmp_ks_root) -> dict[str, bytes]:
+    pages_dir = tmp_ks_root / "wiki" / "pages"
+    return {
+        path.name: path.read_bytes()
+        for path in sorted(pages_dir.glob("*.md"))
+    }
 
 
 def _queue_files(tmp_ks_root) -> list:
@@ -139,7 +149,7 @@ def test_writeback_ask_non_tty_skips_queue(cli_runner, ingested_for_writeback, t
 def test_writeback_yes_enqueues_without_wiki_page_or_forced_event(
     cli_runner, ingested_for_writeback, tmp_ks_root
 ) -> None:
-    before_pages = _wiki_page_count(tmp_ks_root)
+    before_pages = _wiki_page_snapshot(tmp_ks_root)
 
     result = cli_runner.invoke(app, ["query", "summary Atlas", "--writeback=yes"])
 
@@ -164,7 +174,7 @@ def test_writeback_yes_enqueues_without_wiki_page_or_forced_event(
     if events_path.exists():
         assert "forced_writeback" not in events_path.read_text(encoding="utf-8")
     assert "writeback | enqueued" in _log_text(tmp_ks_root)
-    assert _wiki_page_count(tmp_ks_root) == before_pages
+    assert _wiki_page_snapshot(tmp_ks_root) == before_pages
 
 
 @pytest.mark.integration
@@ -198,6 +208,31 @@ def test_writeback_yes_dedupes_same_query(
     assert _writeback_step(payload)["detail"]["status"] == "enqueued-deduped"
     assert len(_queue_files(tmp_ks_root)) == 1
     assert _log_text(tmp_ks_root) == after_first_log
+
+
+@pytest.mark.integration
+@pytest.mark.us3
+def test_writeback_yes_reports_already_promoted_queue_item(
+    cli_runner, ingested_for_writeback, tmp_ks_root
+) -> None:
+    first = cli_runner.invoke(app, ["query", "summary Atlas", "--writeback=yes"])
+    assert first.exit_code == 0
+    first_payload = json.loads(first.stdout)
+    first_step = _writeback_step(first_payload)
+    item_id = first_step["detail"]["id"]
+    archive(item_id, "approved", slug="summary-atlas", paths=runtime_paths(tmp_ks_root))
+    after_archive_log = _log_text(tmp_ks_root)
+
+    second = cli_runner.invoke(app, ["query", "summary Atlas", "--writeback=yes"])
+
+    assert second.exit_code == 0
+    second_payload = json.loads(second.stdout)
+    second_step = _writeback_step(second_payload)
+    assert second_step["detail"]["status"] == "already-promoted"
+    assert second_step["detail"]["id"] == item_id
+    assert second_step["detail"]["path"].endswith(f"writeback/archive/{item_id}.json")
+    assert _queue_files(tmp_ks_root) == []
+    assert _log_text(tmp_ks_root) == after_archive_log
 
 
 @pytest.mark.integration
