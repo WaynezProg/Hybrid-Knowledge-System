@@ -6,12 +6,12 @@
 
 ## 1. 動機
 
-現況 `ks query --writeback=auto|yes` 會把「query 當 title、answer 當 body」直接寫成 wiki page（`origin=writeback`、`source_relpath=<writeback>`）。對 agent memory 而言這有兩個問題：
+019 改造前，`ks query --writeback=auto|yes` 會把「query 當 title、answer 當 body」直接寫成 wiki page（`origin=writeback`、`source_relpath=<writeback>`）。對 agent memory 而言這有兩個問題：
 
-1. 一次錯答會沉澱成可被下次 retrieval 取用的知識；`--writeback=yes` 更是無 confidence floor 的強制寫入。
+1. 一次錯答會沉澱成可被下次 retrieval 取用的知識；舊的 `--writeback=yes` 更是無 confidence floor 的強制寫入。
 2. 寫進去的是 `(query, answer)` 低保真配對，`source_relpath=<writeback>` 不可溯源，不是 evidence-backed memory object。
 
-此外 query response 的 `confidence` 欄位群語意不一致：`calibrated_confidence` 實際只是 `clamp(raw_score, 0, 1)`，並非真校準，且與 `confidence` 是同一數字兩個名字。
+此外，改造前 query response 的 `confidence` 欄位群語意不一致：`calibrated_confidence` 實際只是 `clamp(raw_score, 0, 1)`，並非真校準，且與 `confidence` 是同一數字兩個名字。
 
 本 spec 將 write-back 改為人工審核佇列，並把 `confidence` 欄位群收乾淨。
 
