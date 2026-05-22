@@ -46,16 +46,16 @@
 
 **Purpose**: Stop query from writing wiki pages directly.
 
-- [ ] T017 Update `tests/integration/test_writeback.py::test_writeback_yes_overrides_non_tty` to expect queue item creation, trace status `enqueued`, no wiki page count increase, and no `forced_writeback` coordination event when `events.jsonl` exists
-- [ ] T018 Update auto ineligible integration test to expect trace status `skipped-ineligible` and zero queue files
-- [ ] T019 Update default/no/ask integration tests to assert no queue files and no wiki page count increase unless user confirms `ask`
-- [ ] T020 Add dedup integration test: same `ks query --writeback=yes` twice produces one queue file and second trace status `enqueued-deduped`
-- [ ] T021 Modify `src/hks/commands/query.py`: replace `_maybe_writeback()` with `_maybe_enqueue()`
-- [ ] T022 Remove `_record_forced_writeback_event()` and all calls to `commit()` from query flow
-- [ ] T023 In `_maybe_enqueue()`, build queue item from question, response, and assessment reasons; map queue statuses to trace statuses
-- [ ] T024 Append wiki `log.md` status `enqueued` only when queue result is `created`
-- [ ] T025 Add `enqueued`, `approved`, and `rejected` to `EventStatus` in `src/hks/storage/wiki.py`
-- [ ] T026 Run `uv run pytest tests/integration/test_writeback.py tests/unit/commands/test_writeback_context.py -q`
+- [x] T017 Update `tests/integration/test_writeback.py::test_writeback_yes_overrides_non_tty` to expect queue item creation, trace status `enqueued`, no wiki page count increase, and no `forced_writeback` coordination event when `events.jsonl` exists
+- [x] T018 Update auto ineligible integration test to expect trace status `skipped-ineligible` and zero queue files
+- [x] T019 Update default/no/ask integration tests to assert no queue files and no wiki page count increase unless user confirms `ask`
+- [x] T020 Add dedup integration test: same `ks query --writeback=yes` twice produces one queue file and second trace status `enqueued-deduped`
+- [x] T021 Modify `src/hks/commands/query.py`: replace `_maybe_writeback()` with `_maybe_enqueue()`
+- [x] T022 Remove `_record_forced_writeback_event()` and all calls to `commit()` from query flow
+- [x] T023 In `_maybe_enqueue()`, build queue item from question, response, and assessment reasons; map queue statuses to trace statuses
+- [x] T024 Append wiki `log.md` status `enqueued` only when queue result is `created`
+- [x] T025 Add `enqueued`, `approved`, and `rejected` to `EventStatus` in `src/hks/storage/wiki.py`
+- [x] T026 Run `uv run pytest tests/integration/test_writeback.py tests/unit/commands/test_writeback_context.py -q`
 
 **Checkpoint**: `ks query` can create queue files but cannot create wiki pages through writeback.
 
