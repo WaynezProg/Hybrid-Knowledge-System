@@ -225,12 +225,7 @@ def _maybe_enqueue(
         )
         return response
 
-    decision = decide(
-        cast(WritebackFlag, writeback),
-        assessment=assessment,
-        confidence=response.confidence,
-        is_tty=sys.stdout.isatty(),
-    )
+    decision = decide(cast(WritebackFlag, writeback), is_tty=sys.stdout.isatty())
     if decision.action == "enqueue":
         try:
             result = enqueue(

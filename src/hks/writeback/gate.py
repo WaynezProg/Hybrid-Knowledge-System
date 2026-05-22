@@ -4,12 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 import typer
-
-if TYPE_CHECKING:
-    from hks.retrieval.confidence import ConfidenceAssessment
 
 type WritebackFlag = Literal["auto", "yes", "no", "ask"]
 type DecisionAction = Literal["enqueue", "skip", "skip-non-tty"]
@@ -20,7 +17,6 @@ type DecisionStatus = Literal["enqueued", "declined", "skip-non-tty"]
 class Decision:
     action: DecisionAction
     status: DecisionStatus
-    forced: bool = False
 
 
 def prompt_user() -> bool:
@@ -30,13 +26,11 @@ def prompt_user() -> bool:
 def decide(
     flag: WritebackFlag,
     *,
-    assessment: ConfidenceAssessment | None = None,
-    confidence: float | None = None,
     is_tty: bool,
     prompt: Callable[[], bool] | None = None,
 ) -> Decision:
     if flag == "yes":
-        return Decision(action="enqueue", status="enqueued", forced=True)
+        return Decision(action="enqueue", status="enqueued")
     if flag == "no":
         return Decision(action="skip", status="declined")
     if flag == "auto":

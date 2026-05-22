@@ -2,18 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 from hks.core.manifest import load_manifest
 from hks.core.schema import TraceStep
 from hks.errors import ExitCode, KSError
 from hks.storage.wiki import LogEntry, WikiPage, WikiStore
 from hks.writeback.queue import WritebackQueueItem
-
-
-@dataclass(slots=True)
-class WritebackContext:
-    related_slugs: list[str] = field(default_factory=list)
 
 
 def valid_evidence_items(item: WritebackQueueItem) -> list[dict[str, str]]:
@@ -40,7 +33,6 @@ def valid_evidence_items(item: WritebackQueueItem) -> list[dict[str, str]]:
 def promote(
     *,
     item: WritebackQueueItem,
-    context: WritebackContext | None = None,
     wiki_store: WikiStore | None = None,
 ) -> list[TraceStep]:
     store = wiki_store or WikiStore()
@@ -58,7 +50,6 @@ def promote(
     _ensure_promotable_slug(store, target_slug)
     related_pages = _related_pages(
         store,
-        context,
         source_relpaths=[evidence["source_relpath"] for evidence in evidence_items],
         exclude_slug=target_slug,
     )
@@ -135,7 +126,6 @@ def _ensure_promotable_slug(store: WikiStore, slug: str) -> None:
 
 def _related_pages(
     store: WikiStore,
-    context: WritebackContext | None,
     *,
     source_relpaths: list[str],
     exclude_slug: str,
@@ -146,13 +136,4 @@ def _related_pages(
         if page.slug != exclude_slug and page.slug not in seen:
             pages.append(page)
             seen.add(page.slug)
-    if context is not None:
-        for slug in context.related_slugs:
-            if slug in seen or slug == exclude_slug:
-                continue
-            try:
-                pages.append(store.load_page(slug))
-                seen.add(slug)
-            except FileNotFoundError:
-                continue
     return pages

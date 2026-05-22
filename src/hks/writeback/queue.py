@@ -149,7 +149,13 @@ def list_pending(*, paths: RuntimePaths | None = None) -> list[WritebackQueueIte
     queue_dir = _queue_dir(resolved)
     if not queue_dir.exists():
         return []
-    items = [_read_item(path) for path in queue_dir.glob("*.json")]
+    items: list[WritebackQueueItem] = []
+    for path in queue_dir.glob("*.json"):
+        try:
+            items.append(_read_item(path))
+        except FileNotFoundError:
+            # concurrent archive() can unlink a queue file between glob and read
+            continue
     pending = [item for item in items if item.status == "pending"]
     return sorted(pending, key=lambda item: (item.created_at, item.id))
 

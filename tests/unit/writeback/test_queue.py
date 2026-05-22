@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+import hks.writeback.queue as queue_module
 from hks.core.paths import runtime_paths
 from hks.errors import ExitCode, KSError
 from hks.writeback.queue import (
@@ -168,6 +169,25 @@ def test_list_pending_sorts_by_created_at_then_id(tmp_path) -> None:
     pending = list_pending(paths=paths)
 
     assert pending == sorted([first, second, third], key=lambda item: (item.created_at, item.id))
+
+
+@pytest.mark.unit
+def test_list_pending_skips_files_removed_during_iteration(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = runtime_paths(tmp_path / "ks")
+    item = _item()
+    enqueue(item, paths=paths)
+    real_read = queue_module._read_item
+
+    def vanishing_read(path):
+        if path.stem == item.id:
+            raise FileNotFoundError(path)
+        return real_read(path)
+
+    monkeypatch.setattr(queue_module, "_read_item", vanishing_read)
+
+    assert list_pending(paths=paths) == []
 
 
 @pytest.mark.unit
