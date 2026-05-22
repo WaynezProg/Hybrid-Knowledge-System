@@ -183,9 +183,12 @@ Source / route 語意對照：
 
 * `HKS_LLM_NETWORK_OPT_IN=1` 且有 OpenAI-compatible key 時，使用 LLM rerank
 * 未 explicit opt-in 或缺 credential 時，使用 deterministic RRF rerank
+* implementation 已拆成 retrievers、retrieval evidence 與 rerank modules；`commands/query.py` 只負責 orchestration 與 write-back
 * trace 會包含 `rerank` step；LLM rerank 失敗時會記錄 fallback reason
 * page_tree 只把有 LLM-enriched summary 的 section node 作為候選；裸標題仍主要由 wiki / vector 覆蓋
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
+
+016 retrieval quality gate 位於 `tests/eval/test_golden_retrieval_quality.py`，使用 `simple` backends 離線執行 golden queries，量測 route accuracy、precision@1、evidence hit rate、answer contains、no-hit precision 與 writeback false-positive rate。
 
 ---
 

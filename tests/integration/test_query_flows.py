@@ -4,9 +4,9 @@ import json
 
 import pytest
 
-import hks.commands.query as query_command
 import hks.ingest.extractor as extractor
 import hks.ingest.normalizer as normalizer
+import hks.retrievers.graph as graph_retriever
 from hks.cli import app
 from hks.core.text_models import TextModelBackend
 from hks.ingest.parsers import docx as docx_parser
@@ -66,7 +66,7 @@ def test_query_relation_uses_graph(cli_runner, ingested_runtime) -> None:
 def test_query_graph_miss_uses_secondary_wiki(
     cli_runner, ingested_runtime, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setattr(query_command, "answer_query", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(graph_retriever, "answer_query", lambda *_args, **_kwargs: None)
 
     result = cli_runner.invoke(app, ["query", "影響 Atlas 說明", "--writeback=no"])
 

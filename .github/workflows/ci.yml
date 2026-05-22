@@ -43,7 +43,10 @@ jobs:
         run: uv run mypy src/hks
 
       - name: Test
-        run: uv run pytest --cov=hks --cov-fail-under=80 -q
+        run: uv run pytest --ignore=tests/eval --cov=hks --cov-fail-under=80 -q
+
+      - name: Golden retrieval quality gate
+        run: uv run pytest tests/eval/test_golden_retrieval_quality.py -q
 
   airgapped-install:
     runs-on: ubuntu-latest

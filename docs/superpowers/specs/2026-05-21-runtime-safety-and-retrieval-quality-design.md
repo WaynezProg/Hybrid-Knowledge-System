@@ -208,6 +208,8 @@ Reason enum 初版：
 
 ## 016: Retrieval Quality Gate
 
+> **Status:** Implemented — see `docs/superpowers/plans/2026-05-22-016-retrieval-quality-gate.md`.
+
 ### Scope
 
 `016-retrieval-quality-gate` builds on the existing `evals/` and `tests/eval/`. It does not replace them.
@@ -217,12 +219,13 @@ Existing evals prove the fused path runs. 016 adds measurable pass/fail quality 
 - `route_accuracy`
 - `precision_at_1`
 - `evidence_hit_rate`
+- `answer_contains_rate`
 - `no_hit_precision`
 - `writeback_false_positive_rate`
 
 ### 與現有 Eval 的關係
 
-現有 `evals/e2e_query.jsonl`（5 筆，格式為 `expected_sources_present` + `expected_answer_contains`）和 `tests/eval/test_e2e_query_eval.py` 繼續保留並在 CI 中跑。它們驗證 fused path 不壞；016 新增的 golden query eval 驗證品質指標。兩者格式不同、threshold 獨立、CI 中並行執行。
+現有 `evals/e2e_query.jsonl`（5 筆，格式為 `expected_sources_present` + `expected_answer_contains`）和 `tests/eval/test_e2e_query_eval.py` 繼續保留為 hosted eval。它們在 OpenAI credential 與 `HKS_LLM_NETWORK_OPT_IN=1` 存在時驗證 fused path；016 新增的 golden query eval 是 CI 的 deterministic offline gate。兩者格式不同、threshold 獨立。
 
 ### Golden Query Format
 
@@ -235,6 +238,7 @@ Existing evals prove the fused path runs. 016 adds measurable pass/fail quality 
   "expected_route": "vector",
   "expected_source_relpath": "project-atlas.txt",
   "expected_evidence_quote": "Owner Iris",
+  "expected_answer_contains": "Owner Iris",
   "writeback_allowed": false
 }
 ```
@@ -253,7 +257,9 @@ Initial categories:
 CI runs a deterministic quick eval with `HKS_EMBEDDING_MODEL=simple` and no OpenAI key. Thresholds are intentionally conservative for first adoption:
 
 - route_accuracy >= 0.70
+- precision_at_1 >= 0.70
 - evidence_hit_rate >= 0.80
+- answer_contains_rate = 1.00
 - no_hit_precision = 1.00
 - writeback_false_positive_rate = 0.00
 
@@ -271,6 +277,8 @@ Hosted OpenAI eval remains opt-in and is not required for CI.
 - CI: add one quick eval command after pytest or as a targeted pytest module
 
 ## 017: Query Refactor
+
+> **Status:** Implemented — see `docs/superpowers/plans/2026-05-22-017-query-refactor.md`.
 
 ### Scope
 

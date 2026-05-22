@@ -11,6 +11,17 @@
 
 目前沒有 active feature spec。
 
+## Implemented local gates
+
+- `016-retrieval-quality-gate`
+  - Status: Complete
+  - Implemented on: 2026-05-22
+  - Canonical artifacts: [plan](../docs/superpowers/plans/2026-05-22-016-retrieval-quality-gate.md), [golden queries](../evals/golden_queries/quick.jsonl), [eval test](../tests/eval/test_golden_retrieval_quality.py)
+- `017-query-refactor`
+  - Status: Complete
+  - Implemented on: 2026-05-22
+  - Canonical artifacts: [plan](../docs/superpowers/plans/2026-05-22-017-query-refactor.md), [retrievers](../src/hks/retrievers), [rerank](../src/hks/rerank)
+
 ## Archived
 
 - `001-phase1-cli-mvp`
