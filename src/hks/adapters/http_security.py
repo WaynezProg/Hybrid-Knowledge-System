@@ -263,7 +263,7 @@ def guard_http_request(request: Request) -> HttpSecurityFailure | None:
         return HttpSecurityFailure(
             status_code=401,
             code="HTTP_AUTH_REQUIRED",
-            message="HTTP mutation requires Authorization: Bearer token",
+            message="HTTP request requires Authorization: Bearer token",
             details=[],
         )
 

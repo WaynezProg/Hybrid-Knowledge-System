@@ -152,8 +152,16 @@ def test_http_security_requires_matching_bearer_for_mutation(
 
     assert missing.status_code == 401
     assert missing.json()["error"]["code"] == "HTTP_AUTH_REQUIRED"
+    assert (
+        missing.json()["error"]["message"]
+        == "HTTP request requires Authorization: Bearer token"
+    )
     assert wrong.status_code == 401
     assert wrong.json()["error"]["code"] == "HTTP_AUTH_REQUIRED"
+    assert (
+        wrong.json()["error"]["message"]
+        == "HTTP request requires Authorization: Bearer token"
+    )
 
 
 @pytest.mark.integration
@@ -268,6 +276,10 @@ def test_http_security_requires_bearer_for_reads_when_enabled(
 
     assert response.status_code == 401
     assert response.json()["error"]["code"] == "HTTP_AUTH_REQUIRED"
+    assert (
+        response.json()["error"]["message"]
+        == "HTTP request requires Authorization: Bearer token"
+    )
 
 
 @pytest.mark.integration
