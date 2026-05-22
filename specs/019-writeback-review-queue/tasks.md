@@ -9,10 +9,10 @@
 
 **Purpose**: Lock the public shape before runtime changes.
 
-- [ ] T001 Update `tests/contract/test_query_phase1_contract_preserved.py` to reject `calibrated_confidence` and accept raw `retrieval_score`
-- [ ] T002 Update `specs/005-phase3-lint-impl/contracts/query-response.schema.json` to remove `calibrated_confidence`, keep `writeback_eligible`, and allow raw `retrieval_score`
-- [ ] T003 Update `src/hks/core/schema.py` so `QueryResponse.to_dict()` never emits `calibrated_confidence`
-- [ ] T004 Run `uv run pytest tests/contract/test_query_phase1_contract_preserved.py tests/contract/test_json_schema.py -q`
+- [x] T001 Update `tests/contract/test_query_phase1_contract_preserved.py` to reject `calibrated_confidence` and accept raw `retrieval_score`
+- [x] T002 Update `specs/005-phase3-lint-impl/contracts/query-response.schema.json` to remove `calibrated_confidence`, keep `writeback_eligible`, and allow raw `retrieval_score`
+- [x] T003 Update `src/hks/core/schema.py` so `QueryResponse.to_dict()` never emits `calibrated_confidence`
+- [x] T004 Run `uv run pytest tests/contract/test_query_phase1_contract_preserved.py tests/contract/test_json_schema.py -q`
 
 **Checkpoint**: Contract tests fail before T002/T003 and pass after them.
 
