@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import fcntl
 import json
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
 
 from hks.adapters.contracts import validate_wiki_artifact
+from hks.core.lock import blocking_file_lock
 from hks.core.manifest import atomic_write, utc_now_iso
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.errors import ExitCode, KSError
@@ -107,15 +105,3 @@ def load_candidate_artifact(
             details=[str(exc)],
         ) from exc
     return str(payload["artifact_id"]), candidate, payload, path
-
-
-@contextmanager
-def blocking_file_lock(path: Path) -> Iterator[None]:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle = path.open("w", encoding="utf-8")
-    try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        yield
-    finally:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-        handle.close()

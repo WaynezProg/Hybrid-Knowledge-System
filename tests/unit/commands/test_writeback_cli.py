@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -8,10 +13,12 @@ from typer.testing import CliRunner
 
 from hks.cli import app
 from hks.commands import writeback as writeback_command
+from hks.core.lock import blocking_file_lock
 from hks.core.manifest import Manifest, ManifestEntry, compute_sha256, save_manifest, utc_now_iso
 from hks.core.paths import runtime_paths
 from hks.core.schema import TraceStep
 from hks.errors import ExitCode, KSError
+from hks.storage.wiki import WikiStore
 from hks.writeback.queue import build_item, enqueue
 
 
@@ -176,6 +183,45 @@ def test_writeback_approve_promotes_then_archives(cli_runner: CliRunner) -> None
 
 
 @pytest.mark.unit
+def test_writeback_approve_waits_for_wikistore_mutation_lock() -> None:
+    _seed_source()
+    item_id = _seed_item()
+    paths = runtime_paths()
+    project_root = Path(__file__).resolve().parents[3]
+    env = os.environ.copy()
+    env["PYTHONPATH"] = (
+        f"{project_root / 'src'}{os.pathsep}{env['PYTHONPATH']}"
+        if env.get("PYTHONPATH")
+        else str(project_root / "src")
+    )
+    code = """
+import sys
+from hks.commands.writeback import run_approve
+
+print(run_approve(sys.argv[1]).to_json())
+"""
+
+    with blocking_file_lock(WikiStore(paths).mutation_lock_path):
+        process = subprocess.Popen(
+            [sys.executable, "-c", code, item_id],
+            cwd=project_root,
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        time.sleep(0.3)
+        assert process.poll() is None
+        assert not (paths.wiki_pages / "project-atlas-summary.md").exists()
+
+    stdout, stderr = process.communicate(timeout=5)
+    assert process.returncode == 0, stderr
+    payload = json.loads(stdout)
+    assert payload["answer"] == "writeback approve 完成：project-atlas-summary"
+    assert payload["trace"]["steps"][0]["detail"]["slug"] == "project-atlas-summary"
+
+
+@pytest.mark.unit
 def test_writeback_approve_missing_pending_item_does_not_promote(
     cli_runner: CliRunner,
     monkeypatch: pytest.MonkeyPatch,
@@ -215,10 +261,15 @@ def test_writeback_approve_archive_failure_after_promote_reports_partial_success
     assert (runtime_paths().wiki_pages / "project-atlas-summary.md").exists()
     assert (runtime_paths().root / "writeback" / "queue" / f"{item_id}.json").exists()
     payload = _payload(result)
+    assert payload["source"] == []
     detail = payload["trace"]["steps"][0]["detail"]
     assert detail == {"code": "WRITEBACK_APPROVE_PARTIAL", "exit_code": 1}
     assert "partial writeback approval" in payload["answer"]
+    assert "item_id" not in result.stdout
+    assert "project-atlas-summary" not in result.stdout
     assert item_id in result.stderr
+    assert "item_id=" in result.stderr
+    assert "slug=project-atlas-summary" in result.stderr
     assert "project-atlas-summary" in result.stderr
 
 

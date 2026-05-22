@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import fcntl
 import json
 import shutil
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
 
 from hks.adapters.contracts import validate_graphify_graph, validate_graphify_run
+from hks.core.lock import blocking_file_lock
 from hks.core.manifest import atomic_write, utc_now_iso
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.graphify.export import render_html, render_report
@@ -191,15 +189,3 @@ def _summary_artifacts(run_id: str, base: Path) -> dict[str, Any]:
 
 def load_run_manifest(path: Path) -> dict[str, Any]:
     return cast(dict[str, Any], json.loads(path.read_text(encoding="utf-8")))
-
-
-@contextmanager
-def blocking_file_lock(path: Path) -> Iterator[None]:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle = path.open("w", encoding="utf-8")
-    try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        yield
-    finally:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-        handle.close()

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -10,11 +9,12 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal, cast
 
+from hks.core.hashing import stable_json_hash
+from hks.core.lock import blocking_file_lock
 from hks.core.manifest import atomic_write, utc_now_iso
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.core.schema import Route
 from hks.errors import ExitCode, KSError
-from hks.wiki_synthesis.store import blocking_file_lock
 
 QueueStatus = Literal["pending", "approved", "rejected"]
 EnqueueStatus = Literal["created", "deduped", "already-promoted"]
@@ -233,8 +233,7 @@ def _build_id(
         "route": route,
         "evidence": evidence,
     }
-    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:24]
+    return stable_json_hash(payload, length=24)
 
 
 def _normalize_evidence(evidence: list[dict[str, object]]) -> list[dict[str, object]]:

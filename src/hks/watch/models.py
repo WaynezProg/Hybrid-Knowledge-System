@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal
 
+from hks.core.hashing import stable_json_hash
 from hks.core.manifest import SourceFormat
 
 type WatchMode = Literal["dry-run", "execute"]
@@ -52,8 +51,7 @@ ARTIFACT_COUNT_KEYS: tuple[str, ...] = (
 
 
 def stable_hash(payload: Any) -> str:
-    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    return stable_json_hash(payload)
 
 
 @dataclass(frozen=True, slots=True)

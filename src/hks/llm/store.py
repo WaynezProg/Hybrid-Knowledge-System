@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import fcntl
 import json
-from collections.abc import Iterator
-from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, cast
 
 from hks.adapters.contracts import validate_llm_artifact
+from hks.core.lock import blocking_file_lock
 from hks.core.manifest import atomic_write, utc_now_iso
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.llm.models import (
@@ -47,7 +45,7 @@ def store_or_reuse(
 ) -> tuple[LlmExtractionResult, bool]:
     resolved = paths or runtime_paths()
     base_id = idempotency_key[:24]
-    with _blocking_file_lock(resolved.root / "llm" / ".lock"):
+    with blocking_file_lock(resolved.root / "llm" / ".lock"):
         if not request.force_new_run:
             path = artifact_path(base_id, resolved)
             if path.exists():
@@ -79,15 +77,3 @@ def store_or_reuse(
         validate_llm_artifact(payload)
         atomic_write(path, json.dumps(payload, ensure_ascii=False, indent=2))
         return stored_result, False
-
-
-@contextmanager
-def _blocking_file_lock(path: Path) -> Iterator[None]:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    handle = path.open("w", encoding="utf-8")
-    try:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        yield
-    finally:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-        handle.close()

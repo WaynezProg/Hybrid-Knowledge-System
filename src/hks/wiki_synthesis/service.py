@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from hks.core.lock import blocking_file_lock
 from hks.core.manifest import atomic_write, load_manifest, utc_now_iso
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.errors import ExitCode, KSError
@@ -20,7 +21,6 @@ from hks.wiki_synthesis.providers import provider_for
 from hks.wiki_synthesis.resolver import resolve_extraction_artifact
 from hks.wiki_synthesis.store import (
     artifact_reference,
-    blocking_file_lock,
     candidate_path,
     load_candidate_artifact,
     store_or_reuse,
@@ -107,57 +107,57 @@ def _apply_candidate(
     artifact_id: str,
 ) -> WikiApplyResult:
     store = WikiStore(paths)
-    store.ensure()
-    page_path = paths.wiki_pages / f"{candidate.target_slug}.md"
-    existing = _load_existing(page_path)
-    if existing is not None:
-        conflict = _conflict_for_existing(existing, candidate)
-        if conflict is not None:
-            return WikiApplyResult(
-                operation="conflict",
-                target_slug=candidate.target_slug,
-                touched_pages=[],
-                conflicts=[conflict],
-                diff_summary=f"conflict pages/{candidate.target_slug}.md",
-            )
-        if _same_content(existing, candidate):
+    with store.locked_mutation():
+        page_path = paths.wiki_pages / f"{candidate.target_slug}.md"
+        existing = _load_existing(page_path)
+        if existing is not None:
+            conflict = _conflict_for_existing(existing, candidate)
+            if conflict is not None:
+                return WikiApplyResult(
+                    operation="conflict",
+                    target_slug=candidate.target_slug,
+                    touched_pages=[],
+                    conflicts=[conflict],
+                    diff_summary=f"conflict pages/{candidate.target_slug}.md",
+                )
+            if _same_content(existing, candidate):
+                apply_result = WikiApplyResult(
+                    operation="already_applied",
+                    target_slug=candidate.target_slug,
+                    touched_pages=[f"pages/{candidate.target_slug}.md"],
+                    conflicts=[],
+                    diff_summary=f"already applied pages/{candidate.target_slug}.md",
+                    idempotent_apply=True,
+                    log_entry_id=utc_now_iso(),
+                )
+                store.append_log(_log_entry(apply_result, candidate))
+                return apply_result
+            operation: ApplyOperation = "update"
+        else:
+            operation = "create"
+
+        previous = page_path.read_text(encoding="utf-8") if page_path.exists() else None
+        page = _page_for_candidate(candidate, artifact_id=artifact_id)
+        try:
+            atomic_write(page_path, page.to_markdown())
+            store.rebuild_index()
             apply_result = WikiApplyResult(
-                operation="already_applied",
+                operation=operation,
                 target_slug=candidate.target_slug,
                 touched_pages=[f"pages/{candidate.target_slug}.md"],
                 conflicts=[],
-                diff_summary=f"already applied pages/{candidate.target_slug}.md",
-                idempotent_apply=True,
+                diff_summary=f"{operation} pages/{candidate.target_slug}.md",
                 log_entry_id=utc_now_iso(),
             )
             store.append_log(_log_entry(apply_result, candidate))
             return apply_result
-        operation: ApplyOperation = "update"
-    else:
-        operation = "create"
-
-    previous = page_path.read_text(encoding="utf-8") if page_path.exists() else None
-    page = _page_for_candidate(candidate, artifact_id=artifact_id)
-    try:
-        atomic_write(page_path, page.to_markdown())
-        store.rebuild_index()
-        apply_result = WikiApplyResult(
-            operation=operation,
-            target_slug=candidate.target_slug,
-            touched_pages=[f"pages/{candidate.target_slug}.md"],
-            conflicts=[],
-            diff_summary=f"{operation} pages/{candidate.target_slug}.md",
-            log_entry_id=utc_now_iso(),
-        )
-        store.append_log(_log_entry(apply_result, candidate))
-        return apply_result
-    except Exception:
-        if previous is None:
-            page_path.unlink(missing_ok=True)
-        else:
-            atomic_write(page_path, previous)
-        store.rebuild_index()
-        raise
+        except Exception:
+            if previous is None:
+                page_path.unlink(missing_ok=True)
+            else:
+                atomic_write(page_path, previous)
+            store.rebuild_index()
+            raise
 
 
 def _load_existing(path: Path) -> WikiPage | None:

@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from hks.core.hashing import stable_json_hash
 from hks.llm.models import LlmFinding, LlmProviderConfig
 
 type WikiSynthesisMode = Literal["preview", "store", "apply"]
@@ -51,8 +50,7 @@ class WikiSynthesisRequest:
             "target_slug": target_slug,
             "schema_version": SCHEMA_VERSION,
         }
-        content = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(content.encode("utf-8")).hexdigest()
+        return stable_json_hash(payload)
 
     def to_artifact_dict(self) -> dict[str, Any]:
         return {

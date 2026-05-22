@@ -5,13 +5,17 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
 
 from slugify import slugify
 
-from hks.core.manifest import utc_now_iso
+from hks.core.lock import blocking_file_lock
+from hks.core.manifest import atomic_write, utc_now_iso
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.ingest.office_common import SkippedSegment
 
@@ -212,6 +216,9 @@ class LogEntry:
 class WikiStore:
     def __init__(self, paths: RuntimePaths | None = None) -> None:
         self.paths = paths or runtime_paths()
+        self._thread_lock = threading.RLock()
+        self._mutation_owner: int | None = None
+        self._mutation_depth = 0
 
     @property
     def index_path(self) -> Path:
@@ -220,6 +227,31 @@ class WikiStore:
     @property
     def log_path(self) -> Path:
         return self.paths.wiki / "log.md"
+
+    @property
+    def mutation_lock_path(self) -> Path:
+        return self.paths.wiki / ".mutation.lock"
+
+    @contextmanager
+    def locked_mutation(self) -> Iterator[None]:
+        thread_id = threading.get_ident()
+        if self._mutation_owner == thread_id:
+            self._mutation_depth += 1
+            try:
+                yield
+            finally:
+                self._mutation_depth -= 1
+            return
+        with self._thread_lock:
+            self.ensure()
+            with blocking_file_lock(self.mutation_lock_path):
+                self._mutation_owner = thread_id
+                self._mutation_depth = 1
+                try:
+                    yield
+                finally:
+                    self._mutation_depth = 0
+                    self._mutation_owner = None
 
     def ensure(self) -> None:
         self.paths.wiki.mkdir(parents=True, exist_ok=True)
@@ -240,7 +272,10 @@ class WikiStore:
         return f"{prefix}{suffix_part}"
 
     def next_slug(self, base: str, *, preferred_slug: str | None = None) -> str:
-        self.ensure()
+        with self.locked_mutation():
+            return self._next_slug_unlocked(base, preferred_slug=preferred_slug)
+
+    def _next_slug_unlocked(self, base: str, *, preferred_slug: str | None = None) -> str:
         if preferred_slug:
             return self._fit_slug(preferred_slug, digest_source=preferred_slug)
 
@@ -262,10 +297,31 @@ class WikiStore:
         preferred_slug: str | None = None,
         metadata: dict[str, str] | None = None,
     ) -> WikiPage:
-        self.ensure()
+        with self.locked_mutation():
+            return self._write_page_unlocked(
+                title=title,
+                summary=summary,
+                body=body,
+                source_relpath=source_relpath,
+                origin=origin,
+                preferred_slug=preferred_slug,
+                metadata=metadata,
+            )
+
+    def _write_page_unlocked(
+        self,
+        *,
+        title: str,
+        summary: str,
+        body: str,
+        source_relpath: str,
+        origin: Origin,
+        preferred_slug: str | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> WikiPage:
         base = self.slug_base(preferred_slug or title or Path(source_relpath).stem)
         fallback = f"untitled-{abs(hash(source_relpath)) % 100000:05d}"
-        slug = self.next_slug(base or fallback, preferred_slug=preferred_slug)
+        slug = self._next_slug_unlocked(base or fallback, preferred_slug=preferred_slug)
         page = WikiPage(
             slug=slug,
             title=title.strip() or slug,
@@ -276,16 +332,20 @@ class WikiStore:
             updated_at=utc_now_iso(),
             metadata=dict(metadata or {}),
         )
-        (self.paths.wiki_pages / f"{slug}.md").write_text(page.to_markdown(), encoding="utf-8")
-        self.rebuild_index()
+        atomic_write(self.paths.wiki_pages / f"{slug}.md", page.to_markdown())
+        self._rebuild_index_unlocked()
         return page
 
     def delete_pages(self, slugs: list[str]) -> None:
+        with self.locked_mutation():
+            self._delete_pages_unlocked(slugs)
+
+    def _delete_pages_unlocked(self, slugs: list[str]) -> None:
         for slug in slugs:
             path = self.paths.wiki_pages / f"{slug}.md"
             if path.exists():
                 path.unlink()
-        self.rebuild_index()
+        self._rebuild_index_unlocked()
 
     def load_page(self, slug: str) -> WikiPage:
         text = (self.paths.wiki_pages / f"{slug}.md").read_text(encoding="utf-8")
@@ -303,17 +363,23 @@ class WikiStore:
         return text.replace("\\", "\\\\").replace("[", "\\[").replace("]", "\\]")
 
     def rebuild_index(self) -> None:
-        self.ensure()
+        with self.locked_mutation():
+            self._rebuild_index_unlocked()
+
+    def _rebuild_index_unlocked(self) -> None:
         entries = [
             f"- [{self._escape_link_text(page.title)}](pages/{page.slug}.md) — {page.summary}"
             for page in sorted(self.list_pages(), key=lambda page: page.slug)
         ]
         lines = ["# Wiki Index", ""] + entries if entries else ["# Wiki Index"]
         content = "\n".join(lines).strip()
-        self.index_path.write_text(f"{content}\n" if content else "", encoding="utf-8")
+        atomic_write(self.index_path, f"{content}\n" if content else "")
 
     def append_log(self, entry: LogEntry) -> None:
-        self.ensure()
+        with self.locked_mutation():
+            self._append_log_unlocked(entry)
+
+    def _append_log_unlocked(self, entry: LogEntry) -> None:
         with self.log_path.open("a", encoding="utf-8") as handle:
             handle.write(entry.to_markdown())
 

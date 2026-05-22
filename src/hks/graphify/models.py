@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass, field, replace
 from typing import Any, Literal
 
+from hks.core.hashing import stable_json_hash
 from hks.llm.models import LlmProviderConfig
 
 type GraphifyMode = Literal["preview", "store"]
@@ -49,8 +48,7 @@ class GraphifyRequest:
         }
         if self.force_new_run:
             payload["created_at_iso"] = created_at_iso or ""
-        content = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(content.encode("utf-8")).hexdigest()
+        return stable_json_hash(payload)
 
     def to_artifact_dict(self) -> dict[str, Any]:
         return {
