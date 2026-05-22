@@ -74,6 +74,16 @@ def test_http_openapi_query_response_excludes_calibrated_confidence() -> None:
 
 
 @pytest.mark.contract
+def test_http_openapi_query_input_documents_review_queue_writeback_modes() -> None:
+    spec = load_http_openapi()
+
+    writeback = spec["components"]["schemas"]["HksQueryInput"]["properties"]["writeback"]
+
+    assert writeback["enum"] == ["no", "auto", "yes", "ask"]
+    assert writeback["default"] == "no"
+
+
+@pytest.mark.contract
 def test_http_openapi_contract_documents_http_security_boundaries() -> None:
     spec = load_http_openapi()
 

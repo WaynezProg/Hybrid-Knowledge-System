@@ -153,6 +153,28 @@ def test_golden_retrieval_quality_gate(ingested_golden_ks_root: Path) -> None:
     )
 
 
+def test_golden_writeback_auto_ineligible_case_does_not_enqueue(
+    ingested_golden_ks_root: Path,
+) -> None:
+    case = next(
+        case
+        for case in load_golden_cases(QUICK_EVAL_PATH)
+        if case.id == "wiki-summary-atlas"
+    )
+    queue_dir = ingested_golden_ks_root / "writeback" / "queue"
+
+    response = query_run(case.question, writeback="auto")
+    payload = response.to_dict()
+    writeback_step = next(
+        step for step in payload["trace"]["steps"] if step["kind"] == "writeback"
+    )
+
+    assert case.writeback_allowed is False
+    assert payload["writeback_eligible"] is False
+    assert writeback_step["detail"]["status"] == "skipped-ineligible"
+    assert sorted(queue_dir.glob("*.json")) == []
+
+
 def test_strict_golden_retrieval_quality_gate(strict_ingested_golden_ks_root: Path) -> None:
     cases = load_golden_cases(STRICT_EVAL_PATH)
     observations: list[QueryObservation] = []

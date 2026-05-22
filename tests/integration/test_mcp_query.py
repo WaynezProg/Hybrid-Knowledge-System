@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import anyio
@@ -24,6 +25,19 @@ def _tool_payload(result: Any) -> dict[str, Any]:
 async def _call_tool(name: str, payload: dict[str, Any]) -> dict[str, Any]:
     server = create_server()
     return _tool_payload(await server.call_tool(name, payload))
+
+
+def _wiki_page_snapshot(ks_root: Path) -> dict[str, bytes]:
+    pages_dir = ks_root / "wiki" / "pages"
+    return {path.name: path.read_bytes() for path in sorted(pages_dir.glob("*.md"))}
+
+
+def _queue_files(ks_root: Path) -> list[Path]:
+    return sorted((ks_root / "writeback" / "queue").glob("*.json"))
+
+
+def _writeback_step(payload: dict[str, Any]) -> dict[str, Any]:
+    return next(step for step in payload["trace"]["steps"] if step["kind"] == "writeback")
 
 
 @pytest.mark.integration
@@ -79,6 +93,36 @@ def test_mcp_explicit_ks_root_uses_context(working_docs, tmp_path, monkeypatch) 
         evidence["source_relpath"] for evidence in payload["evidence"]
     } >= {"project-atlas.txt"}
     assert not (wrong_root / "manifest.json").exists()
+    assert "ok" not in payload
+
+
+@pytest.mark.integration
+def test_mcp_query_writeback_yes_enqueues_without_wiki_page(
+    working_docs,
+    tmp_ks_root,
+) -> None:
+    core.hks_ingest(path=str(working_docs))
+    before_pages = _wiki_page_snapshot(tmp_ks_root)
+
+    payload = anyio.run(
+        _call_tool,
+        "hks_query",
+        {"question": "Project Atlas summary", "writeback": "yes"},
+    )
+
+    validate(payload)
+    writeback_step = _writeback_step(payload)
+    assert writeback_step["detail"]["status"] in {
+        "enqueued",
+        "enqueued-deduped",
+        "already-promoted",
+    }
+    queue_files = _queue_files(tmp_ks_root)
+    assert len(queue_files) == 1
+    item = json.loads(queue_files[0].read_text(encoding="utf-8"))
+    assert item["question"] == "Project Atlas summary"
+    assert item["answer"] == payload["answer"]
+    assert _wiki_page_snapshot(tmp_ks_root) == before_pages
     assert "ok" not in payload
 
 

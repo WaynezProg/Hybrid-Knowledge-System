@@ -10,6 +10,7 @@ from typing import Any, cast
 from hks.core.schema import Route
 
 _VALID_ROUTES = {"wiki", "graph", "vector", "page_tree"}
+_AUTO_ENQUEUE_STATUSES = {"enqueued", "enqueued-deduped", "already-promoted"}
 _VALID_FIELDS = {
     "id",
     "question",
@@ -209,7 +210,7 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
 
         if not case.writeback_allowed:
             writeback_disallowed_total += 1
-            if bool(payload.get("writeback_eligible")) or _auto_committed(payload):
+            if bool(payload.get("writeback_eligible")) or _auto_enqueued(payload):
                 writeback_false_positive += 1
                 failures["writeback_false_positive"].append(case.id)
         else:
@@ -396,7 +397,7 @@ def _evidence_item_matches(
     return True
 
 
-def _auto_committed(payload: dict[str, Any]) -> bool:
+def _auto_enqueued(payload: dict[str, Any]) -> bool:
     trace = payload.get("trace")
     if not isinstance(trace, dict):
         return False
@@ -407,7 +408,7 @@ def _auto_committed(payload: dict[str, Any]) -> bool:
         if not isinstance(step, dict) or step.get("kind") != "writeback":
             continue
         detail = step.get("detail")
-        if isinstance(detail, dict) and detail.get("status") == "auto-committed":
+        if isinstance(detail, dict) and detail.get("status") in _AUTO_ENQUEUE_STATUSES:
             return True
     return False
 
