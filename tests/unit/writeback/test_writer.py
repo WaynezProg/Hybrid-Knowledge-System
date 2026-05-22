@@ -3,82 +3,138 @@ from __future__ import annotations
 import pytest
 
 from hks.core.paths import runtime_paths
-from hks.core.schema import QueryResponse, Trace, TraceStep
+from hks.errors import KSError
 from hks.storage.wiki import WikiStore
-from hks.writeback.writer import WritebackContext, commit
+from hks.writeback.queue import WritebackQueueItem, build_item
+from hks.writeback.writer import promote
 
 
-def _response() -> QueryResponse:
-    return QueryResponse(
-        answer="Atlas summary answer",
+def _item(
+    *,
+    question: str = "Project A summary",
+    answer: str = "Atlas summary answer",
+    evidence: list[dict[str, object]] | None = None,
+) -> WritebackQueueItem:
+    return build_item(
+        question=question,
+        answer=answer,
+        route="wiki",
         source=["wiki"],
-        confidence=1.0,
-        trace=Trace(route="wiki", steps=[]),
+        evidence=(
+            evidence
+            if evidence is not None
+            else [
+                {
+                    "source_relpath": "atlas.txt",
+                    "route": "wiki",
+                    "quote": "Atlas source quote",
+                }
+            ]
+        ),
+        retrieval_score=0.9,
+        writeback_eligible=True,
     )
 
 
 @pytest.mark.unit
 @pytest.mark.us3
-def test_writer_commit_persists_page_and_log(tmp_path) -> None:
+def test_promote_persists_evidence_backed_page_log_and_related_links(tmp_path) -> None:
     paths = runtime_paths(tmp_path / "ks")
     store = WikiStore(paths)
-
-    steps = commit(query="Project A summary", response=_response(), wiki_store=store)
-
-    assert steps == [
-        TraceStep(
-            kind="writeback",
-            detail={
-                "status": "committed",
-                "slug": "project-a-summary",
-                "path": "pages/project-a-summary.md",
-                "related": [],
-            },
-        )
-    ]
-    page_path = paths.wiki_pages / "project-a-summary.md"
-    assert page_path.exists()
-    assert "Project A summary" in page_path.read_text(encoding="utf-8")
-    assert "writeback" in paths.wiki.joinpath("log.md").read_text(encoding="utf-8")
-
-
-@pytest.mark.unit
-@pytest.mark.us3
-def test_writer_commit_propagates_log_failure(tmp_path, monkeypatch: pytest.MonkeyPatch) -> None:
-    paths = runtime_paths(tmp_path / "ks")
-    store = WikiStore(paths)
-
-    def fail_append_log(*_args, **_kwargs) -> None:
-        raise OSError("disk full")
-
-    monkeypatch.setattr(store, "append_log", fail_append_log)
-
-    with pytest.raises(OSError, match="disk full"):
-        commit(query="Project A summary", response=_response(), wiki_store=store)
-
-
-@pytest.mark.unit
-def test_writer_related_link_escapes_brackets_and_backslashes(tmp_path) -> None:
-    """Related link text must escape [, ], and \\ for valid Markdown."""
-    paths = runtime_paths(tmp_path / "ks")
-    store = WikiStore(paths)
-
     store.write_page(
         title="Project [A]\\Beta",
         summary="summary",
         body="# Project [A]\\Beta\n\ncontent",
-        source_relpath="project-ab.md",
+        source_relpath="atlas.txt",
         origin="ingest",
     )
 
-    context = WritebackContext(related_slugs=["project-a-beta"])
-    steps = commit(
-        query="test query",
-        response=_response(),
-        context=context,
-        wiki_store=store,
+    steps = promote(item=_item(), wiki_store=store)
+
+    assert steps[0].detail == {
+        "status": "approved",
+        "slug": "project-a-summary",
+        "path": "pages/project-a-summary.md",
+        "related": ["project-a-beta"],
+    }
+    page = store.load_page("project-a-summary")
+    assert page.title == "Project A summary"
+    assert page.source_relpath == "atlas.txt"
+    assert page.origin == "writeback"
+    assert page.metadata["writeback_query"] == "Project A summary"
+    assert page.body.splitlines() == [
+        "# Project A summary",
+        "",
+        "Atlas summary answer",
+        "",
+        "## 來源依據",
+        "",
+        '- atlas.txt — "Atlas source quote"',
+        "",
+        "## Related",
+        "",
+        "- [Project \\[A\\]\\\\Beta](project-a-beta.md)",
+    ]
+    log_text = paths.wiki.joinpath("log.md").read_text(encoding="utf-8")
+    assert "writeback | approved" in log_text
+    assert "- query: Project A summary" in log_text
+    assert "- pages touched: pages/project-a-summary.md" in log_text
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        [],
+        [{"route": "wiki", "quote": "Atlas source quote"}],
+        [{"route": "wiki", "source_relpath": "atlas.txt"}],
+        [{"route": "wiki", "source_relpath": "<writeback>", "quote": "synthetic"}],
+    ],
+)
+def test_promote_requires_real_source_evidence(tmp_path, evidence) -> None:
+    store = WikiStore(runtime_paths(tmp_path / "ks"))
+
+    with pytest.raises(KSError) as exc_info:
+        promote(item=_item(evidence=evidence), wiki_store=store)
+
+    assert exc_info.value.code == "WRITEBACK_EVIDENCE_REQUIRED"
+    assert not list(store.paths.wiki_pages.glob("*.md"))
+
+
+@pytest.mark.unit
+def test_promote_conflicts_with_existing_ingest_page(tmp_path) -> None:
+    store = WikiStore(runtime_paths(tmp_path / "ks"))
+    store.write_page(
+        title="Project A summary",
+        summary="ingested",
+        body="# Project A summary\n\noriginal",
+        source_relpath="atlas.txt",
+        origin="ingest",
     )
 
-    slug = steps[0].detail["slug"]
-    page_text = (paths.wiki_pages / f"{slug}.md").read_text(encoding="utf-8")
-    assert "- [Project \\[A\\]\\\\Beta](project-a-beta.md)" in page_text.splitlines()
+    with pytest.raises(KSError) as exc_info:
+        promote(item=_item(), wiki_store=store)
+
+    assert exc_info.value.code == "CONFLICT"
+    assert store.load_page("project-a-summary").origin == "ingest"
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("origin", ["writeback", "llm_wiki"])
+def test_promote_overwrites_existing_generated_page_same_slug(tmp_path, origin) -> None:
+    store = WikiStore(runtime_paths(tmp_path / "ks"))
+    store.write_page(
+        title="Project A summary",
+        summary="old",
+        body="# Project A summary\n\nold",
+        source_relpath="atlas.txt",
+        origin=origin,
+    )
+
+    steps = promote(item=_item(), wiki_store=store)
+
+    assert steps[0].detail["slug"] == "project-a-summary"
+    page = store.load_page("project-a-summary")
+    assert page.origin == "writeback"
+    assert page.summary == "Atlas summary answer"
+    assert "Atlas source quote" in page.body
