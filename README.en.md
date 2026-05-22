@@ -193,7 +193,6 @@ All commands share the same top-level JSON shape:
   "source": ["graph"],
   "confidence": 0.88,
   "retrieval_score": 0.88,
-  "calibrated_confidence": 0.88,
   "writeback_eligible": true,
   "evidence": [
     {"source_relpath": "atlas.txt", "route": "graph", "quote": "Atlas depends on Mobile Gateway..."}
@@ -212,8 +211,9 @@ All commands share the same top-level JSON shape:
 }
 ```
 
-- `confidence`: raw retrieval score; `retrieval_score` keeps the same value for migration
-- `calibrated_confidence` + `writeback_eligible`: the actual `auto` write-back gate
+- `confidence`: clamped retrieval score in the `[0,1]` range
+- `retrieval_score`: raw retrieval score before clamping
+- `writeback_eligible`: `auto` write-back eligibility; still requires the confidence threshold and evidence eligibility
 - `evidence[]`: provenance with `source_relpath`, `route`, `quote`
 - `trace.steps`: records each pipeline step
 - No-hit queries return `source=[]` and still exit `0`
@@ -241,7 +241,7 @@ Full reference: [docs/configuration.md](./docs/configuration.md).
 | `HKS_LLM_PROVIDER` | `fake` | LLM provider; `openai` requires API key |
 | `HKS_LLM_NETWORK_OPT_IN` | — | Set to `1` to allow non-fake providers |
 | `HKS_LLM_PROVIDER_OPENAI_API_KEY` | — | OpenAI API key |
-| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto write-back calibrated confidence floor; still requires `writeback_eligible=true` |
+| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto write-back confidence floor; still requires `writeback_eligible=true` |
 | `HKS_WORKSPACE_REGISTRY` | user config path | Workspace registry JSON path |
 
 Use `config/hks.yaml` for structured config (copy from `config/hks.yaml.example`). Priority: process env > `config/hks.env` > `config/hks.yaml` / `config/hks.json` > default.

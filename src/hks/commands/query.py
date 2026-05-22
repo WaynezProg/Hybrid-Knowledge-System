@@ -194,7 +194,6 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
         trace=Trace(route=winner.source_route, steps=steps),
         evidence=evidence,
         retrieval_score=assessment.retrieval_score,
-        calibrated_confidence=assessment.calibrated_confidence,
         writeback_eligible=assessment.writeback_eligible,
     )
     return _maybe_writeback(
@@ -286,7 +285,6 @@ def _record_forced_writeback_event(*, question: str, response: QueryResponse) ->
                     "query": question,
                     "route": response.trace.route,
                     "confidence": response.confidence,
-                    "calibrated_confidence": response.calibrated_confidence,
                     "writeback_eligible": response.writeback_eligible,
                 }
             ]

@@ -195,7 +195,6 @@ uv run hks-api --host 127.0.0.1 --port 8766
   "source": ["graph"],
   "confidence": 0.88,
   "retrieval_score": 0.88,
-  "calibrated_confidence": 0.88,
   "writeback_eligible": true,
   "evidence": [
     {"source_relpath": "atlas.txt", "route": "graph", "quote": "Atlas depends on Mobile Gateway..."}
@@ -214,9 +213,9 @@ uv run hks-api --host 127.0.0.1 --port 8766
 }
 ```
 
-- `confidence`：query 命中時取自 `calibrated_confidence`；top-level shape 相容欄位
+- `confidence`：query 命中時的 clamped retrieval score，範圍為 `[0,1]`
 - `retrieval_score`：raw retrieval score（未經 clamp）
-- `calibrated_confidence` + `writeback_eligible`：`auto` write-back 的實際 gate；`calibrated_confidence` 目前為 `retrieval_score` clamp 至 `[0,1]`
+- `writeback_eligible`：`auto` write-back eligibility；目前仍需通過 confidence threshold 與 evidence eligibility
 - `evidence[]`：溯源資訊，含 `source_relpath`、`route`、`quote`
 - `trace.steps`：pipeline 每一步的記錄
 - 無命中時 `source=[]`，仍 exit `0`
@@ -244,7 +243,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 | `HKS_LLM_PROVIDER` | `fake` | LLM provider；`openai` 需另設 API key |
 | `HKS_LLM_NETWORK_OPT_IN` | — | 設為 `1` 才允許非 fake provider |
 | `HKS_LLM_PROVIDER_OPENAI_API_KEY` | — | OpenAI API key |
-| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto write-back calibrated confidence floor；仍需 `writeback_eligible=true` |
+| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto write-back confidence floor；仍需 `writeback_eligible=true` |
 | `HKS_WORKSPACE_REGISTRY` | user config path | Workspace registry JSON 路徑 |
 
 結構化設定檔用 `config/hks.yaml`（從 `config/hks.yaml.example` 複製）。讀取優先序：process env > `config/hks.env` > `config/hks.yaml` / `config/hks.json` > default。

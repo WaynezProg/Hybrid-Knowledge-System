@@ -55,7 +55,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 目前 runtime 已完成可執行的本地知識系統與 derived Graphify pipeline：
 
 * 已完成：來源 ingest 後同步更新 `wiki / graph / vector / page_tree / manifest`；修改來源後重跑 `ks ingest` 可依 hash / parser fingerprint 更新資料庫。
-* 已完成：query 會同時收集 wiki、graph、vector、page_tree candidates，再以 LLM rerank 或 RRF 排序；auto write-back 需同時通過 calibrated confidence 與 route-specific evidence eligibility。
+* 已完成：query 會同時收集 wiki、graph、vector、page_tree candidates，再以 LLM rerank 或 RRF 排序；auto write-back 需同時通過 clamped confidence 與 route-specific evidence eligibility。
 * 已完成：008 可對已 ingest source 產生 schema-validated LLM classification / summary / fact / entity / relation candidates，並可 explicit store 到 `$KS_ROOT/llm/extractions/`。
 * 已完成：009 可從 008 stored artifact 產生 wiki synthesis candidate，preview / store 預設不改 authoritative layers，只有 caller-explicit `apply` 會寫入 `wiki/` page、index 與 log。
 * 已完成：010 可從既有 wiki / graph / 008 / 009 lineage 產生 derived Graphify artifacts、community clustering、static HTML 與 audit report。
@@ -91,7 +91,6 @@ stdout 契約統一：
   "source": ["wiki", "graph", "vector", "page_tree"],
   "confidence": 0.0,
   "retrieval_score": 0.0,
-  "calibrated_confidence": 0.0,
   "writeback_eligible": false,
   "trace": {
     "route": "wiki|graph|vector|page_tree",
@@ -138,7 +137,7 @@ Source / route 語意對照：
 | `ks workspace register|list|show|remove|use` | `wiki` | `[]` | 管理 local workspace registry；不讀取 knowledge layer 作答 |
 | `ks workspace query` | `wiki\|graph\|vector\|page_tree` | `ks query` semantics | 先解析 workspace id 到 `KS_ROOT`，再委派既有 query |
 
-`ks query` 成功命中時會輸出 `retrieval_score`、`calibrated_confidence`、`writeback_eligible`；`confidence` 保持 raw retrieval score 以維持 backward compatibility。命中時也可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector / page_tree evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
+`ks query` 成功命中時會輸出 `confidence`、`retrieval_score`、`writeback_eligible`；`confidence` 是 clamp 到 `0..1` 的分數，`retrieval_score` 是 raw retrieval score，`writeback_eligible` 仍表示 auto writeback / queue eligibility。命中時也可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector / page_tree evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
 
 ---
 

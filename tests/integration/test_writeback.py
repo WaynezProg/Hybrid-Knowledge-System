@@ -127,12 +127,12 @@ def test_query_response_includes_015_confidence_fields(
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert "retrieval_score" in payload
-    assert "calibrated_confidence" in payload
+    assert "calibrated_confidence" not in payload
     assert "writeback_eligible" in payload
     assert isinstance(payload["retrieval_score"], (int, float))
-    assert isinstance(payload["calibrated_confidence"], (int, float))
+    assert isinstance(payload["confidence"], (int, float))
     assert isinstance(payload["writeback_eligible"], bool)
-    assert payload["confidence"] == payload["calibrated_confidence"]
+    assert payload["confidence"] == max(0.0, min(float(payload["retrieval_score"]), 1.0))
 
 
 @pytest.mark.integration

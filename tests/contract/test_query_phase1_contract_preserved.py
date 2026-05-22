@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+import jsonschema
 import pytest
 
 from hks.cli import app
@@ -20,11 +21,26 @@ def test_confidence_fields_optional_and_valid() -> None:
 
     new_payload = {
         **old_payload,
-        "retrieval_score": 0.8,
-        "calibrated_confidence": 0.8,
+        "retrieval_score": 1.2,
         "writeback_eligible": True,
     }
     validate(new_payload)
+
+
+@pytest.mark.contract
+def test_query_response_rejects_calibrated_confidence() -> None:
+    payload = {
+        "answer": "test",
+        "source": ["wiki"],
+        "confidence": 0.8,
+        "retrieval_score": 0.8,
+        "calibrated_confidence": 0.8,
+        "writeback_eligible": True,
+        "trace": {"route": "wiki", "steps": []},
+    }
+
+    with pytest.raises(jsonschema.ValidationError):
+        validate(payload)
 
 
 @pytest.mark.contract
