@@ -118,10 +118,10 @@
 
 **Purpose**: Align user-facing docs and run full verification.
 
-- [ ] T054 Update `README.md` writeback section with queue workflow and confidence fields
-- [ ] T055 Update `README.en.md` with the same behavior
-- [ ] T056 Update `docs/main.md` write-back contract and runtime layout
-- [ ] T057 Update `specs/019-writeback-review-queue/spec.md` post-implementation status after verification
+- [x] T054 Update `README.md` writeback section with queue workflow and confidence fields
+- [x] T055 Update `README.en.md` with the same behavior
+- [x] T056 Update `docs/main.md` write-back contract and runtime layout
+- [x] T057 Update `specs/019-writeback-review-queue/spec.md` post-implementation status after verification
 - [ ] T058 Run focused writeback tests: `uv run pytest tests/unit/writeback tests/unit/retrieval/test_confidence.py tests/unit/commands/test_writeback_context.py tests/unit/commands/test_writeback_cli.py tests/integration/test_writeback.py -q`
 - [ ] T059 Run adapter/contract/eval tests: `uv run pytest tests/contract/test_query_phase1_contract_preserved.py tests/contract/test_json_schema.py tests/contract/test_http_api_contract.py tests/contract/test_mcp_query_contract.py tests/integration/test_http_adapter.py tests/integration/test_mcp_query.py tests/unit/evaluation/test_retrieval_quality.py tests/eval/test_golden_retrieval_quality.py -q`
 - [ ] T060 Run `uv run ruff check .`
