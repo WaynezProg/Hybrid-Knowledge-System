@@ -73,6 +73,32 @@ def test_llm_fallback_captures_timeout_reason(monkeypatch: pytest.MonkeyPatch) -
     assert detail["reason"] == "openai_timeout"
 
 
+def test_llm_success_preserves_uncapped_candidates(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HKS_LLM_NETWORK_OPT_IN", "1")
+    monkeypatch.setenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", "sk-test")
+
+    def mock_openai_chat(**_kwargs: object) -> object:
+        return {"ranking": [1, 0]}
+
+    monkeypatch.setattr("hks.rerank.llm._openai_chat", mock_openai_chat)
+
+    candidates = [
+        Candidate(text=f"candidate-{index}", source_route="wiki", score=1.0, metadata={})
+        for index in range(12)
+    ]
+
+    ranked, detail = llm_rerank("q", candidates)
+
+    assert detail["status"] == "success"
+    assert [candidate.text for candidate in ranked[:3]] == [
+        "candidate-1",
+        "candidate-0",
+        "candidate-2",
+    ]
+    assert [candidate.text for candidate in ranked[-2:]] == ["candidate-10", "candidate-11"]
+    assert len(ranked) == 12
+
+
 def test_classify_rerank_error_maps_value_error_to_invalid_ranking() -> None:
     assert classify_rerank_error(ValueError("bad")) == "openai_invalid_ranking"
 

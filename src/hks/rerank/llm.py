@@ -85,6 +85,7 @@ def llm_rerank(
         for i, c in enumerate(capped):
             if i not in seen:
                 ranked.append(c)
+        ranked.extend(candidates[len(capped) :])
         return ranked, {"strategy": "llm", "status": "success"}
     except Exception as exc:
         return rrf_rerank(candidates), {

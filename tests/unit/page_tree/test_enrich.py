@@ -75,6 +75,14 @@ class TestEnrichTree:
         for node in enriched.flat_nodes():
             assert node.summary != ""
 
+    def test_fake_provider_summary_includes_source_excerpt(self) -> None:
+        tree = _rule_tree()
+        source_text = "Chapter 1 content mentions coordinator approval. " * 2
+
+        enriched = enrich_tree(tree, source_text, provider="fake")
+
+        assert "coordinator approval" in enriched.root_nodes[0].summary
+
     def test_fake_provider_preserves_structure(self) -> None:
         tree = _rule_tree()
 

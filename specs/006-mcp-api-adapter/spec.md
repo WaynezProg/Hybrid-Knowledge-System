@@ -104,5 +104,5 @@
 
 - 006 的 MVP 是 MCP server；HTTP API 是 P2 optional，不阻塞 MCP MVP。
 - Adapter 是 local process，不處理 auth / RBAC；安全邊界由 local-only、path checks、lock 與 explicit user launch 承擔。
-- `ks query` 在 adapter 中預設 `writeback=no`，由 caller 明確要求才可改為 `auto|yes|ask`。
+- `ks query` 與 adapter 都預設 `writeback=no`，由 caller 明確要求才可改為 `auto|yes|ask`。
 - 006 不更動 storage schema、不新增 graph/vector/wiki runtime layout。

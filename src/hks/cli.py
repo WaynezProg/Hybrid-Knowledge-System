@@ -231,7 +231,7 @@ def query(
             case_sensitive=False,
             help="Override write-back behavior.",
         ),
-    ] = WritebackMode.auto,
+    ] = WritebackMode.no,
 ) -> None:
     run_command("query", query_command.run, question, writeback=writeback.value)
 

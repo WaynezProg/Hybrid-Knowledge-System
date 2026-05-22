@@ -27,6 +27,8 @@ def answer_query(question: str, graph_store: GraphStore | None = None) -> GraphQ
         return None
 
     desired_relations = _desired_relations(question)
+    if not desired_relations:
+        return None
     node_scores = _score_nodes(question, payload)
     edge_scores = _score_edges(question, payload, node_scores, desired_relations)
     if not edge_scores:
@@ -61,7 +63,7 @@ def answer_query(question: str, graph_store: GraphStore | None = None) -> GraphQ
 def _desired_relations(question: str) -> set[RelationType]:
     lowered = question.lower()
     desired: set[RelationType] = set()
-    if any(keyword in question for keyword in ("影響", "受影響")) or any(
+    if any(keyword in question for keyword in ("影響", "受影響", "波及")) or any(
         keyword in lowered for keyword in ("impact", "affect")
     ):
         desired.add("impacts")

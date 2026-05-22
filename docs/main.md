@@ -196,8 +196,8 @@ Source / route 語意對照：
 
 ### 目前行為
 
-* 預設模式：`auto`
-* `writeback_eligible=true` 且 `calibrated_confidence >= HKS_WRITEBACK_AUTO_THRESHOLD`（預設 `0.75`）→ 自動回寫 wiki
+* 預設模式：`no`
+* `--writeback=auto`：顯式 opt-in；`writeback_eligible=true` 且 route-specific `auto_threshold` 通過時自動回寫 wiki
 * `--writeback=no` → 禁用
 * `--writeback=yes` → 強制回寫，trace 標示 `forced=true`，並寫入 coordination `events.jsonl`
 * `--writeback=ask` → 舊互動模式，相容保留

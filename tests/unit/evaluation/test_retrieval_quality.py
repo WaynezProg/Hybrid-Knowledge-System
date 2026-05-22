@@ -280,6 +280,37 @@ def test_expected_answer_contains_is_checked_when_present() -> None:
     assert report.failures["answer_contains_rate"] == ["answer-miss"]
 
 
+def test_expected_trace_hit_kind_is_checked_when_present() -> None:
+    observations = [
+        QueryObservation(
+            case=GoldenQueryCase(
+                id="page-tree-runtime",
+                question="Nebula arbitration",
+                expected_trace_hit_kind="page_tree_lookup",
+                writeback_allowed=True,
+            ),
+            payload={
+                "answer": "Nebula arbitration requires coordinator approval",
+                "source": ["wiki"],
+                "confidence": 1.0,
+                "trace": {
+                    "route": "wiki",
+                    "steps": [
+                        {
+                            "kind": "page_tree_lookup",
+                            "detail": {"hit": True, "candidate_count": 1},
+                        }
+                    ],
+                },
+            },
+        )
+    ]
+
+    report = compute_metrics(observations)
+
+    assert report.trace_hit_rate == 1.0
+
+
 def test_assert_thresholds_raises_with_specific_metric_name() -> None:
     observations = [
         QueryObservation(

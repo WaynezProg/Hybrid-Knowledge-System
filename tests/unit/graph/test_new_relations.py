@@ -104,6 +104,39 @@ def test_graph_query_prefers_and_renders_new_relation_types(tmp_ks_root) -> None
     assert succeed_zh.relations == ["succeeds"]
 
 
+def test_graph_query_treats_boji_as_impact_intent(tmp_ks_root) -> None:
+    artifacts = extract_document_graph(
+        relpath="dependency-map.md",
+        title="Dependency Map",
+        body="A 專案延遲會影響 checkout service 與 notification service。",
+        wiki_slug="dependency-map",
+    )
+    store = GraphStore(runtime_paths(tmp_ks_root))
+    store.replace_document("dependency-map.md", artifacts)
+
+    result = answer_query("哪個服務會被 A 專案延遲波及", store)
+
+    assert result is not None
+    assert result.relations == ["impacts"]
+    assert "checkout service" in result.answer
+
+
+def test_graph_query_rejects_entity_overlap_without_relation_intent(tmp_ks_root) -> None:
+    artifacts = extract_document_graph(
+        relpath="dependency-map.md",
+        title="Dependency Map",
+        body=(
+            "A 專案延遲會影響 checkout service 與 notification service。\n"
+            "因為 checkout service 依賴 A 專案提供的 pricing API。"
+        ),
+        wiki_slug="dependency-map",
+    )
+    store = GraphStore(runtime_paths(tmp_ks_root))
+    store.replace_document("dependency-map.md", artifacts)
+
+    assert answer_query("Zephyr thermostat pricing API", store) is None
+
+
 def test_succeeds_query_renders_precedes_direction(tmp_ks_root) -> None:
     artifacts = extract_document_graph(
         relpath="sequence.md",

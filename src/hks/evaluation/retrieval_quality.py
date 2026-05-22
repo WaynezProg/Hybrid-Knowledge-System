@@ -17,6 +17,7 @@ _VALID_FIELDS = {
     "expected_source_relpath",
     "expected_evidence_quote",
     "expected_answer_contains",
+    "expected_trace_hit_kind",
     "writeback_allowed",
     "expect_no_hit",
 }
@@ -30,6 +31,7 @@ class GoldenQueryCase:
     expected_source_relpath: str | None = None
     expected_evidence_quote: str | None = None
     expected_answer_contains: str | None = None
+    expected_trace_hit_kind: str | None = None
     writeback_allowed: bool = False
     expect_no_hit: bool = False
 
@@ -44,6 +46,7 @@ class GoldenQueryCase:
             expected_source_relpath=_optional_str(payload.get("expected_source_relpath")),
             expected_evidence_quote=_optional_str(payload.get("expected_evidence_quote")),
             expected_answer_contains=_optional_str(payload.get("expected_answer_contains")),
+            expected_trace_hit_kind=_optional_str(payload.get("expected_trace_hit_kind")),
             writeback_allowed=bool(payload.get("writeback_allowed", False)),
             expect_no_hit=bool(payload.get("expect_no_hit", False)),
         )
@@ -61,6 +64,7 @@ class MetricThresholds:
     precision_at_1: float = 0.70
     evidence_hit_rate: float = 0.80
     answer_contains_rate: float = 1.00
+    trace_hit_rate: float = 1.00
     no_hit_precision: float = 1.00
     writeback_false_positive_rate: float = 0.00
 
@@ -72,6 +76,7 @@ class MetricReport:
     precision_at_1: float
     evidence_hit_rate: float
     answer_contains_rate: float
+    trace_hit_rate: float
     no_hit_precision: float
     writeback_false_positive_rate: float
     failures: dict[str, list[str]] = field(default_factory=dict)
@@ -83,6 +88,7 @@ class MetricReport:
             "precision_at_1": self.precision_at_1,
             "evidence_hit_rate": self.evidence_hit_rate,
             "answer_contains_rate": self.answer_contains_rate,
+            "trace_hit_rate": self.trace_hit_rate,
             "no_hit_precision": self.no_hit_precision,
             "writeback_false_positive_rate": self.writeback_false_positive_rate,
             "failures": self.failures,
@@ -130,6 +136,7 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
         "precision_at_1": [],
         "evidence_hit_rate": [],
         "answer_contains_rate": [],
+        "trace_hit_rate": [],
         "no_hit_precision": [],
         "writeback_false_positive": [],
     }
@@ -138,6 +145,7 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
     precision_total = precision_correct = 0
     evidence_total = evidence_correct = 0
     answer_total = answer_correct = 0
+    trace_hit_total = trace_hit_correct = 0
     no_hit_total = no_hit_correct = 0
     writeback_disallowed_total = writeback_false_positive = 0
 
@@ -187,6 +195,13 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
             else:
                 failures["answer_contains_rate"].append(case.id)
 
+        if case.expected_trace_hit_kind is not None:
+            trace_hit_total += 1
+            if _trace_kind_hit(payload, case.expected_trace_hit_kind):
+                trace_hit_correct += 1
+            else:
+                failures["trace_hit_rate"].append(case.id)
+
         if not case.writeback_allowed:
             writeback_disallowed_total += 1
             if bool(payload.get("writeback_eligible")) or _auto_committed(payload):
@@ -199,6 +214,7 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
         precision_at_1=_ratio(precision_correct, precision_total),
         evidence_hit_rate=_ratio(evidence_correct, evidence_total),
         answer_contains_rate=_ratio(answer_correct, answer_total),
+        trace_hit_rate=_ratio(trace_hit_correct, trace_hit_total),
         no_hit_precision=_ratio(no_hit_correct, no_hit_total),
         writeback_false_positive_rate=_ratio(
             writeback_false_positive,
@@ -218,6 +234,7 @@ def assert_thresholds(report: MetricReport, thresholds: MetricThresholds) -> Non
             thresholds.answer_contains_rate,
             ">=",
         ),
+        "trace_hit_rate": (report.trace_hit_rate, thresholds.trace_hit_rate, ">="),
         "no_hit_precision": (report.no_hit_precision, thresholds.no_hit_precision, ">="),
         "writeback_false_positive_rate": (
             report.writeback_false_positive_rate,
@@ -254,6 +271,7 @@ def _validate_case_payload(payload: dict[str, Any]) -> None:
         "expected_source_relpath",
         "expected_evidence_quote",
         "expected_answer_contains",
+        "expected_trace_hit_kind",
     ):
         value = payload.get(field_name)
         if value is not None and not isinstance(value, str):
@@ -305,6 +323,21 @@ def _is_no_hit_payload(payload: dict[str, Any]) -> bool:
     except (TypeError, ValueError):
         return False
     return source == [] and confidence == 0.0
+
+
+def _trace_kind_hit(payload: dict[str, Any], expected_kind: str) -> bool:
+    trace = payload.get("trace")
+    if not isinstance(trace, dict):
+        return False
+    steps = trace.get("steps")
+    if not isinstance(steps, list):
+        return False
+    for step in steps:
+        if not isinstance(step, dict) or step.get("kind") != expected_kind:
+            continue
+        detail = step.get("detail")
+        return isinstance(detail, dict) and detail.get("hit") is True
+    return False
 
 
 def _top_evidence_matches(

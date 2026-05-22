@@ -45,10 +45,10 @@ Refs:
 
 ## Decision: Query adapter 預設 `writeback=no`
 
-- **Decision**: `hks_query.writeback` 預設值與 CLI 不同，adapter default 固定為 `no`；caller 可明確傳 `auto|yes|ask`。
-- **Rationale**: Agent 背景查詢不應默默寫回 wiki。這是 adapter safety default，不改 CLI 行為。
+- **Decision**: `hks_query.writeback` 預設值與 current CLI default 一致，固定為 `no`；caller 可明確傳 `auto|yes|ask`。
+- **Rationale**: Agent 背景查詢不應默默寫回 wiki。2026-05 retrieval-safety hardening 已把 CLI default 也改為 `no`。
 - **Alternatives considered**:
-  - 沿用 CLI default `auto`：拒絕。會把 agent read path 變成 hidden mutation path。
+  - 舊 CLI default `auto`：拒絕。會把 agent read path 變成 hidden mutation path。
 
 ## Decision: HTTP REST 是 P2 optional
 

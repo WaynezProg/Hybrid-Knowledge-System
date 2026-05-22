@@ -49,7 +49,7 @@ def _fill_summaries(
     for node in nodes:
         text_slice = source_text[node.start_offset : node.end_offset]
         summary = (
-            f"Summary of: {node.title}"
+            _fake_summary(node.title, text_slice)
             if provider == "fake"
             else _llm_summarize(text_slice, node.title, provider, model)
         )
@@ -79,6 +79,7 @@ def _fake_restructure(tree: PageTree, source_text: str) -> PageTree:
             else min((index + 1) * chunk_size, len(source_text))
         )
         title = f"Section {index + 1}"
+        text_slice = source_text[start_offset:end_offset]
         nodes.append(
             TreeNode(
                 node_id=f"n{index + 1}",
@@ -87,7 +88,7 @@ def _fake_restructure(tree: PageTree, source_text: str) -> PageTree:
                 start_offset=start_offset,
                 end_offset=end_offset,
                 children=[],
-                summary=f"Summary of: {title}",
+                summary=_fake_summary(title, text_slice),
             )
         )
 
@@ -101,6 +102,13 @@ def _fake_restructure(tree: PageTree, source_text: str) -> PageTree:
         total_nodes=_count_nodes(nodes),
         source_sha256=tree.source_sha256,
     )
+
+
+def _fake_summary(title: str, text: str) -> str:
+    excerpt = " ".join(text.split())
+    if len(excerpt) > 180:
+        excerpt = excerpt[:177].rstrip() + "..."
+    return f"Summary of: {title}. {excerpt}" if excerpt else f"Summary of: {title}"
 
 
 def _llm_restructure(

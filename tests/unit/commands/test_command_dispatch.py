@@ -62,13 +62,31 @@ def test_query_dispatches_question_and_writeback(
 ) -> None:
     calls: list[dict[str, object]] = []
 
-    def fake_run(question: str, *, writeback: str = "auto") -> QueryResponse:
+    def fake_run(question: str, *, writeback: str = "no") -> QueryResponse:
         calls.append({"question": question, "writeback": writeback})
         return _response("answered")
 
     monkeypatch.setattr(query_command, "run", fake_run)
 
     result = cli_runner.invoke(app, ["query", "summary Atlas", "--writeback", "no"])
+
+    assert _stdout_json(result)["answer"] == "answered"
+    assert calls == [{"question": "summary Atlas", "writeback": "no"}]
+
+
+def test_query_defaults_to_writeback_no(
+    cli_runner: CliRunner,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    def fake_run(question: str, *, writeback: str = "no") -> QueryResponse:
+        calls.append({"question": question, "writeback": writeback})
+        return _response("answered")
+
+    monkeypatch.setattr(query_command, "run", fake_run)
+
+    result = cli_runner.invoke(app, ["query", "summary Atlas"])
 
     assert _stdout_json(result)["answer"] == "answered"
     assert calls == [{"question": "summary Atlas", "writeback": "no"}]

@@ -84,11 +84,12 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 All queries use fused retrieval: candidates are collected from wiki / graph / vector / page_tree simultaneously, then ranked by LLM reranker (RRF fallback without API key). Response includes `evidence[]` for provenance.
 
 Write-back modes:
-- `auto` (default): writes back when `writeback_eligible=true` and `calibrated_confidence >= 0.75`
+- `no` (default): disables write-back
+- `auto`: explicit opt-in; writes back only when `writeback_eligible=true` and the route-specific `auto_threshold` passes
 - `yes` / `no`: force / disable
 - `ask`: interactive prompt on TTY
 
-> Agent / automation workflows should always use `--writeback=no`.
+> Agent / automation workflows may omit `--writeback`; use `--writeback=auto` only when automatic write-back is intended.
 
 ### Source Catalog & Workspace
 

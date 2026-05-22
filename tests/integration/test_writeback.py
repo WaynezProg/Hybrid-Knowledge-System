@@ -66,16 +66,27 @@ def test_writeback_ask_no_declines(
 
 @pytest.mark.integration
 @pytest.mark.us3
-def test_writeback_auto_declines_wiki_route_by_default(
+def test_writeback_auto_declines_wiki_route_when_explicit(
     cli_runner, ingested_for_writeback, tmp_ks_root
 ) -> None:
-    result = cli_runner.invoke(app, ["query", "summary Atlas"])
+    result = cli_runner.invoke(app, ["query", "summary Atlas", "--writeback=auto"])
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
     assert payload["source"] == ["wiki"]
     assert payload["writeback_eligible"] is False
     assert payload["trace"]["steps"][-1]["detail"]["status"] == "auto-skipped-ineligible"
+    assert len(list((tmp_ks_root / "wiki" / "pages").glob("*.md"))) == 10
+
+
+@pytest.mark.integration
+@pytest.mark.us3
+def test_writeback_default_is_no(cli_runner, ingested_for_writeback, tmp_ks_root) -> None:
+    result = cli_runner.invoke(app, ["query", "summary Atlas"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["trace"]["steps"][-1]["detail"]["status"] == "declined"
     assert len(list((tmp_ks_root / "wiki" / "pages").glob("*.md"))) == 10
 
 

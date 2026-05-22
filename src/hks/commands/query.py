@@ -29,7 +29,8 @@ from hks.writeback.writer import WritebackContext, commit
 _FINAL_SCORE_THRESHOLDS: dict[Route, float] = {
     "vector": 0.25,
 }
-_VECTOR_LEXICAL_FINAL_SCORE_THRESHOLD = 0.2
+_VECTOR_PRIMARY_FINAL_SCORE_THRESHOLD = 0.2
+_VECTOR_LEXICAL_FINAL_SCORE_THRESHOLD = 0.4
 
 
 def _build_no_hit_response(route: Route, steps: list[TraceStep]) -> QueryResponse:
@@ -41,16 +42,29 @@ def _build_no_hit_response(route: Route, steps: list[TraceStep]) -> QueryRespons
     )
 
 
-def _final_score_threshold(candidate: Candidate) -> float:
+def _final_score_threshold(
+    candidate: Candidate,
+    *,
+    requested_route: Route | None = None,
+) -> float:
     if candidate.source_route == "vector":
+        if requested_route == "vector":
+            return _VECTOR_PRIMARY_FINAL_SCORE_THRESHOLD
         lexical_overlap = candidate.metadata.get("lexical_overlap")
         if isinstance(lexical_overlap, int) and lexical_overlap > 0:
             return _VECTOR_LEXICAL_FINAL_SCORE_THRESHOLD
     return _FINAL_SCORE_THRESHOLDS.get(candidate.source_route, 0.0)
 
 
-def _passes_final_score_gate(candidate: Candidate) -> bool:
-    return candidate.score >= _final_score_threshold(candidate)
+def _passes_final_score_gate(
+    candidate: Candidate,
+    *,
+    requested_route: Route | None = None,
+) -> bool:
+    return candidate.score >= _final_score_threshold(
+        candidate,
+        requested_route=requested_route,
+    )
 
 
 def _retrieval_score_for_assessment(candidate: Candidate) -> float:
@@ -61,7 +75,7 @@ def _retrieval_score_for_assessment(candidate: Candidate) -> float:
     return candidate.score
 
 
-def run(question: str, *, writeback: str = "auto") -> QueryResponse:
+def run(question: str, *, writeback: str = "no") -> QueryResponse:
     paths = runtime_paths()
     if not paths.manifest.exists():
         raise KSError(
@@ -140,7 +154,7 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
     )
 
     winner = ranked[0]
-    if not _passes_final_score_gate(winner):
+    if not _passes_final_score_gate(winner, requested_route=decision.route):
         steps.append(
             TraceStep(
                 kind="fallback",
@@ -149,7 +163,10 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
                     "reason": "final_score_below_threshold",
                     "route": winner.source_route,
                     "score": winner.score,
-                    "threshold": _final_score_threshold(winner),
+                    "threshold": _final_score_threshold(
+                        winner,
+                        requested_route=decision.route,
+                    ),
                 },
             )
         )

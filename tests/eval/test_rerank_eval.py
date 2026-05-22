@@ -40,3 +40,47 @@ def test_rerank_eval(case: dict) -> None:
     assert ranked[0].source_route == case["expected_top_route"], (
         f"Expected top route {case['expected_top_route']}, got {ranked[0].source_route}"
     )
+
+
+def test_rerank_eval_fallback_path_preserves_candidate_set(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hks.rerank.llm import llm_rerank
+    from hks.retrieval.models import Candidate
+
+    monkeypatch.setattr("hks.rerank.llm.hosted_provider_ready", lambda _provider: False)
+    candidates = [
+        Candidate(text=f"candidate-{index}", source_route="wiki", score=1.0, metadata={})
+        for index in range(12)
+    ]
+
+    ranked, detail = llm_rerank("q", candidates)
+
+    assert detail["status"] == "fallback"
+    assert detail["fallback_strategy"] == "rrf"
+    assert len(ranked) == len(candidates)
+
+
+def test_rerank_eval_success_path_preserves_uncapped_candidates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hks.rerank.llm import llm_rerank
+    from hks.retrieval.models import Candidate
+
+    monkeypatch.setenv("HKS_LLM_NETWORK_OPT_IN", "1")
+    monkeypatch.setenv("HKS_LLM_PROVIDER_OPENAI_API_KEY", "sk-test")
+
+    def mock_openai_chat(**_kwargs: object) -> object:
+        return {"ranking": [1, 0]}
+
+    monkeypatch.setattr("hks.rerank.llm._openai_chat", mock_openai_chat)
+    candidates = [
+        Candidate(text=f"candidate-{index}", source_route="wiki", score=1.0, metadata={})
+        for index in range(12)
+    ]
+
+    ranked, detail = llm_rerank("q", candidates)
+
+    assert detail["status"] == "success"
+    assert [candidate.text for candidate in ranked[-2:]] == ["candidate-10", "candidate-11"]
+    assert len(ranked) == len(candidates)

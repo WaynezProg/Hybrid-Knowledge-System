@@ -45,4 +45,15 @@ def test_vector_final_score_gate_keeps_lexical_hit_at_lower_score() -> None:
         metadata={"lexical_overlap": 2},
     )
 
-    assert _passes_final_score_gate(candidate)
+    assert _passes_final_score_gate(candidate, requested_route="vector")
+
+
+def test_vector_final_score_gate_rejects_weak_lexical_near_miss() -> None:
+    candidate = Candidate(
+        text="only shares a couple of words with the question",
+        source_route="vector",
+        score=0.35,
+        metadata={"lexical_overlap": 2},
+    )
+
+    assert not _passes_final_score_gate(candidate)

@@ -11,8 +11,10 @@
 
 - Q: `003` 是否再新增 ingest 格式 → A: 不新增；Phase 2 的格式全集固定為 `txt / md / pdf / docx / xlsx / pptx`。圖片 ingest 仍屬後續 Phase 3 spec，但實際接受格式與 normalize / 轉檔策略尚未凍結，不在 `003` 先做死
 - Q: 「model-driven routing」是否要求 hosted LLM → A: 不要求；repo 預設以本機 deterministic semantic router 落地，`HKS_ROUTING_MODEL` 只作 backend 標記與未來擴充點
-- Q: `auto write-back` 在 automation / non-TTY 的預設 → A: runtime 預設仍為 `auto`，但 CI / smoke / agent workflow 以顯式 `--writeback=no` 關閉；非 TTY 不得因互動邏輯阻塞
+- Q: `auto write-back` 在 automation / non-TTY 的預設 → A: archived original answer was CLI default `auto` with CI / smoke / agent workflow using explicit `--writeback=no`；2026-05 current contract supersedes this to CLI default `writeback=no`
 - Q: graph extraction 的能力邊界 → A: 先支撐 fixture 與 regression tests 的 pattern-based entity / relation 抽取；不在本 spec 擴成通用 NLP 或 hosted inference pipeline
+
+> Post-merge note: 2026-05 retrieval-safety hardening supersedes the original CLI default. Current `ks query` default is `writeback=no`; `auto` is explicit opt-in via `--writeback=auto`.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -50,7 +52,7 @@ agent 或使用者執行 query 時，routing 不再只是直接 keyword if/else�
 
 ### User Story 3 — 高 Confidence 預設自動 Write-back（Priority: P2）
 
-> Post-merge note: 015-confidence-writeback-gate supersedes this story's confidence-only auto write-back rule. Current auto write-back requires `writeback_eligible=true` and `calibrated_confidence >= HKS_WRITEBACK_AUTO_THRESHOLD`; `--writeback=yes` remains the explicit forced mutation path.
+> Post-merge note: 015-confidence-writeback-gate supersedes this story's confidence-only auto write-back rule. 2026-05 retrieval-safety hardening also changed the CLI default to `writeback=no`; current auto write-back requires explicit `--writeback=auto`, `writeback_eligible=true`, and route-specific `auto_threshold`; `--writeback=yes` remains the explicit forced mutation path.
 
 使用者在不顯式指定 `--writeback` 的情況下，對高 confidence 問題執行 query，系統會自動寫回 wiki，並在新頁面加上 related cross-links。
 
@@ -82,7 +84,7 @@ agent 或使用者執行 query 時，routing 不再只是直接 keyword if/else�
 - **FR-303**：query top-level JSON contract MUST 維持 `answer / source / confidence / trace` 四欄，但 `source` 與 `trace.route` MUST 擴充允許 `graph`。
 - **FR-304**：relation / impact / dependency / why 類問題 MUST 先嘗試 graph；graph 無命中時 MUST fallback vector。
 - **FR-305**：routing 決策 MUST 經由 routing backend 產生，不再直接用單純 keyword 規則短路。repo 預設 backend MUST 為本機 deterministic semantic router；`HKS_ROUTING_MODEL` 僅作 backend 標記與未來擴充點。
-- **FR-306**：`ks query` 預設 write-back 模式 MUST 為 `auto`。當 `confidence >= HKS_WRITEBACK_AUTO_THRESHOLD`（預設 `0.75`）時 MUST 自動寫回 wiki；`--writeback=no` MUST 禁用；`--writeback=yes` MUST 強制寫入；`--writeback=ask` MUST 保留互動式兼容。
+- **FR-306**：Archived original requirement required CLI default `auto`。Post-merge current contract: `ks query` 預設 write-back 模式為 `no`；只有 `--writeback=auto` 會進入 auto gate；`--writeback=yes` MUST 強制寫入；`--writeback=ask` MUST 保留互動式兼容。
 - **FR-307**：自動 write-back 產生的新 wiki 頁面 MUST 帶 `## Related` section，連回本次答案涉及的既有 wiki pages。
 - **FR-308**：manifest idempotency 除了 wiki / vector artifacts，還 MUST 追蹤 graph artifacts；re-ingest / prune / rollback 不得留下髒 graph。
 - **FR-309**：`ks lint` 仍 MUST 維持 Phase 3 stub，不因本 spec 改動。

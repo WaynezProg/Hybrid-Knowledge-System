@@ -84,11 +84,12 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 所有 query 走 fused retrieval：同時從 wiki / graph / vector / page_tree 收集 candidates，以 LLM reranker 排序（無 API key 時 fallback RRF）。Response 包含 `evidence[]` 溯源。
 
 Write-back 模式：
-- `auto`（預設）：`writeback_eligible=true` 且 `calibrated_confidence >= 0.75` 時自動寫回 wiki
+- `no`（預設）：不回寫
+- `auto`：顯式 opt-in；`writeback_eligible=true` 且 route-specific `auto_threshold` 通過時自動寫回 wiki
 - `yes` / `no`：強制 / 禁止
 - `ask`：TTY 互動詢問
 
-> Agent / automation 建議一律帶 `--writeback=no`。
+> Agent / automation 可省略 `--writeback`；需要自動沉澱時才顯式帶 `--writeback=auto`。
 
 ### Source Catalog & Workspace
 
