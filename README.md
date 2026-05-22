@@ -83,6 +83,8 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 
 所有 query 走 fused retrieval：同時從 wiki / graph / vector / page_tree 收集 candidates，以 LLM reranker 排序（無 API key 時 fallback RRF）。Response 包含 `evidence[]` 溯源。
 
+> LLM reranker 僅在 `HKS_LLM_NETWORK_OPT_IN=1` 且 OpenAI key 齊備時啟用；啟用時會將 question 與候選 snippet（每筆截斷 200 字，含 wiki / graph / vector 命中內容）送至 hosted endpoint。未 opt-in 一律走 local RRF，不外送任何內容。
+
 Write-back 模式：
 - `no`（預設）：不回寫
 - `auto`：顯式 opt-in；`writeback_eligible=true` 且 route-specific `auto_threshold` 通過時自動寫回 wiki
@@ -212,8 +214,9 @@ uv run hks-api --host 127.0.0.1 --port 8766
 }
 ```
 
-- `confidence`：raw retrieval score；`retrieval_score` 等值保留給未來遷移
-- `calibrated_confidence` + `writeback_eligible`：`auto` write-back 的實際 gate
+- `confidence`：query 命中時取自 `calibrated_confidence`；top-level shape 相容欄位
+- `retrieval_score`：raw retrieval score（未經 clamp）
+- `calibrated_confidence` + `writeback_eligible`：`auto` write-back 的實際 gate；`calibrated_confidence` 目前為 `retrieval_score` clamp 至 `[0,1]`
 - `evidence[]`：溯源資訊，含 `source_relpath`、`route`、`quote`
 - `trace.steps`：pipeline 每一步的記錄
 - 無命中時 `source=[]`，仍 exit `0`

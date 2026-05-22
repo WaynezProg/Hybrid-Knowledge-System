@@ -23,7 +23,9 @@ dependencies = [
   "python-slugify",
   "ruamel.yaml",
   "sentence-transformers",
+  "starlette",
   "typer",
+  "uvicorn",
 ]
 
 [project.scripts]

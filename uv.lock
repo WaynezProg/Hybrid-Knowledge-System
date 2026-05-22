@@ -461,7 +461,9 @@ dependencies = [
     { name = "python-slugify" },
     { name = "ruamel-yaml" },
     { name = "sentence-transformers" },
+    { name = "starlette" },
     { name = "typer" },
+    { name = "uvicorn" },
 ]
 
 [package.dev-dependencies]
@@ -489,7 +491,9 @@ requires-dist = [
     { name = "python-slugify" },
     { name = "ruamel-yaml" },
     { name = "sentence-transformers" },
+    { name = "starlette" },
     { name = "typer" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata.requires-dev]
