@@ -138,6 +138,27 @@ def test_ingest_locked_runtime_returns_general(tmp_path: Path) -> None:
 
 
 @pytest.mark.contract
+def test_writeback_locked_runtime_returns_general(tmp_path: Path) -> None:
+    ks_root = tmp_path / "ks"
+    _seed_runtime(ks_root, tmp_path / "docs")
+
+    with file_lock(runtime_paths(ks_root).lock):
+        result = _run_cli(
+            "query",
+            "summary Atlas",
+            "--writeback=yes",
+            ks_root=ks_root,
+        )
+
+    assert result.returncode == 1
+    assert result.stderr.splitlines()[0].startswith("[ks:query] error:")
+    payload = _load_stdout_json(result)
+    writeback_step = payload["trace"]["steps"][-1]  # type: ignore[index]
+    assert writeback_step["kind"] == "writeback"  # type: ignore[index]
+    assert writeback_step["detail"]["status"] == "failed"  # type: ignore[index]
+
+
+@pytest.mark.contract
 def test_ingest_manifest_write_failure_returns_general(tmp_path: Path) -> None:
     ks_root = tmp_path / "ks"
     manifest_dir = ks_root / "manifest.json"

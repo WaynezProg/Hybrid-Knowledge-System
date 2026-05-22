@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+
 import pytest
 
 from hks.core.paths import runtime_paths
 from hks.core.schema import QueryResponse, Trace, TraceStep
 from hks.storage.wiki import WikiStore
+from hks.writeback import writer
 from hks.writeback.writer import WritebackContext, commit
 
 
@@ -40,6 +44,26 @@ def test_writer_commit_persists_page_and_log(tmp_path) -> None:
     assert page_path.exists()
     assert "Project A summary" in page_path.read_text(encoding="utf-8")
     assert "writeback" in paths.wiki.joinpath("log.md").read_text(encoding="utf-8")
+
+
+@pytest.mark.unit
+def test_writer_commit_acquires_runtime_lock(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    paths = runtime_paths(tmp_path / "ks")
+    store = WikiStore(paths)
+    acquired: list[object] = []
+
+    @contextmanager
+    def fake_file_lock(path: object) -> Iterator[None]:
+        acquired.append(path)
+        yield
+
+    monkeypatch.setattr(writer, "file_lock", fake_file_lock)
+
+    writer.commit(query="Project A summary", response=_response(), wiki_store=store)
+
+    assert acquired == [paths.lock]
 
 
 @pytest.mark.unit
