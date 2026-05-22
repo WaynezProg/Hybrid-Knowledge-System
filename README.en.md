@@ -241,7 +241,7 @@ Full reference: [docs/configuration.md](./docs/configuration.md).
 | `HKS_LLM_PROVIDER` | `fake` | LLM provider; `openai` requires API key |
 | `HKS_LLM_NETWORK_OPT_IN` | — | Set to `1` to allow non-fake providers |
 | `HKS_LLM_PROVIDER_OPENAI_API_KEY` | — | OpenAI API key |
-| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto write-back calibrated confidence floor; still requires `writeback_eligible=true` |
+| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Legacy auto write-back fallback; `ConfidenceAssessment` uses the route-specific `auto_threshold` and still requires `writeback_eligible=true` |
 | `HKS_WORKSPACE_REGISTRY` | user config path | Workspace registry JSON path |
 
 Use `config/hks.yaml` for structured config (copy from `config/hks.yaml.example`). Priority: process env > `config/hks.env` > `config/hks.yaml` / `config/hks.json` > default.

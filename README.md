@@ -244,7 +244,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 | `HKS_LLM_PROVIDER` | `fake` | LLM provider；`openai` 需另設 API key |
 | `HKS_LLM_NETWORK_OPT_IN` | — | 設為 `1` 才允許非 fake provider |
 | `HKS_LLM_PROVIDER_OPENAI_API_KEY` | — | OpenAI API key |
-| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto write-back calibrated confidence floor；仍需 `writeback_eligible=true` |
+| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Legacy auto write-back fallback；有 `ConfidenceAssessment` 時以 route-specific `auto_threshold` 為準，且仍需 `writeback_eligible=true` |
 | `HKS_WORKSPACE_REGISTRY` | user config path | Workspace registry JSON 路徑 |
 
 結構化設定檔用 `config/hks.yaml`（從 `config/hks.yaml.example` 複製）。讀取優先序：process env > `config/hks.env` > `config/hks.yaml` / `config/hks.json` > default。

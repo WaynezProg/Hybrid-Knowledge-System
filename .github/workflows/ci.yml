@@ -42,6 +42,11 @@ jobs:
       - name: Type check
         run: uv run mypy src/hks
 
+      - name: HTTP entrypoint smoke
+        run: |
+          uv run hks-api --help >/dev/null
+          uv run python -c "from hks.adapters.http_server import create_app; create_app()"
+
       - name: Test
         run: uv run pytest --ignore=tests/eval --cov=hks --cov-fail-under=80 -q
 
