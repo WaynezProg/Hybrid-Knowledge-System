@@ -79,6 +79,27 @@ def test_openai_chat_posts_to_correct_url() -> None:
         assert call_args[0][0] == "https://custom.example.com/v1/chat/completions"
 
 
+def test_openai_chat_strips_trailing_endpoint_slash() -> None:
+    payload = {"key": "value"}
+
+    with patch("hks.llm.providers.httpx.Client") as mock_client_cls:
+        mock_client = MagicMock()
+        mock_client.__enter__ = lambda s: s
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.post.return_value = _make_httpx_response(payload)
+        mock_client_cls.return_value = mock_client
+
+        _openai_chat(
+            api_key="sk-test",
+            endpoint="https://custom.example.com/v1/",
+            model="my-model",
+            messages=[{"role": "user", "content": "test"}],
+        )
+
+        call_args = mock_client.post.call_args
+        assert call_args[0][0] == "https://custom.example.com/v1/chat/completions"
+
+
 def test_openai_chat_sends_json_response_format() -> None:
     payload = {"result": 1}
 

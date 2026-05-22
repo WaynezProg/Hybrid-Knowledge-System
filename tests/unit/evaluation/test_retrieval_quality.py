@@ -231,6 +231,30 @@ def test_writeback_auto_committed_counts_as_false_positive() -> None:
     assert report.failures["writeback_false_positive"] == ["auto-writeback"]
 
 
+def test_writeback_allowed_cases_must_be_eligible() -> None:
+    observations = [
+        QueryObservation(
+            case=GoldenQueryCase(
+                id="eligible-expected",
+                question="detail owner",
+                expected_route="vector",
+                writeback_allowed=True,
+            ),
+            payload={
+                "source": ["vector"],
+                "confidence": 0.9,
+                "writeback_eligible": False,
+                "trace": {"route": "vector", "steps": []},
+            },
+        )
+    ]
+
+    report = compute_metrics(observations)
+
+    assert report.writeback_eligible_hit_rate == 0.0
+    assert report.failures["writeback_eligible_hit_rate"] == ["eligible-expected"]
+
+
 def test_route_accuracy_requires_source_and_trace_route_to_match() -> None:
     observations = [
         QueryObservation(
@@ -344,5 +368,6 @@ def test_assert_thresholds_raises_with_specific_metric_name() -> None:
                 answer_contains_rate=0.0,
                 no_hit_precision=0.0,
                 writeback_false_positive_rate=1.0,
+                writeback_eligible_hit_rate=1.0,
             ),
         )

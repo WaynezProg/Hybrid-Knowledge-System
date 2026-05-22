@@ -64,7 +64,9 @@ def _write_strict_fixture_files(target: Path) -> None:
     (target / "nebula-arbitration.md").write_text(
         (
             "# Nebula Arbitration\n\n"
-            "Nebula arbitration requires coordinator approval before the midnight cutover.\n\n"
+            "Background status uses the old arbitration label only.\n\n"
+            "# Runtime Gate\n\n"
+            "Runtime gate requires coordinator approval before the midnight cutover.\n\n"
             "# Routine Appendix\n\n"
             "Archive rotation is informational only.\n"
         ),
@@ -171,5 +173,6 @@ def test_strict_golden_retrieval_quality_gate(strict_ingested_golden_ks_root: Pa
             trace_hit_rate=1.00,
             no_hit_precision=1.00,
             writeback_false_positive_rate=0.00,
+            writeback_eligible_hit_rate=1.00,
         ),
     )

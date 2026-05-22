@@ -67,6 +67,7 @@ class MetricThresholds:
     trace_hit_rate: float = 1.00
     no_hit_precision: float = 1.00
     writeback_false_positive_rate: float = 0.00
+    writeback_eligible_hit_rate: float = 0.00
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +80,7 @@ class MetricReport:
     trace_hit_rate: float
     no_hit_precision: float
     writeback_false_positive_rate: float
+    writeback_eligible_hit_rate: float
     failures: dict[str, list[str]] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -91,6 +93,7 @@ class MetricReport:
             "trace_hit_rate": self.trace_hit_rate,
             "no_hit_precision": self.no_hit_precision,
             "writeback_false_positive_rate": self.writeback_false_positive_rate,
+            "writeback_eligible_hit_rate": self.writeback_eligible_hit_rate,
             "failures": self.failures,
         }
 
@@ -139,6 +142,7 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
         "trace_hit_rate": [],
         "no_hit_precision": [],
         "writeback_false_positive": [],
+        "writeback_eligible_hit_rate": [],
     }
 
     route_total = route_correct = 0
@@ -148,6 +152,7 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
     trace_hit_total = trace_hit_correct = 0
     no_hit_total = no_hit_correct = 0
     writeback_disallowed_total = writeback_false_positive = 0
+    writeback_allowed_total = writeback_eligible_hits = 0
 
     for observation in observations:
         case = observation.case
@@ -207,6 +212,12 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
             if bool(payload.get("writeback_eligible")) or _auto_committed(payload):
                 writeback_false_positive += 1
                 failures["writeback_false_positive"].append(case.id)
+        else:
+            writeback_allowed_total += 1
+            if bool(payload.get("writeback_eligible")):
+                writeback_eligible_hits += 1
+            else:
+                failures["writeback_eligible_hit_rate"].append(case.id)
 
     return MetricReport(
         total=len(observations),
@@ -219,6 +230,10 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
         writeback_false_positive_rate=_ratio(
             writeback_false_positive,
             writeback_disallowed_total,
+        ),
+        writeback_eligible_hit_rate=_ratio(
+            writeback_eligible_hits,
+            writeback_allowed_total,
         ),
         failures={key: value for key, value in failures.items() if value},
     )
@@ -240,6 +255,11 @@ def assert_thresholds(report: MetricReport, thresholds: MetricThresholds) -> Non
             report.writeback_false_positive_rate,
             thresholds.writeback_false_positive_rate,
             "<=",
+        ),
+        "writeback_eligible_hit_rate": (
+            report.writeback_eligible_hit_rate,
+            thresholds.writeback_eligible_hit_rate,
+            ">=",
         ),
     }
     failed: list[str] = []

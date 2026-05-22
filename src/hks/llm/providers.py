@@ -86,7 +86,7 @@ def _openai_chat(
     timeout: int = 30,
 ) -> dict[str, Any]:
     """POST to OpenAI-compatible /chat/completions and return parsed JSON content."""
-    url = f"{endpoint}/chat/completions"
+    url = f"{endpoint.rstrip('/')}/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     body = {
         "model": model,
