@@ -21,7 +21,8 @@ def _load_cases() -> list[dict]:
 @requires_openai
 @pytest.mark.parametrize("case", _load_cases(), ids=lambda c: c["id"])
 def test_rerank_eval(case: dict) -> None:
-    from hks.commands.query import Candidate, _llm_rerank
+    from hks.rerank.llm import llm_rerank
+    from hks.retrieval.models import Candidate
 
     candidates = [
         Candidate(
@@ -33,7 +34,7 @@ def test_rerank_eval(case: dict) -> None:
         for c in case["candidates"]
     ]
 
-    ranked, detail = _llm_rerank(case["question"], candidates)
+    ranked, detail = llm_rerank(case["question"], candidates)
 
     assert detail["strategy"] in {"llm", "rrf"}
     assert ranked[0].source_route == case["expected_top_route"], (

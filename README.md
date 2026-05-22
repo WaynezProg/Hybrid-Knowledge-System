@@ -255,6 +255,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 
 ```bash
 uv run pytest --tb=short -q
+uv run pytest tests/eval/test_golden_retrieval_quality.py -q
 uv run ruff check .
 uv run mypy src/hks
 ```

@@ -255,6 +255,7 @@ See [docs/obsidian.md](./docs/obsidian.md) for the full guide.
 
 ```bash
 uv run pytest --tb=short -q
+uv run pytest tests/eval/test_golden_retrieval_quality.py -q
 uv run ruff check .
 uv run mypy src/hks
 ```
