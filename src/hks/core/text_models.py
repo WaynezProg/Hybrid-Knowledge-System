@@ -117,6 +117,10 @@ class TextModelBackend:
         return slug or "model"
 
     @property
+    def embedding_fingerprint(self) -> str:
+        return f"embedding:v1:{self.model_name}:{self.embedding_dimension}"
+
+    @property
     def embedding_dimension(self) -> int | str:
         if self.model_name == SIMPLE_EMBEDDING_MODEL:
             return SIMPLE_EMBEDDING_DIMENSIONS

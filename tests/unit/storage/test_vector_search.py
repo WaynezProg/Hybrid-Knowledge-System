@@ -39,6 +39,25 @@ def test_vector_search_returns_empty_list_for_empty_store(tmp_path) -> None:
 
 
 @pytest.mark.unit
+def test_vector_store_has_ids_requires_all_ids_in_current_collection(tmp_path) -> None:
+    paths = runtime_paths(tmp_path / "ks")
+    store = VectorStore(paths, backend=TextModelBackend("simple"))
+    store.add_chunks(
+        [
+            VectorChunk(
+                id="atlas-1",
+                text="Atlas chunk",
+                metadata={"source_relpath": "project-atlas.txt", "chunk_idx": 0},
+            )
+        ]
+    )
+
+    assert store.has_ids(["atlas-1"])
+    assert not store.has_ids(["atlas-1", "missing"])
+    assert not store.has_ids([])
+
+
+@pytest.mark.unit
 def test_collection_name_includes_backend_model_and_dimension() -> None:
     assert (
         collection_name_for_backend(TextModelBackend("simple"))

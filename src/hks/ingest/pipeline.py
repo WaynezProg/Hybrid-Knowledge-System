@@ -174,6 +174,36 @@ def _vector_chunk_id(sha256: str, parser_fingerprint: str, index: int) -> str:
     return f"{sha256[:8]}-{digest}-{index}"
 
 
+def _vector_artifacts_current(
+    entry: ManifestEntry,
+    *,
+    backend: TextModelBackend,
+    vector_store: VectorStore,
+) -> bool:
+    return (
+        entry.derived.embedding_fingerprint == backend.embedding_fingerprint
+        and entry.derived.vector_collection == vector_store.collection_name
+        and entry.derived.embedding_model == backend.model_name
+        and entry.derived.embedding_dimension == backend.embedding_dimension
+        and vector_store.has_ids(entry.derived.vector_ids)
+    )
+
+
+def _can_skip_existing_entry(
+    entry: ManifestEntry,
+    *,
+    sha256: str,
+    parser_fingerprint: str,
+    backend: TextModelBackend,
+    vector_store: VectorStore,
+) -> bool:
+    return (
+        entry.sha256 == sha256
+        and are_fingerprints_compatible(entry.parser_fingerprint, parser_fingerprint)
+        and _vector_artifacts_current(entry, backend=backend, vector_store=vector_store)
+    )
+
+
 def _log_and_issue(
     *,
     wiki_store: WikiStore,
@@ -301,10 +331,12 @@ def ingest(
             sha256 = compute_sha256(file_path)
             current_fp = compute_parser_fingerprint(source_format, flags)
             existing = manifest.entries.get(relpath)
-            if (
-                existing
-                and existing.sha256 == sha256
-                and are_fingerprints_compatible(existing.parser_fingerprint, current_fp)
+            if existing and _can_skip_existing_entry(
+                existing,
+                sha256=sha256,
+                parser_fingerprint=current_fp,
+                backend=backend,
+                vector_store=vector_store,
             ):
                 reason = "hash unchanged"
                 summary.skipped.append(IngestIssue(path=relpath, reason=reason, kind="skipped"))
@@ -521,6 +553,10 @@ def ingest(
                         graph_edges=graph_edge_ids,
                         vector_ids=vector_ids,
                         page_tree=tree_slug,
+                        embedding_fingerprint=backend.embedding_fingerprint,
+                        vector_collection=vector_store.collection_name,
+                        embedding_model=backend.model_name,
+                        embedding_dimension=backend.embedding_dimension,
                     ),
                     parser_fingerprint=current_fp,
                 )

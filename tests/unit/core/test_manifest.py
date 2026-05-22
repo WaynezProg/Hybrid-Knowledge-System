@@ -52,12 +52,20 @@ def test_derived_artifacts_round_trips_page_tree_slug() -> None:
         graph_edges=["Project:Atlas->Concept:Search"],
         vector_ids=["project-atlas:0"],
         page_tree="project-atlas",
+        embedding_fingerprint="embedding:v1:simple:128",
+        vector_collection="hks_v1__simple__128",
+        embedding_model="simple",
+        embedding_dimension=128,
     )
 
     restored = DerivedArtifacts.from_dict(artifacts.to_dict())
 
     assert artifacts.to_dict()["page_tree"] == "project-atlas"
     assert restored.page_tree == "project-atlas"
+    assert restored.embedding_fingerprint == "embedding:v1:simple:128"
+    assert restored.vector_collection == "hks_v1__simple__128"
+    assert restored.embedding_model == "simple"
+    assert restored.embedding_dimension == 128
 
 
 @pytest.mark.unit
@@ -79,3 +87,5 @@ def test_manifest_entry_deserializes_missing_page_tree_as_none() -> None:
     )
 
     assert entry.derived.page_tree is None
+    assert entry.derived.embedding_fingerprint is None
+    assert entry.derived.vector_collection is None

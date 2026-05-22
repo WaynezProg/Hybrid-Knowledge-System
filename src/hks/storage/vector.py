@@ -94,6 +94,13 @@ class VectorStore:
         result = cast(dict[str, Any], self.collection.get())
         return [str(chunk_id) for chunk_id in result.get("ids", [])]
 
+    def has_ids(self, ids: list[str]) -> bool:
+        if not ids:
+            return False
+        result = cast(dict[str, Any], self.collection.get(ids=ids))
+        found_ids = {str(chunk_id) for chunk_id in result.get("ids", [])}
+        return set(ids).issubset(found_ids)
+
     def delete(self, ids: list[str]) -> None:
         if ids:
             self.collection.delete(ids=ids)

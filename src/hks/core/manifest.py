@@ -39,6 +39,10 @@ class DerivedArtifacts:
     graph_edges: list[str] = field(default_factory=list)
     vector_ids: list[str] = field(default_factory=list)
     page_tree: str | None = None
+    embedding_fingerprint: str | None = None
+    vector_collection: str | None = None
+    embedding_model: str | None = None
+    embedding_dimension: int | str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -47,20 +51,43 @@ class DerivedArtifacts:
             "graph_edges": self.graph_edges,
             "vector_ids": self.vector_ids,
             "page_tree": self.page_tree,
+            "embedding_fingerprint": self.embedding_fingerprint,
+            "vector_collection": self.vector_collection,
+            "embedding_model": self.embedding_model,
+            "embedding_dimension": self.embedding_dimension,
         }
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> DerivedArtifacts:
+        embedding_dimension_payload = payload.get("embedding_dimension")
+        if isinstance(embedding_dimension_payload, int | str):
+            embedding_dimension: int | str | None = embedding_dimension_payload
+        elif embedding_dimension_payload is None:
+            embedding_dimension = None
+        else:
+            embedding_dimension = str(embedding_dimension_payload)
+        vector_collection = payload.get("vector_collection")
+        if vector_collection is not None:
+            vector_collection = str(vector_collection)
+        embedding_model = payload.get("embedding_model")
+        if embedding_model is not None:
+            embedding_model = str(embedding_model)
+        embedding_fingerprint = payload.get("embedding_fingerprint")
+        if embedding_fingerprint is not None:
+            embedding_fingerprint = str(embedding_fingerprint)
+        page_tree = payload.get("page_tree")
+        if page_tree is not None:
+            page_tree = str(page_tree)
         return cls(
             wiki_pages=list(payload.get("wiki_pages", [])),
             graph_nodes=list(payload.get("graph_nodes", [])),
             graph_edges=list(payload.get("graph_edges", [])),
             vector_ids=list(payload.get("vector_ids", [])),
-            page_tree=(
-                None
-                if payload.get("page_tree") is None
-                else str(payload["page_tree"])
-            ),
+            page_tree=page_tree,
+            embedding_fingerprint=embedding_fingerprint,
+            vector_collection=vector_collection,
+            embedding_model=embedding_model,
+            embedding_dimension=embedding_dimension,
         )
 
 

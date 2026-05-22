@@ -266,12 +266,17 @@ graph persistence 位於 `/ks/graph/graph.json`。
   /manifest.json
 ```
 
-`manifest.json` 以 `relpath + sha256 + parser_fingerprint` 對應 derived artifacts，現在包含：
+`manifest.json` 以 `relpath + sha256 + parser_fingerprint` 對應 derived artifacts；vector artifacts 另記 embedding / collection metadata，避免 backend model 或 dimension 變更後誤判可 skip。現在包含：
 
 * `wiki_pages`
 * `graph_nodes`
 * `graph_edges`
 * `vector_ids`
+* `page_tree`
+* `embedding_fingerprint`
+* `vector_collection`
+* `embedding_model`
+* `embedding_dimension`
 
 `coordination/state.json` 存 agent sessions、resource leases、handoff notes；`events.jsonl` 是 append-only coordination event log。
 `llm/extractions/*.json` 存 008 extraction candidate artifact；`llm/wiki-candidates/*.json` 存 009 wiki synthesis candidate artifact。兩者都不是 authoritative wiki / graph / vector / page_tree state；只有 `ks wiki synthesize --mode apply` 成功後寫入的 `origin=llm_wiki` page 才是 applied wiki state。
