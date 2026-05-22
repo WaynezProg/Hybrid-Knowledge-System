@@ -7,8 +7,9 @@ import pytest
 import hks.commands.query as query_command
 from hks.cli import app
 from hks.core.paths import runtime_paths
+from hks.storage.wiki import WikiStore
 from hks.writeback.gate import Decision
-from hks.writeback.queue import archive
+from hks.writeback.queue import build_item, enqueue
 
 
 @pytest.fixture()
@@ -34,12 +35,20 @@ def _queue_files(tmp_ks_root) -> list:
     return sorted((tmp_ks_root / "writeback" / "queue").glob("*.json"))
 
 
+def _archive_files(tmp_ks_root) -> list:
+    return sorted((tmp_ks_root / "writeback" / "archive").glob("*.json"))
+
+
 def _log_text(tmp_ks_root) -> str:
     return (tmp_ks_root / "wiki" / "log.md").read_text(encoding="utf-8")
 
 
 def _writeback_step(payload: dict[str, object]) -> dict[str, object]:
     return next(step for step in payload["trace"]["steps"] if step["kind"] == "writeback")
+
+
+def _json(path) -> dict[str, object]:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 @pytest.mark.integration
@@ -179,6 +188,103 @@ def test_writeback_yes_enqueues_without_wiki_page_or_forced_event(
 
 @pytest.mark.integration
 @pytest.mark.us3
+def test_writeback_approve_promotes_queue_item_to_evidence_backed_wiki_page(
+    cli_runner, ingested_for_writeback, tmp_ks_root
+) -> None:
+    query_result = cli_runner.invoke(app, ["query", "summary Atlas", "--writeback=yes"])
+    assert query_result.exit_code == 0
+    query_payload = json.loads(query_result.stdout)
+    query_step = _writeback_step(query_payload)
+    item_id = str(query_step["detail"]["id"])
+    queue_files = _queue_files(tmp_ks_root)
+    assert len(queue_files) == 1
+
+    approve_result = cli_runner.invoke(app, ["writeback", "approve", item_id])
+
+    assert approve_result.exit_code == 0
+    approve_payload = json.loads(approve_result.stdout)
+    approve_step = _writeback_step(approve_payload)
+    archive_files = _archive_files(tmp_ks_root)
+    assert _queue_files(tmp_ks_root) == []
+    assert len(archive_files) == 1
+    archived = _json(archive_files[0])
+    assert archived["id"] == item_id
+    assert archived["status"] == "approved"
+    assert archived["slug"] == approve_step["detail"]["slug"]
+
+    page = WikiStore(runtime_paths(tmp_ks_root)).load_page(str(archived["slug"]))
+    assert page.origin == "writeback"
+    assert page.source_relpath != "<writeback>"
+    assert page.source_relpath == archived["evidence"][0]["source_relpath"]
+    assert page.metadata["writeback_query"] == "summary Atlas"
+    assert query_payload["answer"] in page.body
+    assert "## 來源依據" in page.body
+    assert archived["evidence"][0]["quote"] in page.body
+    assert archived["evidence"][0]["source_relpath"] in page.body
+
+
+@pytest.mark.integration
+@pytest.mark.us3
+def test_writeback_reject_archives_queue_item_without_wiki_changes(
+    cli_runner, ingested_for_writeback, tmp_ks_root
+) -> None:
+    before_pages = _wiki_page_snapshot(tmp_ks_root)
+    query_result = cli_runner.invoke(app, ["query", "summary Atlas", "--writeback=yes"])
+    assert query_result.exit_code == 0
+    item_id = str(_writeback_step(json.loads(query_result.stdout))["detail"]["id"])
+    assert len(_queue_files(tmp_ks_root)) == 1
+
+    reject_result = cli_runner.invoke(app, ["writeback", "reject", item_id])
+
+    assert reject_result.exit_code == 0
+    reject_payload = json.loads(reject_result.stdout)
+    reject_step = _writeback_step(reject_payload)
+    assert reject_step["detail"]["status"] == "rejected"
+    archive_files = _archive_files(tmp_ks_root)
+    assert _queue_files(tmp_ks_root) == []
+    assert len(archive_files) == 1
+    archived = _json(archive_files[0])
+    assert archived["id"] == item_id
+    assert archived["status"] == "rejected"
+    assert _wiki_page_snapshot(tmp_ks_root) == before_pages
+
+
+@pytest.mark.integration
+@pytest.mark.us3
+def test_writeback_approve_invalid_evidence_keeps_pending_item_rejectable(
+    cli_runner, ingested_for_writeback, tmp_ks_root
+) -> None:
+    paths = runtime_paths(tmp_ks_root)
+    item = build_item(
+        question="Synthetic writeback answer",
+        answer="Synthetic answer should not be promoted.",
+        route="wiki",
+        source=["wiki"],
+        evidence=[{"route": "wiki", "source_relpath": "<writeback>", "quote": "synthetic"}],
+        retrieval_score=0.9,
+        writeback_eligible=True,
+    )
+    enqueue(item, paths=paths)
+
+    approve_result = cli_runner.invoke(app, ["writeback", "approve", item.id])
+
+    assert approve_result.exit_code != 0
+    error_payload = json.loads(approve_result.stdout)
+    assert error_payload["trace"]["steps"][0]["detail"]["code"] == "WRITEBACK_EVIDENCE_REQUIRED"
+    assert len(_queue_files(tmp_ks_root)) == 1
+    assert _queue_files(tmp_ks_root)[0].stem == item.id
+    assert _archive_files(tmp_ks_root) == []
+
+    reject_result = cli_runner.invoke(app, ["writeback", "reject", item.id])
+    assert reject_result.exit_code == 0
+    archived = _json(_archive_files(tmp_ks_root)[0])
+    assert archived["id"] == item.id
+    assert archived["status"] == "rejected"
+    assert _queue_files(tmp_ks_root) == []
+
+
+@pytest.mark.integration
+@pytest.mark.us3
 def test_writeback_no_overrides_and_skips_enqueue(
     cli_runner, ingested_for_writeback, tmp_ks_root
 ) -> None:
@@ -220,7 +326,8 @@ def test_writeback_yes_reports_already_promoted_queue_item(
     first_payload = json.loads(first.stdout)
     first_step = _writeback_step(first_payload)
     item_id = first_step["detail"]["id"]
-    archive(item_id, "approved", slug="summary-atlas", paths=runtime_paths(tmp_ks_root))
+    approve = cli_runner.invoke(app, ["writeback", "approve", item_id])
+    assert approve.exit_code == 0
     after_archive_log = _log_text(tmp_ks_root)
 
     second = cli_runner.invoke(app, ["query", "summary Atlas", "--writeback=yes"])

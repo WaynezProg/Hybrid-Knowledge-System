@@ -139,6 +139,14 @@ def enqueue(
             archived = _read_item(archive_path)
             if archived.status == "approved":
                 return EnqueueResult(status="already-promoted", id=item.id, path=archive_path)
+        promoted = _find_approved_archive_by_question(item.question, resolved)
+        if promoted is not None:
+            promoted_item, promoted_path = promoted
+            return EnqueueResult(
+                status="already-promoted",
+                id=promoted_item.id,
+                path=promoted_path,
+            )
         pending = replace(item, status="pending", decided_at=None, slug=None)
         _write_item(queue_path, pending)
         return EnqueueResult(status="created", id=item.id, path=queue_path)
@@ -263,6 +271,20 @@ def _queue_path(item_id: str, paths: RuntimePaths) -> Path:
 
 def _archive_path(item_id: str, paths: RuntimePaths) -> Path:
     return _archive_dir(paths) / f"{item_id}.json"
+
+
+def _find_approved_archive_by_question(
+    question: str,
+    paths: RuntimePaths,
+) -> tuple[WritebackQueueItem, Path] | None:
+    archive_dir = _archive_dir(paths)
+    if not archive_dir.exists():
+        return None
+    for path in sorted(archive_dir.glob("*.json")):
+        archived = _read_item(path)
+        if archived.status == "approved" and archived.question == question:
+            return archived, path
+    return None
 
 
 def _lock_path(item_id: str, paths: RuntimePaths) -> Path:
