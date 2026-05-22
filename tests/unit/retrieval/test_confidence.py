@@ -24,7 +24,7 @@ class TestAssessWiki:
     def test_wiki_zero_confidence(self) -> None:
         result = assess(route="wiki", raw_score=0.0, evidence=[])
         assert result.writeback_eligible is False
-        assert result.calibrated_confidence == 0.0
+        assert result.confidence == 0.0
 
 
 class TestAssessGraph:
@@ -41,7 +41,7 @@ class TestAssessGraph:
             },
         )
         assert result.writeback_eligible is True
-        assert result.calibrated_confidence >= 0.75
+        assert result.confidence >= 0.75
 
     def test_graph_missing_edge_ids_ineligible(self) -> None:
         result = assess(
@@ -79,6 +79,26 @@ class TestAssessGraph:
             metadata={"edge_ids": ["e1"], "evidence_by_relpath": {"dep.md": "weak"}},
         )
         assert result.writeback_eligible is False
+
+    def test_graph_later_writeback_source_relpath_is_invalid_provenance(self) -> None:
+        result = assess(
+            route="graph",
+            raw_score=0.88,
+            evidence=[
+                {"source_relpath": "dep.md", "route": "graph", "quote": "A impacts B"},
+                {
+                    "source_relpath": "<writeback>",
+                    "route": "graph",
+                    "quote": "generated edge",
+                },
+            ],
+            metadata={
+                "edge_ids": ["e1"],
+                "evidence_by_relpath": {"dep.md": "A impacts B"},
+            },
+        )
+        assert result.writeback_eligible is False
+        assert any("<writeback>" in reason for reason in result.reasons)
 
 
 class TestAssessVector:
@@ -119,6 +139,29 @@ class TestAssessVector:
     def test_vector_empty_evidence_ineligible(self) -> None:
         result = assess(route="vector", raw_score=0.9, evidence=[])
         assert result.writeback_eligible is False
+
+    def test_vector_writeback_source_relpath_is_invalid_provenance(self) -> None:
+        result = assess(
+            route="vector",
+            raw_score=0.85,
+            evidence=[
+                {"source_relpath": "<writeback>", "route": "vector", "quote": "generated text"}
+            ],
+        )
+        assert result.writeback_eligible is False
+        assert any("<writeback>" in reason for reason in result.reasons)
+
+    def test_vector_later_writeback_source_relpath_is_invalid_provenance(self) -> None:
+        result = assess(
+            route="vector",
+            raw_score=0.85,
+            evidence=[
+                {"source_relpath": "a.md", "route": "vector", "quote": "fact text"},
+                {"source_relpath": "<writeback>", "route": "vector", "quote": "generated text"},
+            ],
+        )
+        assert result.writeback_eligible is False
+        assert any("<writeback>" in reason for reason in result.reasons)
 
 
 class TestAssessPageTree:
@@ -186,25 +229,49 @@ class TestAssessPageTree:
         )
         assert result.writeback_eligible is False
 
+    def test_page_tree_later_writeback_source_relpath_is_invalid_provenance(self) -> None:
+        result = assess(
+            route="page_tree",
+            raw_score=0.7,
+            evidence=[
+                {
+                    "source_relpath": "doc.pdf",
+                    "route": "page_tree",
+                    "quote": "section content",
+                    "section_path": "Chapter 1 > Intro",
+                    "page_range": {"start": 1, "end": 3},
+                },
+                {
+                    "source_relpath": "<writeback>",
+                    "route": "page_tree",
+                    "quote": "generated section",
+                    "section_path": "Chapter 2 > Generated",
+                    "page_range": {"start": 4, "end": 5},
+                },
+            ],
+        )
+        assert result.writeback_eligible is False
+        assert any("<writeback>" in reason for reason in result.reasons)
 
-class TestAssessCalibration:
-    """Calibrated confidence is clamped [0.0, 1.0]."""
 
-    def test_calibrated_equals_raw_for_initial_release(self) -> None:
+class TestAssessConfidence:
+    """Confidence is clamped [0.0, 1.0]."""
+
+    def test_confidence_equals_raw_for_initial_release(self) -> None:
         result = assess(
             route="vector",
             raw_score=0.85,
             evidence=[{"source_relpath": "a.md", "route": "vector", "quote": "text"}],
         )
-        assert result.calibrated_confidence == result.retrieval_score
+        assert result.confidence == result.retrieval_score
 
-    def test_calibrated_clamped_at_zero(self) -> None:
+    def test_confidence_clamped_at_zero(self) -> None:
         result = assess(route="wiki", raw_score=-0.5, evidence=[])
-        assert result.calibrated_confidence >= 0.0
+        assert result.confidence == 0.0
 
-    def test_calibrated_clamped_at_one(self) -> None:
+    def test_confidence_clamped_at_one(self) -> None:
         result = assess(route="wiki", raw_score=1.5, evidence=[])
-        assert result.calibrated_confidence <= 1.0
+        assert result.confidence == 1.0
 
     def test_retrieval_score_equals_raw_score(self) -> None:
         result = assess(route="vector", raw_score=0.42, evidence=[])
