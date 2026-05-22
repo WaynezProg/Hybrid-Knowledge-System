@@ -103,14 +103,14 @@
 
 **Purpose**: Keep API/MCP and quality gates aligned with the new writeback model.
 
-- [ ] T046 Remove `calibrated_confidence` from `specs/006-mcp-api-adapter/contracts/http-api.openapi.yaml`
-- [ ] T047 Update contract tests under `tests/contract/test_http_api_contract.py` and `tests/contract/test_mcp_query_contract.py`
-- [ ] T048 Add HTTP adapter integration smoke: query with `writeback=yes` creates queue item and no wiki page
-- [ ] T049 Add MCP query integration smoke: query with `writeback=yes` creates queue item and no wiki page
-- [ ] T050 Modify `src/hks/evaluation/retrieval_quality.py`: rename `_auto_committed()` to `_auto_enqueued()` and detect `enqueued`, `enqueued-deduped`, `already-promoted`
-- [ ] T051 Update `tests/unit/evaluation/test_retrieval_quality.py` for auto enqueue false-positive semantics
-- [ ] T052 Update `tests/eval/test_golden_retrieval_quality.py` with isolated `writeback=auto` smoke for one ineligible case
-- [ ] T053 Run `uv run pytest tests/contract/test_http_api_contract.py tests/contract/test_mcp_query_contract.py tests/integration/test_http_adapter.py tests/integration/test_mcp_query.py tests/unit/evaluation/test_retrieval_quality.py tests/eval/test_golden_retrieval_quality.py -q`
+- [x] T046 Remove `calibrated_confidence` from `specs/006-mcp-api-adapter/contracts/http-api.openapi.yaml`
+- [x] T047 Update contract tests under `tests/contract/test_http_api_contract.py` and `tests/contract/test_mcp_query_contract.py`
+- [x] T048 Add HTTP adapter integration smoke: query with `writeback=yes` creates queue item and no wiki page
+- [x] T049 Add MCP query integration smoke: query with `writeback=yes` creates queue item and no wiki page
+- [x] T050 Modify `src/hks/evaluation/retrieval_quality.py`: rename `_auto_committed()` to `_auto_enqueued()` and detect `enqueued`, `enqueued-deduped`, `already-promoted`
+- [x] T051 Update `tests/unit/evaluation/test_retrieval_quality.py` for auto enqueue false-positive semantics
+- [x] T052 Update `tests/eval/test_golden_retrieval_quality.py` with isolated `writeback=auto` smoke for one ineligible case
+- [x] T053 Run `uv run pytest tests/contract/test_http_api_contract.py tests/contract/test_mcp_query_contract.py tests/integration/test_http_adapter.py tests/integration/test_mcp_query.py tests/unit/evaluation/test_retrieval_quality.py tests/eval/test_golden_retrieval_quality.py -q`
 
 **Checkpoint**: Query adapters inherit queue behavior; eval no longer talks about direct auto commit.
 
