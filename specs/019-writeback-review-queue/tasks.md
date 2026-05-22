@@ -63,14 +63,14 @@
 
 **Purpose**: Make approval the only wiki mutation path for writeback.
 
-- [ ] T027 Replace `tests/unit/writeback/test_writer.py` direct `commit()` tests with `promote()` tests
-- [ ] T028 Add `promote()` happy-path test for `## 來源依據`, real source frontmatter, `origin=writeback`, `writeback_query`, approved log, and related links
-- [ ] T029 Add `promote()` hard-gate tests for empty evidence, missing `source_relpath`, missing `quote`, and `source_relpath="<writeback>"`
-- [ ] T030 Add slug conflict tests: `origin=ingest` raises `CONFLICT`; `origin=writeback` and `origin=llm_wiki` overwrite same slug
-- [ ] T031 Modify `src/hks/writeback/writer.py`: remove `commit()`, keep `WritebackContext`, add `valid_evidence_items()` and `promote()`
-- [ ] T032 In `promote()`, use first valid evidence item for page `source_relpath`; do not fallback to `<writeback>`
-- [ ] T033 In `promote()`, include answer body, `## 來源依據`, and existing related page links
-- [ ] T034 Run `uv run pytest tests/unit/writeback/test_writer.py -q`
+- [x] T027 Replace `tests/unit/writeback/test_writer.py` direct `commit()` tests with `promote()` tests
+- [x] T028 Add `promote()` happy-path test for `## 來源依據`, real source frontmatter, `origin=writeback`, `writeback_query`, approved log, and related links
+- [x] T029 Add `promote()` hard-gate tests for empty evidence, missing `source_relpath`, missing `quote`, and `source_relpath="<writeback>"`
+- [x] T030 Add slug conflict tests: `origin=ingest` raises `CONFLICT`; `origin=writeback` and `origin=llm_wiki` overwrite same slug
+- [x] T031 Modify `src/hks/writeback/writer.py`: remove `commit()`, keep `WritebackContext`, add `valid_evidence_items()` and `promote()`
+- [x] T032 In `promote()`, use first valid evidence item for page `source_relpath`; do not fallback to `<writeback>`
+- [x] T033 In `promote()`, include answer body, `## 來源依據`, and existing related page links
+- [x] T034 Run `uv run pytest tests/unit/writeback/test_writer.py -q`
 
 **Checkpoint**: Invalid queue items may exist for review, but cannot be approved into wiki.
 
