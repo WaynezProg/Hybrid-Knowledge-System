@@ -8,7 +8,6 @@ from hks.retrievers.vector import (
     choose_vector_hit,
     collect_vector_candidates,
     lexical_terms,
-    vector_hit_is_relevant,
 )
 from hks.storage.vector import SearchHit
 
@@ -35,14 +34,14 @@ def test_vector_hit_selection_prefers_more_lexical_matches_over_similarity_noise
     assert choose_vector_hit("detail Owner Mia", [broad_hit, precise_hit]) == precise_hit
 
 
-def test_vector_hit_is_relevant_requires_lexical_overlap_when_query_has_terms() -> None:
+def test_vector_hit_selection_keeps_vector_hit_without_lexical_overlap() -> None:
     hit = SearchHit(
         chunk_id="c1",
         text="unrelated text",
         similarity=0.99,
         metadata={},
     )
-    assert vector_hit_is_relevant("Owner Mia", hit) is False
+    assert choose_vector_hit("Owner Mia", [hit]) == hit
 
 
 def test_collect_vector_returns_candidates_for_relevant_hits() -> None:
@@ -68,4 +67,37 @@ def test_collect_vector_returns_candidates_for_relevant_hits() -> None:
 
     assert len(candidates) == 1
     assert candidates[0].source_route == "vector"
+    assert candidates[0].metadata["lexical_overlap"] == 2
+    assert candidates[0].metadata["vector_similarity"] == 0.85
+    assert candidates[0].metadata["final_score"] == 1.0
+    assert candidates[0].score == 1.0
     assert steps[0].kind == "vector_lookup"
+
+
+def test_collect_vector_keeps_hits_without_lexical_overlap() -> None:
+    vector_store = MagicMock()
+    vector_store.count.return_value = 10
+    vector_store.search.return_value = [
+        SearchHit(
+            chunk_id="c1",
+            text="unrelated text",
+            similarity=0.91,
+            metadata={"source_relpath": "a.md"},
+        )
+    ]
+    vector_store.paths = MagicMock()
+    manifest = MagicMock()
+    manifest.entries = {}
+
+    candidates, steps = collect_vector_candidates(
+        "Owner Mia",
+        vector_store=vector_store,
+        manifest=manifest,
+    )
+
+    assert len(candidates) == 1
+    assert candidates[0].metadata["lexical_overlap"] == 0
+    assert candidates[0].metadata["vector_similarity"] == 0.91
+    assert candidates[0].metadata["final_score"] == 0.91
+    assert candidates[0].score == 0.91
+    assert steps[0].detail["lexical_overlap"] == 0

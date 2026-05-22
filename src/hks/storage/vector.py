@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, cast
@@ -11,7 +13,28 @@ import chromadb
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.core.text_models import TextModelBackend
 
-COLLECTION_NAME = "hks_phase1"
+_COLLECTION_NAME_MAX_LENGTH = 63
+
+
+def _collection_segment(value: object) -> str:
+    segment = re.sub(r"[^a-z0-9]+", "_", str(value).lower()).strip("_")
+    return segment or "unknown"
+
+
+def collection_name_for_backend(backend: TextModelBackend) -> str:
+    prefix = "hks_v1"
+    dimension = _collection_segment(backend.embedding_dimension)
+    suffix = f"__{dimension}"
+    available_model_length = _COLLECTION_NAME_MAX_LENGTH - len(prefix) - len(suffix) - 4
+    model_slug = _collection_segment(backend.model_name_slug)
+    if len(model_slug) > available_model_length:
+        digest = hashlib.sha1(backend.model_name.encode("utf-8")).hexdigest()[:8]
+        trimmed_length = max(1, available_model_length - len(digest) - 1)
+        model_slug = f"{model_slug[:trimmed_length].rstrip('_')}_{digest}"
+    return f"{prefix}__{model_slug}{suffix}"
+
+
+COLLECTION_NAME = collection_name_for_backend(TextModelBackend("simple"))
 
 
 @dataclass(slots=True)
@@ -40,9 +63,14 @@ class VectorStore:
         self.backend = backend or TextModelBackend()
         self.paths.vector_db.mkdir(parents=True, exist_ok=True)
         self.client = chromadb.PersistentClient(path=str(self.paths.vector_db))
+        self.collection_name = collection_name_for_backend(self.backend)
         self.collection = self.client.get_or_create_collection(
-            name=COLLECTION_NAME,
-            metadata={"hnsw:space": "cosine"},
+            name=self.collection_name,
+            metadata={
+                "hnsw:space": "cosine",
+                "hks:embedding_model": self.backend.model_name,
+                "hks:embedding_dimension": str(self.backend.embedding_dimension),
+            },
         )
 
     def add_chunks(self, chunks: list[VectorChunk]) -> list[str]:

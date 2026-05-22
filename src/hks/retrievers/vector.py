@@ -11,6 +11,9 @@ from hks.retrieval.evidence import evidence_quote
 from hks.retrieval.models import Candidate
 from hks.storage.vector import SearchHit, VectorStore
 
+_LEXICAL_SCORE_BONUS = 0.08
+_MAX_LEXICAL_SCORE_BONUS = 0.24
+
 
 def lexical_terms(text: str) -> set[str]:
     lowered = text.lower()
@@ -24,9 +27,7 @@ def lexical_terms(text: str) -> set[str]:
 
 
 def vector_hit_is_relevant(question: str, hit: SearchHit) -> bool:
-    if lexical_terms(question):
-        return vector_hit_lexical_score(question, hit) > 0
-    return hit.similarity >= 0.2
+    return hit.similarity >= 0.0
 
 
 def vector_hit_lexical_score(question: str, hit: SearchHit) -> int:
@@ -35,18 +36,30 @@ def vector_hit_lexical_score(question: str, hit: SearchHit) -> int:
     return len(query_terms & text_terms)
 
 
+def vector_hit_final_score(question: str, hit: SearchHit) -> float:
+    lexical_bonus = min(
+        vector_hit_lexical_score(question, hit) * _LEXICAL_SCORE_BONUS,
+        _MAX_LEXICAL_SCORE_BONUS,
+    )
+    return min(1.0, hit.similarity + lexical_bonus)
+
+
 def choose_vector_hit(question: str, hits: list[SearchHit]) -> SearchHit | None:
-    relevant_hits = [hit for hit in hits if vector_hit_is_relevant(question, hit)]
-    if not relevant_hits:
+    if not hits:
         return None
     return max(
-        relevant_hits,
-        key=lambda hit: (vector_hit_lexical_score(question, hit), hit.similarity),
+        hits,
+        key=lambda hit: (
+            vector_hit_final_score(question, hit),
+            vector_hit_lexical_score(question, hit),
+            hit.similarity,
+        ),
     )
 
 
 def vector_trace_detail(
     *,
+    question: str,
     top_k: int,
     top_similarity: float,
     chosen_hit: SearchHit | None,
@@ -60,6 +73,9 @@ def vector_trace_detail(
     if chosen_hit is None:
         return detail
     detail["quote"] = evidence_quote(chosen_hit.text)
+    detail["lexical_overlap"] = vector_hit_lexical_score(question, chosen_hit)
+    detail["vector_similarity"] = round(chosen_hit.similarity, 4)
+    detail["final_score"] = round(vector_hit_final_score(question, chosen_hit), 4)
     for key in (
         "source_relpath",
         "sheet_name",
@@ -137,11 +153,13 @@ def collect_vector_candidates(
     hits = vector_store.search(question, top_k=candidate_limit)
     top_similarity = hits[0].similarity if hits else 0.0
 
-    relevant_hits = [hit for hit in hits if vector_hit_is_relevant(question, hit)]
     tree_store = TreeStore(vector_store.paths)
 
-    for hit in relevant_hits[:5]:
+    for hit in hits[:5]:
         metadata: dict[str, object] = dict(hit.metadata)
+        metadata["lexical_overlap"] = vector_hit_lexical_score(question, hit)
+        metadata["vector_similarity"] = hit.similarity
+        metadata["final_score"] = vector_hit_final_score(question, hit)
         section_ctx = vector_section_context(
             chosen_hit=hit, manifest=manifest, tree_store=tree_store
         )
@@ -150,15 +168,16 @@ def collect_vector_candidates(
             Candidate(
                 text=hit.text,
                 source_route="vector",
-                score=hit.similarity,
+                score=vector_hit_final_score(question, hit),
                 metadata=metadata,
             )
         )
 
     detail = vector_trace_detail(
+        question=question,
         top_k=candidate_limit,
         top_similarity=top_similarity,
-        chosen_hit=relevant_hits[0] if relevant_hits else None,
+        chosen_hit=choose_vector_hit(question, hits),
         manifest=manifest,
         tree_store=tree_store,
     )

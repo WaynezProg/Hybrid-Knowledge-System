@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -15,11 +16,20 @@ from hks.errors import ExitCode, KSError
 
 DEFAULT_EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 SIMPLE_EMBEDDING_MODEL = "simple"
+SIMPLE_EMBEDDING_DIMENSIONS = 128
 OPENAI_EMBEDDING_PREFIX = "openai:"
 DEFAULT_OPENAI_EMBEDDING_MODEL = "text-embedding-3-small"
 DEFAULT_OPENAI_EMBEDDING_ENDPOINT = "https://api.openai.com/v1/embeddings"
 DEFAULT_OPENAI_EMBEDDING_BATCH_SIZE = 128
 DEFAULT_OPENAI_EMBEDDING_MAX_BATCH_TOKENS = 250_000
+KNOWN_OPENAI_EMBEDDING_DIMENSIONS = {
+    "text-embedding-3-small": 1536,
+    "text-embedding-3-large": 3072,
+    "text-embedding-ada-002": 1536,
+}
+KNOWN_SENTENCE_TRANSFORMER_DIMENSIONS = {
+    DEFAULT_EMBEDDING_MODEL: 384,
+}
 
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9]+|[\u4e00-\u9fff]|[^\s]")
 
@@ -57,12 +67,15 @@ def join_tokens(tokens: list[str]) -> str:
     return "".join(pieces).strip()
 
 
-def simple_embed(texts: list[str], *, dimensions: int = 128) -> list[list[float]]:
+def simple_embed(
+    texts: list[str], *, dimensions: int = SIMPLE_EMBEDDING_DIMENSIONS
+) -> list[list[float]]:
     embeddings: list[list[float]] = []
     for text in texts:
         vector = [0.0] * dimensions
         for token in simple_tokenize(text, lowercase=True):
-            vector[hash(token) % dimensions] += 1.0
+            digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
+            vector[int.from_bytes(digest, "big") % dimensions] += 1.0
         norm = math.sqrt(sum(value * value for value in vector))
         if norm:
             vector = [value / norm for value in vector]
@@ -97,6 +110,44 @@ class TextModelBackend:
     def _openai_model_id(self) -> str:
         model_id = self.model_name.removeprefix(OPENAI_EMBEDDING_PREFIX).strip()
         return model_id or DEFAULT_OPENAI_EMBEDDING_MODEL
+
+    @property
+    def model_name_slug(self) -> str:
+        slug = re.sub(r"[^a-z0-9]+", "_", self.model_name.lower()).strip("_")
+        return slug or "model"
+
+    @property
+    def embedding_dimension(self) -> int | str:
+        if self.model_name == SIMPLE_EMBEDDING_MODEL:
+            return SIMPLE_EMBEDDING_DIMENSIONS
+
+        if _is_openai_embedding_model(self.model_name):
+            configured = config_value("HKS_OPENAI_EMBEDDING_DIMENSIONS")
+            if configured:
+                try:
+                    return int(configured)
+                except ValueError as exc:
+                    raise KSError(
+                        "HKS_OPENAI_EMBEDDING_DIMENSIONS 必須是整數",
+                        exit_code=ExitCode.USAGE,
+                        code="OPENAI_EMBEDDING_INVALID_DIMENSIONS",
+                    ) from exc
+            return KNOWN_OPENAI_EMBEDDING_DIMENSIONS.get(
+                self._openai_model_id,
+                "unknown",
+            )
+
+        known_dimension = KNOWN_SENTENCE_TRANSFORMER_DIMENSIONS.get(self.model_name)
+        if known_dimension is not None:
+            return known_dimension
+
+        model = self._model
+        dimension = (
+            model.get_embedding_dimension()
+            if hasattr(model, "get_embedding_dimension")
+            else model.get_sentence_embedding_dimension()
+        )
+        return int(dimension) if dimension is not None else "unknown"
 
     @cached_property
     def _tokenizer(self):  # type: ignore[no-untyped-def]

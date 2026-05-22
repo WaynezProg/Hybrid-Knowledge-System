@@ -4,7 +4,7 @@ import pytest
 
 from hks.core.paths import runtime_paths
 from hks.core.text_models import TextModelBackend
-from hks.storage.vector import VectorChunk, VectorStore
+from hks.storage.vector import VectorChunk, VectorStore, collection_name_for_backend
 
 
 @pytest.mark.unit
@@ -36,3 +36,23 @@ def test_vector_search_returns_empty_list_for_empty_store(tmp_path) -> None:
     store = VectorStore(paths, backend=TextModelBackend("simple"))
 
     assert store.search("anything", top_k=1) == []
+
+
+@pytest.mark.unit
+def test_collection_name_includes_backend_model_and_dimension() -> None:
+    assert (
+        collection_name_for_backend(TextModelBackend("simple"))
+        == "hks_v1__simple__128"
+    )
+
+
+@pytest.mark.unit
+def test_collection_name_uses_configured_openai_dimension(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HKS_OPENAI_EMBEDDING_DIMENSIONS", "8")
+
+    assert (
+        collection_name_for_backend(TextModelBackend("openai:text-embedding-3-small"))
+        == "hks_v1__openai_text_embedding_3_small__8"
+    )

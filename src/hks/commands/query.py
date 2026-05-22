@@ -26,6 +26,11 @@ from hks.storage.wiki import LogEntry, WikiStore
 from hks.writeback.gate import WritebackFlag, decide
 from hks.writeback.writer import WritebackContext, commit
 
+_FINAL_SCORE_THRESHOLDS: dict[Route, float] = {
+    "vector": 0.25,
+}
+_VECTOR_LEXICAL_FINAL_SCORE_THRESHOLD = 0.2
+
 
 def _build_no_hit_response(route: Route, steps: list[TraceStep]) -> QueryResponse:
     return QueryResponse(
@@ -34,6 +39,26 @@ def _build_no_hit_response(route: Route, steps: list[TraceStep]) -> QueryRespons
         confidence=0.0,
         trace=Trace(route=route, steps=steps),
     )
+
+
+def _final_score_threshold(candidate: Candidate) -> float:
+    if candidate.source_route == "vector":
+        lexical_overlap = candidate.metadata.get("lexical_overlap")
+        if isinstance(lexical_overlap, int) and lexical_overlap > 0:
+            return _VECTOR_LEXICAL_FINAL_SCORE_THRESHOLD
+    return _FINAL_SCORE_THRESHOLDS.get(candidate.source_route, 0.0)
+
+
+def _passes_final_score_gate(candidate: Candidate) -> bool:
+    return candidate.score >= _final_score_threshold(candidate)
+
+
+def _retrieval_score_for_assessment(candidate: Candidate) -> float:
+    if candidate.source_route == "vector":
+        vector_similarity = candidate.metadata.get("vector_similarity")
+        if isinstance(vector_similarity, int | float):
+            return float(vector_similarity)
+    return candidate.score
 
 
 def run(question: str, *, writeback: str = "auto") -> QueryResponse:
@@ -115,11 +140,32 @@ def run(question: str, *, writeback: str = "auto") -> QueryResponse:
     )
 
     winner = ranked[0]
+    if not _passes_final_score_gate(winner):
+        steps.append(
+            TraceStep(
+                kind="fallback",
+                detail={
+                    "status": "no-hit",
+                    "reason": "final_score_below_threshold",
+                    "route": winner.source_route,
+                    "score": winner.score,
+                    "threshold": _final_score_threshold(winner),
+                },
+            )
+        )
+        response = _build_no_hit_response(decision.route, steps)
+        return _maybe_writeback(
+            question=question,
+            response=response,
+            writeback=writeback,
+            wiki_store=wiki_store,
+        )
 
     evidence = candidate_evidence(winner)
+    retrieval_score = _retrieval_score_for_assessment(winner)
     assessment = assess(
         route=winner.source_route,
-        raw_score=winner.score,
+        raw_score=retrieval_score,
         evidence=evidence,
         metadata=dict(winner.metadata),
     )

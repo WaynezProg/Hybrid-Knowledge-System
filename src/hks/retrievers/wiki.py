@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import re
+
 from hks.core.schema import TraceStep
 from hks.retrieval.evidence import evidence_quote
 from hks.retrieval.models import Candidate
-from hks.storage.wiki import WikiStore
+from hks.storage.wiki import WikiPage, WikiStore
 
 
 def has_wiki_secondary_intent(question: str) -> bool:
@@ -15,6 +17,20 @@ def has_wiki_secondary_intent(question: str) -> bool:
         for keyword in ("summary", "overview", "摘要", "總結", "重點", "說明")
     )
 
+
+def has_direct_wiki_page_match(question: str, page: WikiPage) -> bool:
+    terms = re.findall(r"[A-Za-z0-9\u4e00-\u9fff]{2,}", question.casefold())
+    if not terms:
+        return False
+    source_stem = page.source_relpath.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+    page_identity = " ".join(
+        (
+            page.title,
+            page.slug.replace("-", " "),
+            source_stem.replace("-", " "),
+        )
+    ).casefold()
+    return any(term in page_identity for term in terms)
 
 
 def collect_wiki_candidates(
@@ -27,7 +43,12 @@ def collect_wiki_candidates(
     steps: list[TraceStep] = []
     candidates: list[Candidate] = []
 
-    if require_secondary_intent and not has_wiki_secondary_intent(question):
+    page = wiki_store.search(question)
+    if (
+        require_secondary_intent
+        and not has_wiki_secondary_intent(question)
+        and (page is None or not has_direct_wiki_page_match(question, page))
+    ):
         steps.append(
             TraceStep(
                 kind="wiki_lookup",
@@ -36,7 +57,6 @@ def collect_wiki_candidates(
         )
         return candidates, steps
 
-    page = wiki_store.search(question)
     if page is not None:
         quote = evidence_quote(page.summary or page.body)
         steps.append(
