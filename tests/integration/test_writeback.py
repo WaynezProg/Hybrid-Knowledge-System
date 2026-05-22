@@ -9,7 +9,7 @@ from hks.cli import app
 from hks.core.paths import runtime_paths
 from hks.storage.wiki import WikiStore
 from hks.writeback.gate import Decision
-from hks.writeback.queue import build_item, enqueue
+from hks.writeback.queue import WritebackQueueItem, build_item, enqueue
 
 
 @pytest.fixture()
@@ -329,15 +329,14 @@ def test_writeback_yes_reports_already_promoted_queue_item(
     approve = cli_runner.invoke(app, ["writeback", "approve", item_id])
     assert approve.exit_code == 0
     after_archive_log = _log_text(tmp_ks_root)
+    archived_path = tmp_ks_root / "writeback" / "archive" / f"{item_id}.json"
+    archived_item = WritebackQueueItem.from_dict(_json(archived_path))
 
-    second = cli_runner.invoke(app, ["query", "summary Atlas", "--writeback=yes"])
+    result = enqueue(archived_item, paths=runtime_paths(tmp_ks_root))
 
-    assert second.exit_code == 0
-    second_payload = json.loads(second.stdout)
-    second_step = _writeback_step(second_payload)
-    assert second_step["detail"]["status"] == "already-promoted"
-    assert second_step["detail"]["id"] == item_id
-    assert second_step["detail"]["path"].endswith(f"writeback/archive/{item_id}.json")
+    assert result.status == "already-promoted"
+    assert result.id == item_id
+    assert result.path == archived_path
     assert _queue_files(tmp_ks_root) == []
     assert _log_text(tmp_ks_root) == after_archive_log
 

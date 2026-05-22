@@ -117,6 +117,33 @@ def test_enqueue_approved_archive_returns_already_promoted(tmp_path) -> None:
 
 
 @pytest.mark.unit
+def test_enqueue_approved_archive_same_question_different_content_creates_new_item(
+    tmp_path,
+) -> None:
+    paths = runtime_paths(tmp_path / "ks")
+    approved = _item(
+        question="What is Project Atlas?",
+        answer="Project Atlas is active.",
+        evidence=[{"source_relpath": "atlas.md", "quote": "Atlas", "route": "wiki"}],
+    )
+    changed = _item(
+        question="What is Project Atlas?",
+        answer="Project Atlas is delayed.",
+        evidence=[{"source_relpath": "status.md", "quote": "Delayed", "route": "wiki"}],
+    )
+    assert changed.id != approved.id
+
+    enqueue(approved, paths=paths)
+    archive(approved.id, "approved", slug="project-atlas", paths=paths)
+    result = enqueue(changed, paths=paths)
+
+    assert result.status == "created"
+    assert result.id == changed.id
+    assert result.path == paths.root / "writeback" / "queue" / f"{changed.id}.json"
+    assert result.path.exists()
+
+
+@pytest.mark.unit
 def test_enqueue_rejected_archive_allows_requeue(tmp_path) -> None:
     paths = runtime_paths(tmp_path / "ks")
     item = _item()
