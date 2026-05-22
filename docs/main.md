@@ -20,16 +20,18 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 
 * Data Layer
   * `raw_sources/`：immutable 原始檔
-  * `wiki/`：人可讀摘要與 write-back pages
+  * `wiki/`：人可讀摘要與 approved write-back pages
   * `graph/graph.json`：entity / relation
   * `vector/db/`：embedding retrieval
   * `page_trees/`：source section tree 與 LLM-enriched section summaries
+  * `writeback/{queue,archive,.locks}`：query write-back review queue 與審核紀錄
 * Processing Layer
   * ingestion pipeline：parse → normalize → extract → update
-  * query pipeline：routing backend → wiki / graph / vector / page_tree fused candidates → rerank / write-back
+  * query pipeline：routing backend → wiki / graph / vector / page_tree fused candidates → rerank / enqueue
 * Tool Layer
   * `ks ingest`
   * `ks query`
+  * `ks writeback list|show|approve|reject`
   * `ks source`
   * `ks workspace`
   * `ks lint`
@@ -55,7 +57,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 目前 runtime 已完成可執行的本地知識系統與 derived Graphify pipeline：
 
 * 已完成：來源 ingest 後同步更新 `wiki / graph / vector / page_tree / manifest`；修改來源後重跑 `ks ingest` 可依 hash / parser fingerprint 更新資料庫。
-* 已完成：query 會同時收集 wiki、graph、vector、page_tree candidates，再以 LLM rerank 或 RRF 排序；auto write-back 需同時通過 clamped confidence 與 route-specific evidence eligibility。
+* 已完成：query 會同時收集 wiki、graph、vector、page_tree candidates，再以 LLM rerank 或 RRF 排序；write-back 只會入隊，approve 才會寫入 evidence-backed wiki page。
 * 已完成：008 可對已 ingest source 產生 schema-validated LLM classification / summary / fact / entity / relation candidates，並可 explicit store 到 `$KS_ROOT/llm/extractions/`。
 * 已完成：009 可從 008 stored artifact 產生 wiki synthesis candidate，preview / store 預設不改 authoritative layers，只有 caller-explicit `apply` 會寫入 `wiki/` page、index 與 log。
 * 已完成：010 可從既有 wiki / graph / 008 / 009 lineage 產生 derived Graphify artifacts、community clustering、static HTML 與 audit report。
@@ -72,6 +74,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 ```bash
 ks ingest <file|dir>
 ks query "<question>" [--writeback auto|yes|no|ask]
+ks writeback list|show <id>|approve <id>|reject <id>
 ks source list|show
 ks workspace register|list|show|remove|use|query
 ks lint
@@ -108,8 +111,8 @@ stdout 契約統一：
 }
 ```
 
-`ks ingest`、`ks query`、`ks update`、`ks source`、`ks workspace`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`、`ks graphify build`、`ks watch scan|run|status` 共用同一 top-level JSON shape。
-`hks-mcp` 與 `hks-api` 的成功 payload 也共用此 shape；adapter 錯誤才使用 `{ok:false,error:{code,exit_code,message,details},response?}` envelope。
+`ks ingest`、`ks query`、`ks writeback`、`ks update`、`ks source`、`ks workspace`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`、`ks graphify build`、`ks watch scan|run|status` 共用同一 top-level JSON shape。
+`hks-mcp` 與 `hks-api` 的成功 payload 也共用此 shape；adapter 錯誤才使用 `{ok:false,error:{code,exit_code,message,details},response?}` envelope。`hks-mcp` / `hks-api` query 繼承 enqueue behavior，但 v1 不提供 queue management endpoints。
 
 `ks llm classify` 的 successful extraction 使用 `trace.route="wiki"`、`source=[]`、`trace.steps[kind="llm_extraction_summary"]`。這是 008 為避免擴 route/source enum 做出的 contract choice；consumer 不得把它解讀成 `ks query` no-hit。
 
@@ -136,8 +139,9 @@ Source / route 語意對照：
 | `ks source list|show` | `wiki` | `[]` | 讀取 manifest-derived catalog；不代表 query no-hit |
 | `ks workspace register|list|show|remove|use` | `wiki` | `[]` | 管理 local workspace registry；不讀取 knowledge layer 作答 |
 | `ks workspace query` | `wiki\|graph\|vector\|page_tree` | `ks query` semantics | 先解析 workspace id 到 `KS_ROOT`，再委派既有 query |
+| `ks writeback list|show|approve|reject` | `wiki` | `[]` 或 `["wiki"]` | 管理 review queue；只有 `approve` 成功會寫 evidence-backed wiki page |
 
-`ks query` 成功命中時會輸出 `confidence`、`retrieval_score`、`writeback_eligible`；`confidence` 是 clamp 到 `0..1` 的分數，`retrieval_score` 是 raw retrieval score，`writeback_eligible` 仍表示 auto writeback / queue eligibility。命中時也可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector / page_tree evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
+`ks query` 成功命中時會輸出 `confidence`、`retrieval_score`、`writeback_eligible`；`confidence` 是 clamp 到 `0..1` 的分數，`retrieval_score` 是 raw retrieval score，`writeback_eligible` 表示 `auto` 入隊 eligibility，不是直接寫 wiki 的權限。命中時也可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector / page_tree evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
 
 ---
 
@@ -182,12 +186,12 @@ Source / route 語意對照：
 
 * `HKS_LLM_NETWORK_OPT_IN=1` 且有 OpenAI-compatible key 時，使用 LLM rerank
 * 未 explicit opt-in 或缺 credential 時，使用 deterministic RRF rerank
-* implementation 已拆成 retrievers、retrieval evidence 與 rerank modules；`commands/query.py` 只負責 orchestration 與 write-back
+* implementation 已拆成 retrievers、retrieval evidence 與 rerank modules；`commands/query.py` 只負責 orchestration 與 write-back enqueue
 * trace 會包含 `rerank` step；LLM rerank 失敗時會記錄 fallback reason
 * page_tree 只把有 LLM-enriched summary 的 section node 作為候選；裸標題仍主要由 wiki / vector 覆蓋
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
 
-016 retrieval quality gate 位於 `tests/eval/test_golden_retrieval_quality.py`，使用 `simple` backends 離線執行 golden queries，量測 route accuracy、precision@1、evidence hit rate、answer contains、no-hit precision 與 writeback false-positive rate。
+016 retrieval quality gate 位於 `tests/eval/test_golden_retrieval_quality.py`，使用 `simple` backends 離線執行 golden queries，量測 route accuracy、precision@1、evidence hit rate、answer contains、no-hit precision 與 writeback enqueue false-positive rate。
 
 ---
 
@@ -195,13 +199,23 @@ Source / route 語意對照：
 
 ### 目前行為
 
-* 預設模式：`no`
-* `--writeback=auto`：顯式 opt-in；`writeback_eligible=true` 且 route-specific `auto_threshold` 通過時自動回寫 wiki
-* `--writeback=no` → 禁用
-* `--writeback=yes` → 強制回寫，trace 標示 `forced=true`，並寫入 coordination `events.jsonl`
-* `--writeback=ask` → 舊互動模式，相容保留
+`ks query` 永不直接寫 wiki；所有 query write-back 都先進 review queue，只有 `ks writeback approve <id>` 會把 evidence-backed page 寫入 `wiki/`。模式語意：
 
-`wiki` route 預設不具 auto write-back eligibility；需使用 explicit `--writeback=yes` 才會把既有 wiki 回答再沉澱成新頁面。自動 write-back page 會帶 `## Related`，連回本次答案涉及的既有 wiki pages。
+* `--writeback=no`（預設）：不入隊
+* `--writeback=auto`：只有 `writeback_eligible=true` 時入隊；eligibility 由 confidence threshold 與 evidence/provenance 檢查共同決定
+* `--writeback=yes`：任何 query hit 都送入 review queue，不直接寫 wiki
+* `--writeback=ask`：TTY confirm 後採 `yes` 語意；non-TTY skip
+
+Reviewer workflow：
+
+```bash
+ks writeback list
+ks writeback show <id>
+ks writeback approve <id>
+ks writeback reject <id>
+```
+
+Queue item 存於 `$KS_ROOT/writeback/queue/`；決議後移至 `$KS_ROOT/writeback/archive/`，`.locks/` 用於 reviewer 競爭控制。`approve` 會檢查至少一筆有效 evidence（真實 `source_relpath` + `quote`，不得是 `<writeback>`），成功後寫入 approved wiki page、更新 index/log，並保留原 query 與來源段落。`reject` 只 archive item，不修改 wiki。`hks-api` / `hks-mcp` query 繼承上述 enqueue behavior，但 v1 不提供 queue management endpoints。
 
 ---
 
@@ -247,6 +261,12 @@ graph persistence 位於 `/ks/graph/graph.json`。
   /coordination
     state.json
     events.jsonl
+  /writeback
+    /queue
+      <id>.json
+    /archive
+      <id>.json
+    /.locks
   /llm
     /extractions
       <artifact-id>.json
@@ -278,6 +298,7 @@ graph persistence 位於 `/ks/graph/graph.json`。
 * `embedding_dimension`
 
 `coordination/state.json` 存 agent sessions、resource leases、handoff notes；`events.jsonl` 是 append-only coordination event log。
+`writeback/queue/*.json` 存 query 送審項目；`writeback/archive/*.json` 存 approved / rejected 決議；`writeback/.locks/` 存審核競爭用 lock。
 `llm/extractions/*.json` 存 008 extraction candidate artifact；`llm/wiki-candidates/*.json` 存 009 wiki synthesis candidate artifact。兩者都不是 authoritative wiki / graph / vector / page_tree state；只有 `ks wiki synthesize --mode apply` 成功後寫入的 `origin=llm_wiki` page 才是 applied wiki state。
 
 Workspace registry 不屬於任何單一 `$KS_ROOT`，預設位於使用者 config path，可用 `HKS_WORKSPACE_REGISTRY` 指向 explicit JSON。Registry 只保存 workspace id 到 `KS_ROOT` 的 mapping；不修改任何 registered runtime 的 `wiki / graph / vector / page_tree / manifest`。
@@ -373,7 +394,7 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 * [x] wiki + vector
 * [x] rule-based baseline
 * [x] ingest：`txt / md / pdf`
-* [x] 半自動 write-back
+* [x] manual write-back enqueue mode compatibility
 * [x] `ks lint` 初始介面（已由 Phase 3 lint system 取代）
 
 ### Phase 2
@@ -382,7 +403,7 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 * [x] graph extraction
 * [x] graph query
 * [x] model-driven routing
-* [x] 全自動 write-back
+* [x] auto write-back enqueue mode compatibility
 
 ### Phase 3
 

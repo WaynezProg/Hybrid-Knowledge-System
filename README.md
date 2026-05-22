@@ -86,12 +86,21 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 > LLM reranker 僅在 `HKS_LLM_NETWORK_OPT_IN=1` 且 OpenAI key 齊備時啟用；啟用時會將 question 與候選 snippet（每筆截斷 200 字，含 wiki / graph / vector 命中內容）送至 hosted endpoint。未 opt-in 一律走 local RRF，不外送任何內容。
 
 Write-back 模式：
-- `no`（預設）：不回寫
-- `auto`：顯式 opt-in；`writeback_eligible=true` 且 route-specific `auto_threshold` 通過時自動寫回 wiki
-- `yes` / `no`：強制 / 禁止
-- `ask`：TTY 互動詢問
+- `no`（預設）：不入隊
+- `auto`：只有 `writeback_eligible=true`（confidence threshold + evidence eligibility）時入隊
+- `yes`：任何 query hit 都送入 review queue，不直接寫 wiki
+- `ask`：TTY confirm 後採 `yes` 語意；non-TTY 則 skip
 
-> Agent / automation 可省略 `--writeback`；需要自動沉澱時才顯式帶 `--writeback=auto`。
+Reviewer workflow：
+
+```bash
+uv run ks writeback list
+uv run ks writeback show <id>
+uv run ks writeback approve <id>
+uv run ks writeback reject <id>
+```
+
+`approve` 是唯一會寫入 evidence-backed wiki page 的路徑；`ks query`、MCP、HTTP query 都只會依 `writeback` 模式入隊或略過，不會直接寫 wiki。Queue management v1 僅提供 CLI。
 
 ### Source Catalog & Workspace
 
@@ -215,7 +224,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 
 - `confidence`：query 命中時的 clamped retrieval score，範圍為 `[0,1]`
 - `retrieval_score`：raw retrieval score（未經 clamp）
-- `writeback_eligible`：`auto` write-back eligibility；目前仍需通過 confidence threshold 與 evidence eligibility
+- `writeback_eligible`：`auto` 入隊 eligibility，不是直接寫 wiki 的權限
 - `evidence[]`：溯源資訊，含 `source_relpath`、`route`、`quote`
 - `trace.steps`：pipeline 每一步的記錄
 - 無命中時 `source=[]`，仍 exit `0`
@@ -243,7 +252,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 | `HKS_LLM_PROVIDER` | `fake` | LLM provider；`openai` 需另設 API key |
 | `HKS_LLM_NETWORK_OPT_IN` | — | 設為 `1` 才允許非 fake provider |
 | `HKS_LLM_PROVIDER_OPENAI_API_KEY` | — | OpenAI API key |
-| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto write-back confidence floor；仍需 `writeback_eligible=true` |
+| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto 入隊 confidence floor；仍需 evidence eligibility |
 | `HKS_WORKSPACE_REGISTRY` | user config path | Workspace registry JSON 路徑 |
 
 結構化設定檔用 `config/hks.yaml`（從 `config/hks.yaml.example` 複製）。讀取優先序：process env > `config/hks.env` > `config/hks.yaml` / `config/hks.json` > default。

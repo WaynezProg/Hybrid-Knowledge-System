@@ -84,12 +84,21 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 All queries use fused retrieval: candidates are collected from wiki / graph / vector / page_tree simultaneously, then ranked by LLM reranker (RRF fallback without API key). Response includes `evidence[]` for provenance.
 
 Write-back modes:
-- `no` (default): disables write-back
-- `auto`: explicit opt-in; writes back only when `writeback_eligible=true` and the route-specific `auto_threshold` passes
-- `yes` / `no`: force / disable
-- `ask`: interactive prompt on TTY
+- `no` (default): no queue item
+- `auto`: enqueues only when `writeback_eligible=true` (confidence threshold + evidence eligibility)
+- `yes`: enqueues any query hit for review; it does not write wiki directly
+- `ask`: TTY confirm, then `yes` semantics; non-TTY skips
 
-> Agent / automation workflows may omit `--writeback`; use `--writeback=auto` only when automatic write-back is intended.
+Reviewer workflow:
+
+```bash
+uv run ks writeback list
+uv run ks writeback show <id>
+uv run ks writeback approve <id>
+uv run ks writeback reject <id>
+```
+
+`approve` is the only path that writes evidence-backed wiki pages. `ks query`, MCP query, and HTTP query only enqueue or skip according to the `writeback` mode; they never write wiki directly. Queue management is CLI-only in v1.
 
 ### Source Catalog & Workspace
 
@@ -213,7 +222,7 @@ All commands share the same top-level JSON shape:
 
 - `confidence`: clamped retrieval score in the `[0,1]` range
 - `retrieval_score`: raw retrieval score before clamping
-- `writeback_eligible`: `auto` write-back eligibility; still requires the confidence threshold and evidence eligibility
+- `writeback_eligible`: `auto` enqueue eligibility, not direct permission to write wiki
 - `evidence[]`: provenance with `source_relpath`, `route`, `quote`
 - `trace.steps`: records each pipeline step
 - No-hit queries return `source=[]` and still exit `0`
@@ -241,7 +250,7 @@ Full reference: [docs/configuration.md](./docs/configuration.md).
 | `HKS_LLM_PROVIDER` | `fake` | LLM provider; `openai` requires API key |
 | `HKS_LLM_NETWORK_OPT_IN` | — | Set to `1` to allow non-fake providers |
 | `HKS_LLM_PROVIDER_OPENAI_API_KEY` | — | OpenAI API key |
-| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto write-back confidence floor; still requires `writeback_eligible=true` |
+| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Auto enqueue confidence floor; still requires evidence eligibility |
 | `HKS_WORKSPACE_REGISTRY` | user config path | Workspace registry JSON path |
 
 Use `config/hks.yaml` for structured config (copy from `config/hks.yaml.example`). Priority: process env > `config/hks.env` > `config/hks.yaml` / `config/hks.json` > default.
