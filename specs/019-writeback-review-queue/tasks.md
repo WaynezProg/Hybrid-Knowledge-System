@@ -91,11 +91,11 @@
 
 **Purpose**: Prove query → queue → approve/reject behavior with real ingest fixture.
 
-- [ ] T041 Add integration test: `ks query --writeback=yes` creates queue item and `ks writeback approve <id>` writes evidence-backed page then moves item to archive
-- [ ] T042 Add integration test: `ks writeback reject <id>` moves item to archive and does not write wiki
-- [ ] T043 Add integration test: approving item with invalid evidence fails and leaves pending item available for reject
-- [ ] T044 Add integration test: approved item blocks identical re-enqueue with trace status `already-promoted`
-- [ ] T045 Run `uv run pytest tests/integration/test_writeback.py -q`
+- [x] T041 Add integration test: `ks query --writeback=yes` creates queue item and `ks writeback approve <id>` writes evidence-backed page then moves item to archive
+- [x] T042 Add integration test: `ks writeback reject <id>` moves item to archive and does not write wiki
+- [x] T043 Add integration test: approving item with invalid evidence fails and leaves pending item available for reject
+- [x] T044 Add integration test: approved item blocks identical re-enqueue with trace status `already-promoted`
+- [x] T045 Run `uv run pytest tests/integration/test_writeback.py -q`
 
 **Checkpoint**: 019's core user workflow works without adapter involvement.
 
