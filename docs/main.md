@@ -114,6 +114,8 @@ stdout 契約統一：
 `ks ingest`、`ks query`、`ks writeback`、`ks update`、`ks source`、`ks workspace`、`ks lint`、`ks coord`、`ks llm classify`、`ks wiki synthesize`、`ks graphify build`、`ks watch scan|run|status` 共用同一 top-level JSON shape。
 `hks-mcp` 與 `hks-api` 的成功 payload 也共用此 shape；adapter 錯誤才使用 `{ok:false,error:{code,exit_code,message,details},response?}` envelope。`hks-mcp` / `hks-api` query 繼承 enqueue behavior，但 v1 不提供 queue management endpoints。
 
+CLI `KSError` policy：stdout 保持 stable minimal error response（`answer` + `source=[]` + `trace.steps[kind="error"].detail.{code,exit_code}`，可含 `hint`）。`KSError.details` 一律寫到 stderr，除非該 command 有明確 adapter / public contract 理由提供 `response=`。例如 `ks writeback approve` 在 wiki 已寫入但 archive 失敗時，stdout 不新增 `item_id` / `slug` 特例欄位；`item_id`、`slug` 與底層錯誤留在 stderr 供 operator 修復。
+
 `ks llm classify` 的 successful extraction 使用 `trace.route="wiki"`、`source=[]`、`trace.steps[kind="llm_extraction_summary"]`。這是 008 為避免擴 route/source enum 做出的 contract choice；consumer 不得把它解讀成 `ks query` no-hit。
 
 Source / route 語意對照：

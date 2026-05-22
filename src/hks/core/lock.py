@@ -35,3 +35,15 @@ def file_lock(path: Path) -> Iterator[None]:
     finally:
         fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
         handle.close()
+
+
+@contextmanager
+def blocking_file_lock(path: Path) -> Iterator[None]:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("w", encoding="utf-8")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()

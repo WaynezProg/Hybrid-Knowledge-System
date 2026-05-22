@@ -5,6 +5,7 @@ import json
 import pytest
 
 import hks.writeback.queue as queue_module
+from hks.core.hashing import stable_json_hash
 from hks.core.paths import runtime_paths
 from hks.errors import ExitCode, KSError
 from hks.writeback.queue import (
@@ -46,6 +47,22 @@ def _item(
 @pytest.mark.unit
 def test_build_item_id_is_deterministic_for_same_input() -> None:
     assert _item().id == _item().id
+
+
+@pytest.mark.unit
+def test_build_item_id_uses_shared_stable_hash_contract() -> None:
+    evidence = [{"quote": "Atlas", "route": "wiki", "source_relpath": "atlas.md"}]
+    item = _item(evidence=evidence)
+
+    assert item.id == stable_json_hash(
+        {
+            "question": "What is Project Atlas?",
+            "answer": "Project Atlas is active.",
+            "route": "wiki",
+            "evidence": evidence,
+        },
+        length=24,
+    )
 
 
 @pytest.mark.unit

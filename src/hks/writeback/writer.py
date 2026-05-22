@@ -36,62 +36,63 @@ def promote(
     wiki_store: WikiStore | None = None,
 ) -> list[TraceStep]:
     store = wiki_store or WikiStore()
-    evidence_items = _source_backed_evidence_items(store, valid_evidence_items(item))
-    if not evidence_items:
-        raise KSError(
-            "writeback approval 需要至少一筆真實來源 evidence",
-            exit_code=ExitCode.DATAERR,
-            code="WRITEBACK_EVIDENCE_REQUIRED",
-        )
+    with store.locked_mutation():
+        evidence_items = _source_backed_evidence_items(store, valid_evidence_items(item))
+        if not evidence_items:
+            raise KSError(
+                "writeback approval 需要至少一筆真實來源 evidence",
+                exit_code=ExitCode.DATAERR,
+                code="WRITEBACK_EVIDENCE_REQUIRED",
+            )
 
-    question = item.question.strip()
-    answer = item.answer.strip()
-    target_slug = store.slug_base(question)
-    _ensure_promotable_slug(store, target_slug)
-    related_pages = _related_pages(
-        store,
-        source_relpaths=[evidence["source_relpath"] for evidence in evidence_items],
-        exclude_slug=target_slug,
-    )
-    body = [f"# {question}", "", answer, "", "## 來源依據", ""]
-    body.extend(
-        f'- {evidence["source_relpath"]} — "{evidence["quote"]}"'
-        for evidence in evidence_items
-    )
-    if related_pages:
-        body.extend(["", "## Related", ""])
+        question = item.question.strip()
+        answer = item.answer.strip()
+        target_slug = store.slug_base(question)
+        _ensure_promotable_slug(store, target_slug)
+        related_pages = _related_pages(
+            store,
+            source_relpaths=[evidence["source_relpath"] for evidence in evidence_items],
+            exclude_slug=target_slug,
+        )
+        body = [f"# {question}", "", answer, "", "## 來源依據", ""]
         body.extend(
-            f"- [{WikiStore._escape_link_text(page.title)}]({page.slug}.md)"
-            for page in related_pages
+            f'- {evidence["source_relpath"]} — "{evidence["quote"]}"'
+            for evidence in evidence_items
         )
-    page = store.write_page(
-        title=question,
-        summary=answer.replace("\n", " ")[:80],
-        body="\n".join(body),
-        source_relpath=evidence_items[0]["source_relpath"],
-        origin="writeback",
-        preferred_slug=target_slug,
-        metadata={"writeback_query": question},
-    )
-    store.append_log(
-        LogEntry(
-            timestamp=page.updated_at,
-            event="writeback",
-            status="approved",
-            query=question,
-            route=item.route,
-            source=item.source,
-            pages_touched=[f"pages/{page.slug}.md"],
-            confidence=item.retrieval_score,
+        if related_pages:
+            body.extend(["", "## Related", ""])
+            body.extend(
+                f"- [{WikiStore._escape_link_text(page.title)}]({page.slug}.md)"
+                for page in related_pages
+            )
+        page = store.write_page(
+            title=question,
+            summary=answer.replace("\n", " ")[:80],
+            body="\n".join(body),
+            source_relpath=evidence_items[0]["source_relpath"],
+            origin="writeback",
+            preferred_slug=target_slug,
+            metadata={"writeback_query": question},
         )
-    )
-    detail: dict[str, object] = {
-        "status": "approved",
-        "slug": page.slug,
-        "path": f"pages/{page.slug}.md",
-        "related": [related.slug for related in related_pages],
-    }
-    return [TraceStep(kind="writeback", detail=detail)]
+        store.append_log(
+            LogEntry(
+                timestamp=page.updated_at,
+                event="writeback",
+                status="approved",
+                query=question,
+                route=item.route,
+                source=item.source,
+                pages_touched=[f"pages/{page.slug}.md"],
+                confidence=item.retrieval_score,
+            )
+        )
+        detail: dict[str, object] = {
+            "status": "approved",
+            "slug": page.slug,
+            "path": f"pages/{page.slug}.md",
+            "related": [related.slug for related in related_pages],
+        }
+        return [TraceStep(kind="writeback", detail=detail)]
 
 
 def _source_backed_evidence_items(

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 from dataclasses import dataclass, field
 from typing import Any, Literal
+
+from hks.core.hashing import stable_json_hash
 
 type ExtractionMode = Literal["preview", "store"]
 type ProviderCredentialStatus = Literal["not_required", "present", "missing"]
@@ -76,8 +76,7 @@ class LlmExtractionRequest:
             "model_id": self.provider.model_id,
             "schema_version": SCHEMA_VERSION,
         }
-        content = json.dumps(payload, sort_keys=True, separators=(",", ":"))
-        return hashlib.sha256(content.encode("utf-8")).hexdigest()
+        return stable_json_hash(payload)
 
     def to_artifact_dict(self) -> dict[str, Any]:
         return {
