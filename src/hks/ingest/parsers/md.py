@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 from datetime import date, datetime
 from pathlib import Path
 
@@ -25,11 +26,18 @@ _DOCUMENT_METADATA_KEYS = {
 }
 _SESSION_ENTRY_RE = re.compile(
     r"^\s*-\s+\[(?P<kind>[^\]]+)\]\s+(?P<text>.+?)\s+"
-    r"\((?P<meta>[^)]*)\)\s*$",
+    r"(?:\((?P<paren_meta>[^)]*)\)|\{(?P<brace_meta>[^}]*)\})\s*$",
     re.MULTILINE,
 )
 _HEADING_RE = re.compile(r"^(?P<marker>#{1,6})\s+(?P<title>.+?)\s*$", re.MULTILINE)
 _DATE_RE = re.compile(r"\b(?P<date>20\d{2}-\d{2}-\d{2})\b")
+_ENTRY_KEY_ALIASES = {
+    "workspace": "workspace_id",
+    "evidence": "evidence_id",
+    "source": "tool",
+    "session": "session_id",
+}
+_SESSION_ENTRY_REQUIRED_KEYS = {"workspace_id", "evidence_id", "tool", "session_id"}
 
 
 def _split_frontmatter(text: str) -> tuple[dict[str, str], str]:
@@ -77,11 +85,12 @@ def _session_segments(
     metadata: dict[str, str],
     path: Path,
 ) -> tuple[list[Segment], dict[str, str]]:
-    entries = [
-        (entry, pairs)
-        for entry in _SESSION_ENTRY_RE.finditer(body)
-        if _is_session_entry_pairs(pairs := _parse_entry_pairs(entry.group("meta")))
-    ]
+    entries: list[tuple[re.Match[str], dict[str, str]]] = []
+    for entry in _SESSION_ENTRY_RE.finditer(body):
+        raw_meta = entry.group("paren_meta") or entry.group("brace_meta") or ""
+        pairs = _parse_entry_pairs(raw_meta)
+        if _is_session_entry_pairs(pairs):
+            entries.append((entry, pairs))
     if not entries:
         return [], dict(metadata)
 
@@ -141,31 +150,56 @@ def _entry_metadata(
     document_metadata: dict[str, str],
 ) -> dict[str, str]:
     metadata = dict(document_metadata)
-    metadata["memory_kind"] = kind.strip()
+    metadata["memory_kind"] = pairs.get("memory_kind") or kind.strip()
     for key, value in pairs.items():
-        if key == "workspace":
-            metadata["workspace_id"] = value
-        elif key == "evidence":
-            metadata["evidence_id"] = value
-        elif key == "source":
-            metadata["tool"] = value
-        elif key == "session":
-            metadata["session_id"] = value
+        if key in {"workspace_id", "evidence_id", "tool", "session_id"}:
+            metadata[key] = value
     return metadata
 
 
 def _is_session_entry_pairs(pairs: dict[str, str]) -> bool:
-    return {"workspace", "evidence", "source", "session"}.issubset(pairs)
+    return _SESSION_ENTRY_REQUIRED_KEYS.issubset(pairs)
 
 
 def _parse_entry_pairs(raw_meta: str) -> dict[str, str]:
+    pairs = _parse_colon_entry_pairs(raw_meta)
+    pairs.update(_parse_equals_entry_pairs(raw_meta))
+    return pairs
+
+
+def _parse_colon_entry_pairs(raw_meta: str) -> dict[str, str]:
     pairs: dict[str, str] = {}
     for part in raw_meta.split(","):
         if ":" not in part:
             continue
         key, value = part.split(":", 1)
-        pairs[key.strip().lower()] = value.strip()
+        normalized_key = _normalize_entry_key(key)
+        normalized_value = value.strip()
+        if normalized_key and normalized_value:
+            pairs[normalized_key] = normalized_value
     return pairs
+
+
+def _parse_equals_entry_pairs(raw_meta: str) -> dict[str, str]:
+    try:
+        parts = shlex.split(raw_meta)
+    except ValueError:
+        parts = raw_meta.split()
+    pairs: dict[str, str] = {}
+    for part in parts:
+        if "=" not in part:
+            continue
+        key, value = part.rstrip(",").split("=", 1)
+        normalized_key = _normalize_entry_key(key)
+        normalized_value = value.strip()
+        if normalized_key and normalized_value:
+            pairs[normalized_key] = normalized_value
+    return pairs
+
+
+def _normalize_entry_key(key: str) -> str:
+    normalized = key.strip().lower()
+    return _ENTRY_KEY_ALIASES.get(normalized, normalized)
 
 
 def parse(path: Path) -> ParsedDocument:

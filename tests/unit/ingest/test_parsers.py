@@ -56,12 +56,25 @@ def test_md_parser_extracts_session2memory_frontmatter_and_entry_metadata(
         "---\n"
         "hks_type: session_daily\n"
         "date: 2026-05-22\n"
-        "source_domain: session_memory\n"
         "generator: session2memory\n"
+        "source_domain: coding_session\n"
+        "tools: [codex]\n"
+        "schema_version: 1\n"
         "---\n"
         "# 2026-05-22\n\n"
+        "## Summary\n"
+        "- entries: 1\n"
+        "- workspaces: 1\n"
+        "- durable_suggestions: 1\n\n"
+        "## Workspaces\n"
+        "### vibe-coding\n"
+        "- entries: 1\n"
+        "- memory_kinds: decision\n"
+        "- tools: codex\n\n"
+        "## Entries\n"
         "- [decision] Vibe coding 使用 HKS daily source。 "
-        "(workspace: vibe-coding, evidence: e000001, source: codex, session: s1, lines: 2-2)\n",
+        "{workspace_id=vibe-coding memory_kind=decision tool=codex "
+        "session_id=s1 evidence_id=e000001 lines=2-2}\n",
         encoding="utf-8",
     )
 
@@ -70,14 +83,14 @@ def test_md_parser_extracts_session2memory_frontmatter_and_entry_metadata(
     assert parsed.metadata == {
         "hks_type": "session_daily",
         "date": "2026-05-22",
-        "source_domain": "session_memory",
         "generator": "session2memory",
+        "source_domain": "coding_session",
     }
     entry = next(segment for segment in parsed.segments if segment.kind == "list_item")
     assert entry.metadata == {
         "hks_type": "session_daily",
-        "source_domain": "session_memory",
         "generator": "session2memory",
+        "source_domain": "coding_session",
         "date": "2026-05-22",
         "workspace_id": "vibe-coding",
         "memory_kind": "decision",
@@ -93,7 +106,8 @@ def test_md_session_segment_parsing_does_not_mutate_input_metadata(tmp_path: Pat
     body = (
         "# 2026-05-22\n\n"
         "- [decision] Vibe coding 使用 HKS daily source。 "
-        "(workspace: vibe-coding, evidence: e000001, source: codex, session: s1, lines: 2-2)\n"
+        "{workspace_id=vibe-coding memory_kind=decision tool=codex "
+        "session_id=s1 evidence_id=e000001 lines=2-2}\n"
     )
 
     segments, document_metadata = md_parser._session_segments(body, metadata, tmp_path / "daily.md")
@@ -101,6 +115,29 @@ def test_md_session_segment_parsing_does_not_mutate_input_metadata(tmp_path: Pat
     assert metadata == {"date": "2026-05-22"}
     assert document_metadata["hks_type"] == "session_daily"
     assert segments[1].metadata["workspace_id"] == "vibe-coding"
+
+
+@pytest.mark.unit
+def test_md_parser_keeps_legacy_session_entry_metadata(tmp_path: Path) -> None:
+    path = tmp_path / "legacy-daily.md"
+    path.write_text(
+        "---\n"
+        "date: 2026-05-22\n"
+        "---\n"
+        "# 2026-05-22\n\n"
+        "- [decision] Legacy metadata stays readable. "
+        "(workspace: legacy, evidence: e000001, source: codex, session: s1, lines: 2-2)\n",
+        encoding="utf-8",
+    )
+
+    parsed = md_parser.parse(path)
+
+    entry = next(segment for segment in parsed.segments if segment.kind == "list_item")
+    assert entry.metadata["workspace_id"] == "legacy"
+    assert entry.metadata["memory_kind"] == "decision"
+    assert entry.metadata["tool"] == "codex"
+    assert entry.metadata["session_id"] == "s1"
+    assert entry.metadata["evidence_id"] == "e000001"
 
 
 @pytest.mark.unit
