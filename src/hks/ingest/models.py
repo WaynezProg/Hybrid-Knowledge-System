@@ -17,6 +17,7 @@ class ParsedDocument:
     segments: list[Segment] = field(default_factory=list)
     skipped_segments: list[SkippedSegment] = field(default_factory=list)
     parser_fingerprint: str = ""
+    metadata: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(slots=True)

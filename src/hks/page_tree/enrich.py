@@ -36,6 +36,7 @@ def enrich_tree(
         built_at=utc_now_iso(),
         total_nodes=_count_nodes(enriched_nodes),
         source_sha256=tree.source_sha256,
+        metadata=dict(tree.metadata),
     )
 
 
@@ -101,6 +102,7 @@ def _fake_restructure(tree: PageTree, source_text: str) -> PageTree:
         built_at=utc_now_iso(),
         total_nodes=_count_nodes(nodes),
         source_sha256=tree.source_sha256,
+        metadata=dict(tree.metadata),
     )
 
 
@@ -177,6 +179,7 @@ def _llm_restructure(
         built_at=utc_now_iso(),
         total_nodes=_count_nodes(nodes),
         source_sha256=tree.source_sha256,
+        metadata=dict(tree.metadata),
     )
 
 

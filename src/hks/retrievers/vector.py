@@ -85,6 +85,15 @@ def vector_trace_detail(
         "source_format",
         "ocr_confidence",
         "source_engine",
+        "hks_type",
+        "date",
+        "source_domain",
+        "generator",
+        "workspace_id",
+        "memory_kind",
+        "tool",
+        "session_id",
+        "evidence_id",
     ):
         if key in chosen_hit.metadata:
             detail[key] = chosen_hit.metadata[key]

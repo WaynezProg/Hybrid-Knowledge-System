@@ -48,6 +48,62 @@ def test_md_parser_strips_yaml_frontmatter_before_heading(tmp_path: Path) -> Non
 
 
 @pytest.mark.unit
+def test_md_parser_extracts_session2memory_frontmatter_and_entry_metadata(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "2026-05-22.md"
+    path.write_text(
+        "---\n"
+        "hks_type: session_daily\n"
+        "date: 2026-05-22\n"
+        "source_domain: session_memory\n"
+        "generator: session2memory\n"
+        "---\n"
+        "# 2026-05-22\n\n"
+        "- [decision] Vibe coding 使用 HKS daily source。 "
+        "(workspace: vibe-coding, evidence: e000001, source: codex, session: s1, lines: 2-2)\n",
+        encoding="utf-8",
+    )
+
+    parsed = md_parser.parse(path)
+
+    assert parsed.metadata == {
+        "hks_type": "session_daily",
+        "date": "2026-05-22",
+        "source_domain": "session_memory",
+        "generator": "session2memory",
+    }
+    entry = next(segment for segment in parsed.segments if segment.kind == "list_item")
+    assert entry.metadata == {
+        "hks_type": "session_daily",
+        "source_domain": "session_memory",
+        "generator": "session2memory",
+        "date": "2026-05-22",
+        "workspace_id": "vibe-coding",
+        "memory_kind": "decision",
+        "tool": "codex",
+        "session_id": "s1",
+        "evidence_id": "e000001",
+    }
+
+
+@pytest.mark.unit
+def test_md_session_segment_parsing_does_not_mutate_input_metadata(tmp_path: Path) -> None:
+    metadata = {"date": "2026-05-22"}
+    body = (
+        "# 2026-05-22\n\n"
+        "- [decision] Vibe coding 使用 HKS daily source。 "
+        "(workspace: vibe-coding, evidence: e000001, source: codex, session: s1, lines: 2-2)\n"
+    )
+
+    segments, document_metadata = md_parser._session_segments(body, metadata, tmp_path / "daily.md")
+
+    assert metadata == {"date": "2026-05-22"}
+    assert document_metadata["hks_type"] == "session_daily"
+    assert segments[1].metadata["workspace_id"] == "vibe-coding"
+
+
+@pytest.mark.unit
 def test_pdf_parser_extracts_text(valid_fixtures: Path) -> None:
     parsed = pdf_parser.parse(valid_fixtures / "clause-3-2.pdf")
 

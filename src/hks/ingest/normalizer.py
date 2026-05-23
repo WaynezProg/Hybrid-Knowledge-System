@@ -108,6 +108,15 @@ def _metadata_for_segment(segment: Segment, carry: dict[str, Any]) -> dict[str, 
         "bbox_top",
         "bbox_width",
         "bbox_height",
+        "hks_type",
+        "date",
+        "source_domain",
+        "generator",
+        "workspace_id",
+        "memory_kind",
+        "tool",
+        "session_id",
+        "evidence_id",
     ):
         if key in segment.metadata:
             meta[key] = segment.metadata[key]

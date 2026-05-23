@@ -197,6 +197,7 @@ Source / route 語意對照：
 * implementation 已拆成 retrievers、retrieval evidence 與 rerank modules；`commands/query.py` 只負責 orchestration 與 write-back
 * trace 會包含 `rerank` step；LLM rerank 失敗時會記錄 fallback reason
 * page_tree 只把有 LLM-enriched summary 的 section node 作為候選；裸標題仍主要由 wiki / vector 覆蓋
+* session-memory temporal intent（`今天` / `昨天` / `today` / `yesterday` / `YYYY-MM-DD`）會優先使用 matching session daily source，避免 graph 測試資料搶答
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
 
 016 retrieval quality gate 位於 `tests/eval/test_golden_retrieval_quality.py`，使用 `simple` backends 離線執行 golden queries，量測 route accuracy、precision@1、evidence hit rate、answer contains、no-hit precision 與 writeback false-positive rate。
@@ -292,10 +293,11 @@ graph persistence 位於 `/ks/graph/graph.json`。
 * `vector_collection`
 * `embedding_model`
 * `embedding_dimension`
+* `metadata`（Markdown frontmatter / session-memory source metadata）
 
 `coordination/state.json` 存 agent sessions、resource leases、handoff notes；`events.jsonl` 是 append-only coordination event log。
 `llm/extractions/*.json` 存 008 extraction candidate artifact；`llm/wiki-candidates/*.json` 存 009 wiki synthesis candidate artifact。兩者都不是 authoritative wiki / graph / vector / page_tree state；只有 `ks wiki synthesize --mode apply` 成功後寫入的 `origin=llm_wiki` page 才是 applied wiki state。
-`page_trees/*.json` 存 013 PageIndex-style tree。Rule-based tree 由 ingest 建立；`ks pageindex enrich --mode store` 可用 LLM summary 覆寫 tree artifact，但不修改 wiki / graph / vector。
+`page_trees/*.json` 存 013 PageIndex-style tree。Rule-based tree 由 ingest 建立；`ks pageindex enrich --mode store` 可用 LLM summary 覆寫 tree artifact，但不修改 wiki / graph / vector。Markdown ingest 會保留 `hks_type`、`date`、`source_domain`、`generator` 到 wiki / page_tree / vector / manifest metadata；session2memory daily entry 會額外保留 `workspace_id`、`memory_kind`、`tool`、`session_id`、`evidence_id`、`date` 到 chunk metadata。
 
 Workspace registry 不屬於任何單一 `$KS_ROOT`，預設位於使用者 config path，可用 `HKS_WORKSPACE_REGISTRY` 指向 explicit JSON。Registry 只保存 workspace id 到 `KS_ROOT` 的 mapping；不修改任何 registered runtime 的 `wiki / graph / vector / page_tree / manifest`。
 

@@ -100,6 +100,7 @@ class ManifestEntry:
     ingested_at: str
     derived: DerivedArtifacts = field(default_factory=DerivedArtifacts)
     parser_fingerprint: str = "*"
+    metadata: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -110,6 +111,7 @@ class ManifestEntry:
             "ingested_at": self.ingested_at,
             "derived": self.derived.to_dict(),
             "parser_fingerprint": self.parser_fingerprint,
+            "metadata": dict(self.metadata),
         }
 
     @classmethod
@@ -122,6 +124,11 @@ class ManifestEntry:
             ingested_at=str(payload["ingested_at"]),
             derived=DerivedArtifacts.from_dict(cast(dict[str, Any], payload.get("derived", {}))),
             parser_fingerprint=str(payload.get("parser_fingerprint", "*")),
+            metadata={
+                str(key): str(value)
+                for key, value in cast(dict[str, Any], payload.get("metadata", {})).items()
+                if value is not None
+            },
         )
 
 

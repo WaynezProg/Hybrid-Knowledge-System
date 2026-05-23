@@ -54,6 +54,7 @@ class PageTree:
     built_at: str
     total_nodes: int
     source_sha256: str
+    metadata: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -65,6 +66,7 @@ class PageTree:
             "built_at": self.built_at,
             "total_nodes": self.total_nodes,
             "source_sha256": self.source_sha256,
+            "metadata": dict(self.metadata),
         }
 
     @classmethod
@@ -78,6 +80,11 @@ class PageTree:
             built_at=str(data["built_at"]),
             total_nodes=int(data["total_nodes"]),
             source_sha256=str(data["source_sha256"]),
+            metadata={
+                str(key): str(value)
+                for key, value in dict(data.get("metadata", {})).items()
+                if value is not None
+            },
         )
 
     def to_json(self) -> str:

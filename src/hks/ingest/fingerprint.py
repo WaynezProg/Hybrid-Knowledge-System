@@ -30,6 +30,9 @@ _FORMAT_TO_PACKAGE: dict[SourceFormat, str | None] = {
     "jpg": "pillow",
     "jpeg": "pillow",
 }
+_FORMAT_PARSER_REVISIONS: dict[SourceFormat, str] = {
+    "md": "sessionmeta1",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,11 +60,15 @@ def _flags_digest(format_: SourceFormat, flags: ParserFlags) -> str:
 
 def compute_parser_fingerprint(format_: SourceFormat, flags: ParserFlags) -> str:
     lib = _library_version(format_)
+    revision = _FORMAT_PARSER_REVISIONS.get(format_)
     if format_ in {"png", "jpg", "jpeg"}:
         return (
             f"{format_}:v{lib}:{preprocess_signature()}:{ocr_engine_signature()}:off"
         )
-    return f"{format_}:v{lib}:{_flags_digest(format_, flags)}"
+    suffix = _flags_digest(format_, flags)
+    if revision:
+        suffix = ":".join(part for part in (suffix, revision) if part)
+    return f"{format_}:v{lib}:{suffix}"
 
 
 def are_fingerprints_compatible(entry_fp: str, current_fp: str) -> bool:

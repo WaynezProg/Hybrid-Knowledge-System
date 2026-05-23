@@ -82,6 +82,7 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 ```
 
 所有 query 走 fused retrieval：同時從 wiki / graph / vector / page_tree 收集 candidates，以 LLM reranker 排序（無 API key 時 fallback RRF）。Response 包含 `evidence[]` 溯源。
+含 `今天` / `昨天` / `today` / `yesterday` / `YYYY-MM-DD` 的 session-memory 查詢會優先命中對應 date 的 session daily source，避免被一般 graph/vector 內容搶答。
 
 > LLM reranker 僅在 `HKS_LLM_NETWORK_OPT_IN=1` 且 OpenAI key 齊備時啟用；啟用時會將 question 與候選 snippet（每筆截斷 200 字，含 wiki / graph / vector 命中內容）送至 hosted endpoint。未 opt-in 一律走 local RRF，不外送任何內容。
 

@@ -61,6 +61,72 @@ def test_md_ingest_creates_page_tree_manifest_and_vector_metadata(
 
 
 @pytest.mark.integration
+def test_session_daily_ingest_preserves_metadata_across_artifacts(
+    tmp_path: Path,
+    tmp_ks_root: Path,
+) -> None:
+    source_dir = tmp_path / "session-memory"
+    daily_dir = source_dir / "daily"
+    daily_dir.mkdir(parents=True)
+    source = daily_dir / "2026-05-22.md"
+    source.write_text(
+        "---\n"
+        "hks_type: session_daily\n"
+        "date: 2026-05-22\n"
+        "source_domain: session_memory\n"
+        "generator: session2memory\n"
+        "---\n"
+        "# 2026-05-22\n\n"
+        "- [decision] Vibe coding 完成 HKS metadata propagation。 "
+        "(workspace: vibe-coding, evidence: e000001, source: codex, session: s1, lines: 2-2)\n",
+        encoding="utf-8",
+    )
+
+    summary = ingest(source_dir)
+
+    assert summary.created == ["daily/2026-05-22.md"]
+    paths = runtime_paths(tmp_ks_root)
+    entry = load_manifest(paths.manifest).entries["daily/2026-05-22.md"]
+    assert entry.metadata == {
+        "hks_type": "session_daily",
+        "date": "2026-05-22",
+        "source_domain": "session_memory",
+        "generator": "session2memory",
+    }
+
+    page_slug = entry.derived.wiki_pages[0]
+    wiki_page = (paths.wiki_pages / f"{page_slug}.md").read_text(encoding="utf-8")
+    assert 'hks_type: "session_daily"' in wiki_page
+    assert 'date: "2026-05-22"' in wiki_page
+    assert 'source_domain: "session_memory"' in wiki_page
+    assert 'generator: "session2memory"' in wiki_page
+
+    assert entry.derived.page_tree is not None
+    tree = TreeStore(paths).load(entry.derived.page_tree)
+    assert tree.metadata == {
+        "hks_type": "session_daily",
+        "date": "2026-05-22",
+        "source_domain": "session_memory",
+        "generator": "session2memory",
+    }
+
+    client = chromadb.PersistentClient(path=str(paths.vector_db))
+    collection = client.get_collection(COLLECTION_NAME)
+    metadatas = collection.get(ids=entry.derived.vector_ids, include=["metadatas"])["metadatas"]
+    assert metadatas is not None
+    assert any(
+        metadata
+        and metadata.get("workspace_id") == "vibe-coding"
+        and metadata.get("memory_kind") == "decision"
+        and metadata.get("tool") == "codex"
+        and metadata.get("session_id") == "s1"
+        and metadata.get("evidence_id") == "e000001"
+        and metadata.get("date") == "2026-05-22"
+        for metadata in metadatas
+    )
+
+
+@pytest.mark.integration
 def test_txt_ingest_creates_degenerate_page_tree(
     tmp_path: Path,
     tmp_ks_root: Path,

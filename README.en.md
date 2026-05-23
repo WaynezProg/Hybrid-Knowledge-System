@@ -82,6 +82,7 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 ```
 
 All queries use fused retrieval: candidates are collected from wiki / graph / vector / page_tree simultaneously, then ranked by LLM reranker (RRF fallback without API key). Response includes `evidence[]` for provenance.
+Session-memory queries containing `today`, `yesterday`, or `YYYY-MM-DD` prefer the matching dated session daily source before generic graph/vector candidates.
 
 Write-back modes:
 - `no` (default): disables write-back

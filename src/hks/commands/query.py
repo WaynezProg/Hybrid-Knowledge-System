@@ -17,10 +17,15 @@ from hks.retrieval.evidence import candidate_evidence
 from hks.retrieval.models import Candidate
 from hks.retrievers.graph import collect_graph_candidates
 from hks.retrievers.page_tree import collect_page_tree_candidates
+from hks.retrievers.session_memory import (
+    collect_session_memory_candidates,
+    prefer_session_memory_candidates,
+)
 from hks.retrievers.vector import collect_vector_candidates
 from hks.retrievers.wiki import collect_wiki_candidates
 from hks.routing.router import route as route_query
 from hks.routing.rules import load_rules
+from hks.routing.session_memory import analyze_session_memory_intent
 from hks.storage.vector import VectorStore
 from hks.storage.wiki import LogEntry, WikiStore
 from hks.writeback.gate import WritebackFlag, decide
@@ -97,11 +102,20 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
     rule_set = load_rules(paths.root)
     decision = route_query(question, rule_set)
     steps = list(decision.steps)
+    session_intent = analyze_session_memory_intent(question)
     wiki_store = WikiStore(paths)
     graph_store = GraphStore(paths)
     vector_store = VectorStore(paths)
 
     all_candidates: list[Candidate] = []
+
+    session_candidates, session_steps = collect_session_memory_candidates(
+        question,
+        wiki_store=wiki_store,
+        intent=session_intent,
+    )
+    all_candidates.extend(session_candidates)
+    steps.extend(session_steps)
 
     wiki_candidates, wiki_steps = collect_wiki_candidates(
         question,
@@ -135,6 +149,23 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
         response = _build_no_hit_response(decision.route, steps)
         return _maybe_writeback(
             question=question, response=response, writeback=writeback, wiki_store=wiki_store
+        )
+
+    all_candidates, preferred_count = prefer_session_memory_candidates(
+        all_candidates,
+        session_intent,
+    )
+    if preferred_count:
+        steps.append(
+            TraceStep(
+                kind="routing_model",
+                detail={
+                    "rule_id": "session_memory_intent",
+                    "target_route": "wiki",
+                    "intent": session_intent.to_detail() if session_intent else {},
+                    "preferred_candidate_count": preferred_count,
+                },
+            )
         )
 
     ranked, strategy, rerank_detail = rerank_candidates(question, all_candidates)

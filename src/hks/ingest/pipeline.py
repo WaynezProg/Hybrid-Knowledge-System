@@ -397,11 +397,13 @@ def ingest(
                 normalized_text = normalizer.normalize_text(body_text)
                 seg_chunks = normalizer.segment_aware_chunks(parsed.segments, backend=backend)
                 chunks = [text for text, _ in seg_chunks]
-                chunk_metadata: list[dict[str, Any]] = [meta for _, meta in seg_chunks]
+                chunk_metadata: list[dict[str, Any]] = [
+                    _merge_metadata(parsed.metadata, meta) for _, meta in seg_chunks
+                ]
             else:
                 normalized_text = normalizer.normalize_text(parsed.body)
                 chunks = normalizer.chunk(normalized_text, backend=backend)
-                chunk_metadata = [{} for _ in chunks]
+                chunk_metadata = [_merge_metadata(parsed.metadata, {}) for _ in chunks]
 
             if not normalized_text.strip():
                 if existing:
@@ -456,6 +458,7 @@ def ingest(
                 built_at=utc_now_iso(),
                 total_nodes=_count_nodes(tree_nodes),
                 source_sha256=sha256,
+                metadata=dict(parsed.metadata),
             )
 
             raw_target = paths.raw_sources / relpath
@@ -528,6 +531,7 @@ def ingest(
                     source_relpath=relpath,
                     origin="ingest",
                     preferred_slug=preferred_slug,
+                    metadata=dict(parsed.metadata),
                 )
                 page_slug = page.slug
                 graph_artifacts = extract_document_graph(
@@ -559,6 +563,7 @@ def ingest(
                         embedding_dimension=backend.embedding_dimension,
                     ),
                     parser_fingerprint=current_fp,
+                    metadata=dict(parsed.metadata),
                 )
                 save_manifest(manifest, paths.manifest)
             except Exception:
@@ -664,6 +669,15 @@ def _flatten_chunk_metadata(
         elif value is not None:
             flattened[key] = str(value)
     return flattened
+
+
+def _merge_metadata(
+    document_metadata: dict[str, str],
+    chunk_metadata: dict[str, object],
+) -> dict[str, object]:
+    merged: dict[str, object] = dict(document_metadata)
+    merged.update(chunk_metadata)
+    return merged
 
 
 def _count_nodes(nodes: list[TreeNode]) -> int:
