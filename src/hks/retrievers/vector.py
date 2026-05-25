@@ -6,6 +6,8 @@ import re
 
 from hks.core.manifest import Manifest
 from hks.core.schema import TraceStep
+from hks.core.text_models import simple_tokenize
+from hks.page_tree.model import PageTree, TreeNode
 from hks.page_tree.store import TreeStore
 from hks.retrieval.evidence import evidence_quote
 from hks.retrieval.models import Candidate
@@ -13,6 +15,8 @@ from hks.storage.vector import SearchHit, VectorStore
 
 _LEXICAL_SCORE_BONUS = 0.08
 _MAX_LEXICAL_SCORE_BONUS = 0.24
+_PASSAGE_MAX_TOKENS = 96
+_PASSAGE_SPLIT_RE = re.compile(r"(?<!\d\.)(?<=[.!?。！？])\s*")
 
 
 def lexical_terms(text: str) -> set[str]:
@@ -44,6 +48,36 @@ def vector_hit_final_score(question: str, hit: SearchHit) -> float:
     return min(1.0, hit.similarity + lexical_bonus)
 
 
+def best_vector_passage(
+    question: str,
+    text: str,
+    *,
+    max_tokens: int = _PASSAGE_MAX_TOKENS,
+) -> str:
+    passages = [passage.strip() for passage in _PASSAGE_SPLIT_RE.split(text) if passage.strip()]
+    if not passages:
+        return _trim_passage_tokens(text, max_tokens=max_tokens)
+
+    query_terms = lexical_terms(question)
+    best = max(
+        passages,
+        key=lambda passage: (
+            len(query_terms & lexical_terms(passage)),
+            -len(simple_tokenize(passage)),
+        ),
+    )
+    if query_terms and not query_terms & lexical_terms(best):
+        return _trim_passage_tokens(text, max_tokens=max_tokens)
+    return _trim_passage_tokens(best, max_tokens=max_tokens)
+
+
+def _trim_passage_tokens(text: str, *, max_tokens: int) -> str:
+    tokens = simple_tokenize(text)
+    if len(tokens) <= max_tokens:
+        return text
+    return " ".join(tokens[:max_tokens]).strip()
+
+
 def choose_vector_hit(question: str, hits: list[SearchHit]) -> SearchHit | None:
     if not hits:
         return None
@@ -72,7 +106,8 @@ def vector_trace_detail(
     }
     if chosen_hit is None:
         return detail
-    detail["quote"] = evidence_quote(chosen_hit.text)
+    passage_text = best_vector_passage(question, chosen_hit.text)
+    detail["quote"] = evidence_quote(passage_text)
     detail["lexical_overlap"] = vector_hit_lexical_score(question, chosen_hit)
     detail["vector_similarity"] = round(chosen_hit.similarity, 4)
     detail["final_score"] = round(vector_hit_final_score(question, chosen_hit), 4)
@@ -103,6 +138,7 @@ def vector_trace_detail(
                 chosen_hit=chosen_hit,
                 manifest=manifest,
                 tree_store=tree_store,
+                passage_text=passage_text,
             )
         )
     return detail
@@ -113,6 +149,7 @@ def vector_section_context(
     chosen_hit: SearchHit,
     manifest: Manifest,
     tree_store: TreeStore,
+    passage_text: str | None = None,
 ) -> dict[str, object]:
     relpath = chosen_hit.metadata.get("source_relpath")
     node_id = chosen_hit.metadata.get("tree_node_id")
@@ -133,11 +170,11 @@ def vector_section_context(
     if tree.source_relpath != relpath or tree.source_sha256 != entry.sha256:
         return {}
 
-    section_path = tree.section_path(node_id)
-    node = next(
+    node = _node_for_passage(tree, passage_text) or next(
         (candidate for candidate in tree.flat_nodes() if candidate.node_id == node_id),
         None,
     )
+    section_path = tree.section_path(node.node_id) if node is not None else None
     if section_path is None or node is None:
         return {}
 
@@ -147,6 +184,20 @@ def vector_section_context(
     if isinstance(page_start, int) and isinstance(page_end, int):
         context["page_range"] = {"start": page_start, "end": page_end}
     return context
+
+
+def _node_for_passage(tree: PageTree, passage_text: str | None) -> TreeNode | None:
+    if not passage_text:
+        return None
+    lowered = passage_text.casefold()
+    matches = [
+        node
+        for node in tree.flat_nodes()
+        if node.title and node.title.casefold() in lowered
+    ]
+    if not matches:
+        return None
+    return max(matches, key=lambda node: (node.level, len(node.title)))
 
 
 def collect_vector_candidates(
@@ -165,17 +216,21 @@ def collect_vector_candidates(
     tree_store = TreeStore(vector_store.paths)
 
     for hit in hits[:5]:
+        passage_text = best_vector_passage(question, hit.text)
         metadata: dict[str, object] = dict(hit.metadata)
         metadata["lexical_overlap"] = vector_hit_lexical_score(question, hit)
         metadata["vector_similarity"] = hit.similarity
         metadata["final_score"] = vector_hit_final_score(question, hit)
         section_ctx = vector_section_context(
-            chosen_hit=hit, manifest=manifest, tree_store=tree_store
+            chosen_hit=hit,
+            manifest=manifest,
+            tree_store=tree_store,
+            passage_text=passage_text,
         )
         metadata.update(section_ctx)
         candidates.append(
             Candidate(
-                text=hit.text,
+                text=passage_text,
                 source_route="vector",
                 score=vector_hit_final_score(question, hit),
                 metadata=metadata,

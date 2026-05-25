@@ -23,6 +23,7 @@ from hks.evaluation.retrieval_quality import (
 EVAL_DIR = Path(__file__).resolve().parents[2] / "evals" / "golden_queries"
 QUICK_EVAL_PATH = EVAL_DIR / "quick.jsonl"
 STRICT_EVAL_PATH = EVAL_DIR / "strict.jsonl"
+LONG_DOC_EVAL_PATH = EVAL_DIR / "long_doc.jsonl"
 FIXTURES_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "valid"
 
 
@@ -88,6 +89,36 @@ def _write_strict_fixture_files(target: Path) -> None:
     )
 
 
+def _write_long_doc_fixture_files(target: Path) -> None:
+    filler_sections = []
+    for index in range(1, 16):
+        filler_sections.append(
+            "\n".join(
+                (
+                    f"## Routine Control {index:02d}",
+                    "Routine control text repeats archive intake routing, quarterly sampling, "
+                    "operator handoff, and non-authoritative retention reminders.",
+                    "This section is deliberately unrelated to special archive exceptions "
+                    "and should not be selected as the answer.",
+                )
+            )
+        )
+
+    (target / "long-policy-handbook.md").write_text(
+        (
+            "# Long Policy Handbook\n\n"
+            + "\n\n".join(filler_sections)
+            + "\n\n# Appendix Zeta Controls\n\n"
+            "## Alpha-Seven Retention Override\n\n"
+            "Alpha-seven retention override requires records owner approval and legal hold "
+            "review before data leaves the archive queue.\n\n"
+            "Operators must cite ticket AZ-77 and keep the override note under the same "
+            "section for audit review.\n"
+        ),
+        encoding="utf-8",
+    )
+
+
 @pytest.fixture()
 def ingested_golden_ks_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     _force_offline_simple(monkeypatch, tmp_path)
@@ -130,6 +161,22 @@ def strict_ingested_golden_ks_root(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     return tmp_path / "ks"
 
 
+@pytest.fixture()
+def long_doc_ingested_golden_ks_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Path:
+    _force_offline_simple(monkeypatch, tmp_path)
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True, exist_ok=True)
+    _write_long_doc_fixture_files(docs_dir)
+
+    runner = CliRunner()
+    result = runner.invoke(app, ["ingest", str(docs_dir)])
+    assert result.exit_code == 0, result.stdout
+    return tmp_path / "ks"
+
+
 def test_golden_retrieval_quality_gate(ingested_golden_ks_root: Path) -> None:
     cases = load_golden_cases(QUICK_EVAL_PATH)
     observations: list[QueryObservation] = []
@@ -148,6 +195,31 @@ def test_golden_retrieval_quality_gate(ingested_golden_ks_root: Path) -> None:
             evidence_hit_rate=0.80,
             answer_contains_rate=1.00,
             no_hit_precision=1.00,
+            writeback_false_positive_rate=0.00,
+        ),
+    )
+
+
+def test_long_doc_retrieval_budget_gate(long_doc_ingested_golden_ks_root: Path) -> None:
+    cases = load_golden_cases(LONG_DOC_EVAL_PATH)
+    observations: list[QueryObservation] = []
+
+    for case in cases:
+        response = query_run(case.question, writeback="no")
+        observations.append(QueryObservation(case=case, payload=response.to_dict()))
+
+    report = compute_metrics(observations)
+
+    assert_thresholds(
+        report,
+        MetricThresholds(
+            route_accuracy=1.00,
+            precision_at_1=1.00,
+            evidence_hit_rate=1.00,
+            answer_contains_rate=1.00,
+            section_hit_rate=1.00,
+            paragraph_hit_rate=1.00,
+            answer_token_budget_rate=1.00,
             writeback_false_positive_rate=0.00,
         ),
     )

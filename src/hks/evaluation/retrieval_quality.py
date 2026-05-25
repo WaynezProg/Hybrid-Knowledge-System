@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from hks.core.schema import Route
+from hks.core.text_models import simple_tokenize
 
 _VALID_ROUTES = {"wiki", "graph", "vector", "page_tree"}
 _VALID_FIELDS = {
@@ -15,9 +16,12 @@ _VALID_FIELDS = {
     "question",
     "expected_route",
     "expected_source_relpath",
+    "expected_section_path",
     "expected_evidence_quote",
+    "expected_paragraph",
     "expected_answer_contains",
     "expected_trace_hit_kind",
+    "max_answer_tokens",
     "writeback_allowed",
     "expect_no_hit",
 }
@@ -29,9 +33,12 @@ class GoldenQueryCase:
     question: str
     expected_route: Route | None = None
     expected_source_relpath: str | None = None
+    expected_section_path: str | None = None
     expected_evidence_quote: str | None = None
+    expected_paragraph: str | None = None
     expected_answer_contains: str | None = None
     expected_trace_hit_kind: str | None = None
+    max_answer_tokens: int | None = None
     writeback_allowed: bool = False
     expect_no_hit: bool = False
 
@@ -44,9 +51,12 @@ class GoldenQueryCase:
             question=cast(str, payload["question"]),
             expected_route=cast(Route | None, route),
             expected_source_relpath=_optional_str(payload.get("expected_source_relpath")),
+            expected_section_path=_optional_str(payload.get("expected_section_path")),
             expected_evidence_quote=_optional_str(payload.get("expected_evidence_quote")),
+            expected_paragraph=_optional_str(payload.get("expected_paragraph")),
             expected_answer_contains=_optional_str(payload.get("expected_answer_contains")),
             expected_trace_hit_kind=_optional_str(payload.get("expected_trace_hit_kind")),
+            max_answer_tokens=_optional_int(payload.get("max_answer_tokens")),
             writeback_allowed=bool(payload.get("writeback_allowed", False)),
             expect_no_hit=bool(payload.get("expect_no_hit", False)),
         )
@@ -64,6 +74,9 @@ class MetricThresholds:
     precision_at_1: float = 0.70
     evidence_hit_rate: float = 0.80
     answer_contains_rate: float = 1.00
+    section_hit_rate: float = 1.00
+    paragraph_hit_rate: float = 1.00
+    answer_token_budget_rate: float = 1.00
     trace_hit_rate: float = 1.00
     no_hit_precision: float = 1.00
     writeback_false_positive_rate: float = 0.00
@@ -77,6 +90,9 @@ class MetricReport:
     precision_at_1: float
     evidence_hit_rate: float
     answer_contains_rate: float
+    section_hit_rate: float
+    paragraph_hit_rate: float
+    answer_token_budget_rate: float
     trace_hit_rate: float
     no_hit_precision: float
     writeback_false_positive_rate: float
@@ -90,6 +106,9 @@ class MetricReport:
             "precision_at_1": self.precision_at_1,
             "evidence_hit_rate": self.evidence_hit_rate,
             "answer_contains_rate": self.answer_contains_rate,
+            "section_hit_rate": self.section_hit_rate,
+            "paragraph_hit_rate": self.paragraph_hit_rate,
+            "answer_token_budget_rate": self.answer_token_budget_rate,
             "trace_hit_rate": self.trace_hit_rate,
             "no_hit_precision": self.no_hit_precision,
             "writeback_false_positive_rate": self.writeback_false_positive_rate,
@@ -139,6 +158,9 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
         "precision_at_1": [],
         "evidence_hit_rate": [],
         "answer_contains_rate": [],
+        "section_hit_rate": [],
+        "paragraph_hit_rate": [],
+        "answer_token_budget_rate": [],
         "trace_hit_rate": [],
         "no_hit_precision": [],
         "writeback_false_positive": [],
@@ -149,6 +171,9 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
     precision_total = precision_correct = 0
     evidence_total = evidence_correct = 0
     answer_total = answer_correct = 0
+    section_total = section_correct = 0
+    paragraph_total = paragraph_correct = 0
+    answer_token_budget_total = answer_token_budget_correct = 0
     trace_hit_total = trace_hit_correct = 0
     no_hit_total = no_hit_correct = 0
     writeback_disallowed_total = writeback_false_positive = 0
@@ -200,6 +225,27 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
             else:
                 failures["answer_contains_rate"].append(case.id)
 
+        if case.expected_section_path is not None:
+            section_total += 1
+            if _top_evidence_section_matches(payload, case.expected_section_path):
+                section_correct += 1
+            else:
+                failures["section_hit_rate"].append(case.id)
+
+        if case.expected_paragraph is not None:
+            paragraph_total += 1
+            if _paragraph_matches(payload, case.expected_paragraph):
+                paragraph_correct += 1
+            else:
+                failures["paragraph_hit_rate"].append(case.id)
+
+        if case.max_answer_tokens is not None:
+            answer_token_budget_total += 1
+            if _answer_token_count(payload) <= case.max_answer_tokens:
+                answer_token_budget_correct += 1
+            else:
+                failures["answer_token_budget_rate"].append(case.id)
+
         if case.expected_trace_hit_kind is not None:
             trace_hit_total += 1
             if _trace_kind_hit(payload, case.expected_trace_hit_kind):
@@ -225,6 +271,12 @@ def compute_metrics(observations: list[QueryObservation]) -> MetricReport:
         precision_at_1=_ratio(precision_correct, precision_total),
         evidence_hit_rate=_ratio(evidence_correct, evidence_total),
         answer_contains_rate=_ratio(answer_correct, answer_total),
+        section_hit_rate=_ratio(section_correct, section_total),
+        paragraph_hit_rate=_ratio(paragraph_correct, paragraph_total),
+        answer_token_budget_rate=_ratio(
+            answer_token_budget_correct,
+            answer_token_budget_total,
+        ),
         trace_hit_rate=_ratio(trace_hit_correct, trace_hit_total),
         no_hit_precision=_ratio(no_hit_correct, no_hit_total),
         writeback_false_positive_rate=_ratio(
@@ -247,6 +299,17 @@ def assert_thresholds(report: MetricReport, thresholds: MetricThresholds) -> Non
         "answer_contains_rate": (
             report.answer_contains_rate,
             thresholds.answer_contains_rate,
+            ">=",
+        ),
+        "section_hit_rate": (report.section_hit_rate, thresholds.section_hit_rate, ">="),
+        "paragraph_hit_rate": (
+            report.paragraph_hit_rate,
+            thresholds.paragraph_hit_rate,
+            ">=",
+        ),
+        "answer_token_budget_rate": (
+            report.answer_token_budget_rate,
+            thresholds.answer_token_budget_rate,
             ">=",
         ),
         "trace_hit_rate": (report.trace_hit_rate, thresholds.trace_hit_rate, ">="),
@@ -289,13 +352,20 @@ def _validate_case_payload(payload: dict[str, Any]) -> None:
         raise ValueError(f"invalid expected_route for {payload['id']}: {route}")
     for field_name in (
         "expected_source_relpath",
+        "expected_section_path",
         "expected_evidence_quote",
+        "expected_paragraph",
         "expected_answer_contains",
         "expected_trace_hit_kind",
     ):
         value = payload.get(field_name)
         if value is not None and not isinstance(value, str):
             raise ValueError(f"{field_name} must be a string or null")
+    max_answer_tokens = payload.get("max_answer_tokens")
+    if max_answer_tokens is not None and (
+        not isinstance(max_answer_tokens, int) or max_answer_tokens <= 0
+    ):
+        raise ValueError("max_answer_tokens must be a positive integer")
     for field_name in ("writeback_allowed", "expect_no_hit"):
         value = payload.get(field_name)
         if value is not None and not isinstance(value, bool):
@@ -307,6 +377,14 @@ def _optional_str(value: object) -> str | None:
         return None
     text = str(value)
     return text if text else None
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError("value must be an integer")
+    return value
 
 
 def _first_source(payload: dict[str, Any]) -> str | None:
@@ -334,6 +412,31 @@ def _answer_contains(payload: dict[str, Any], expected_answer_contains: str) -> 
     if not isinstance(answer, str):
         return False
     return expected_answer_contains.casefold() in answer.casefold()
+
+
+def _answer_token_count(payload: dict[str, Any]) -> int:
+    answer = payload.get("answer")
+    if not isinstance(answer, str):
+        return 10**9
+    return len(simple_tokenize(answer))
+
+
+def _paragraph_matches(payload: dict[str, Any], expected_paragraph: str) -> bool:
+    expected = expected_paragraph.casefold()
+    answer = payload.get("answer")
+    if isinstance(answer, str) and expected in answer.casefold():
+        return True
+
+    evidence = payload.get("evidence")
+    if not isinstance(evidence, list):
+        return False
+    for item in evidence:
+        if not isinstance(item, dict):
+            continue
+        quote = item.get("quote")
+        if isinstance(quote, str) and expected in quote.casefold():
+            return True
+    return False
 
 
 def _is_no_hit_payload(payload: dict[str, Any]) -> bool:
@@ -374,6 +477,17 @@ def _top_evidence_matches(
         expected_source_relpath=expected_source_relpath,
         expected_evidence_quote=expected_evidence_quote,
     )
+
+
+def _top_evidence_section_matches(
+    payload: dict[str, Any],
+    expected_section_path: str,
+) -> bool:
+    evidence = payload.get("evidence")
+    if not isinstance(evidence, list) or not evidence:
+        return False
+    first = evidence[0]
+    return isinstance(first, dict) and first.get("section_path") == expected_section_path
 
 
 def _evidence_item_matches(
