@@ -86,7 +86,7 @@ def test_md_parser_extracts_session2memory_frontmatter_and_entry_metadata(
         "generator": "session2memory",
         "source_domain": "coding_session",
     }
-    entry = next(segment for segment in parsed.segments if segment.kind == "list_item")
+    entry = next(segment for segment in parsed.segments if segment.kind == "session_entry")
     assert entry.metadata == {
         "hks_type": "session_daily",
         "generator": "session2memory",
@@ -132,7 +132,7 @@ def test_md_parser_keeps_legacy_session_entry_metadata(tmp_path: Path) -> None:
 
     parsed = md_parser.parse(path)
 
-    entry = next(segment for segment in parsed.segments if segment.kind == "list_item")
+    entry = next(segment for segment in parsed.segments if segment.kind == "session_entry")
     assert entry.metadata["workspace_id"] == "legacy"
     assert entry.metadata["memory_kind"] == "decision"
     assert entry.metadata["tool"] == "codex"

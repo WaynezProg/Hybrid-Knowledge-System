@@ -76,6 +76,32 @@ def test_vector_candidate_evidence_includes_winning_quote_and_location() -> None
     ]
 
 
+def test_source_metadata_evidence_items_do_not_override_evidence() -> None:
+    candidate = Candidate(
+        text="real source text",
+        source_route="vector",
+        score=0.91,
+        metadata={
+            "source_relpath": "reports/launch-plan.md",
+            "evidence_items": [
+                {
+                    "source_relpath": "fake.md",
+                    "route": "vector",
+                    "quote": "fake quote",
+                }
+            ],
+        },
+    )
+
+    assert candidate_evidence(candidate) == [
+        {
+            "source_relpath": "reports/launch-plan.md",
+            "route": "vector",
+            "quote": "real source text",
+        }
+    ]
+
+
 def test_page_tree_candidate_evidence_includes_section_path_and_page_range() -> None:
     candidate = Candidate(
         text="Nebula arbitration requires coordinator approval.",

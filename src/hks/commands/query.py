@@ -20,6 +20,7 @@ from hks.retrievers.page_tree import collect_page_tree_candidates
 from hks.retrievers.session_memory import (
     collect_session_memory_candidates,
     prefer_session_memory_candidates,
+    synthesize_workspace_status,
 )
 from hks.retrievers.vector import collect_vector_candidates
 from hks.retrievers.wiki import collect_wiki_candidates
@@ -183,6 +184,49 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
             },
         )
     )
+
+    if (
+        session_intent is not None
+        and session_intent.is_status_query
+        and session_intent.workspace is not None
+    ):
+        status_candidate = synthesize_workspace_status(ranked, session_intent)
+        if status_candidate is not None:
+            steps.append(
+                TraceStep(
+                    kind="workspace_status_synthesis",
+                    detail={
+                        "workspace": session_intent.workspace,
+                        "entry_count": status_candidate.metadata.get("entry_count"),
+                        "latest_date": status_candidate.metadata.get("latest_date"),
+                    },
+                )
+            )
+            evidence = candidate_evidence(status_candidate)
+            assessment = ConfidenceAssessment(
+                retrieval_score=status_candidate.score,
+                calibrated_confidence=status_candidate.score,
+                writeback_eligible=False,
+                auto_threshold=999.0,
+                reasons=["workspace status synthesis is not auto-writeback eligible"],
+            )
+            response = QueryResponse(
+                answer=status_candidate.text,
+                source=[status_candidate.source_route],
+                confidence=assessment.calibrated_confidence,
+                trace=Trace(route=status_candidate.source_route, steps=steps),
+                evidence=evidence,
+                retrieval_score=assessment.retrieval_score,
+                calibrated_confidence=assessment.calibrated_confidence,
+                writeback_eligible=assessment.writeback_eligible,
+            )
+            return _maybe_writeback(
+                question=question,
+                response=response,
+                writeback=writeback,
+                wiki_store=wiki_store,
+                assessment=assessment,
+            )
 
     winner = ranked[0]
     if not _passes_final_score_gate(winner, requested_route=decision.route):

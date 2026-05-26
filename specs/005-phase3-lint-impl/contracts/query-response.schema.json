@@ -102,7 +102,8 @@
             "watch_summary",
             "update_summary",
             "catalog_summary",
-            "pageindex_summary"
+            "pageindex_summary",
+            "workspace_status_synthesis"
           ]
         },
         "detail": {

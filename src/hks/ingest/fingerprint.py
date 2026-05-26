@@ -31,7 +31,7 @@ _FORMAT_TO_PACKAGE: dict[SourceFormat, str | None] = {
     "jpeg": "pillow",
 }
 _FORMAT_PARSER_REVISIONS: dict[SourceFormat, str] = {
-    "md": "sessionmeta1",
+    "md": "sessionmeta2",
 }
 
 

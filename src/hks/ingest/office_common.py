@@ -23,6 +23,7 @@ SegmentKind = Literal[
     "slide_header",
     "notes",
     "placeholder",
+    "session_entry",
 ]
 
 SkippedSegmentType = Literal[

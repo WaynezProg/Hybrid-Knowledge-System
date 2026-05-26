@@ -65,7 +65,7 @@ def chunk(
 
 
 _SECTION_KINDS = {"heading", "sheet_header", "slide_header"}
-_ISOLATED_KINDS = {"table_row", "notes", "placeholder", "ocr_text"}
+_ISOLATED_KINDS = {"table_row", "notes", "placeholder", "ocr_text", "session_entry"}
 
 
 def segments_to_body(segments: list[Segment]) -> str:

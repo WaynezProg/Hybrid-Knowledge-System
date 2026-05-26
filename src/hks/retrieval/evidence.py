@@ -16,6 +16,9 @@ def metadata_str(metadata: dict[str, object], key: str) -> str | None:
 
 
 def candidate_evidence(candidate: Candidate) -> list[dict[str, object]]:
+    custom = custom_candidate_evidence(candidate)
+    if custom:
+        return custom
     if candidate.source_route == "wiki":
         return wiki_candidate_evidence(candidate)
     if candidate.source_route == "graph":
@@ -23,6 +26,32 @@ def candidate_evidence(candidate: Candidate) -> list[dict[str, object]]:
     if candidate.source_route == "page_tree":
         return page_tree_candidate_evidence(candidate)
     return vector_candidate_evidence(candidate)
+
+
+def custom_candidate_evidence(candidate: Candidate) -> list[dict[str, object]]:
+    items = candidate.metadata.get("_hks_evidence_items")
+    if not isinstance(items, list):
+        return []
+
+    evidence: list[dict[str, object]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        relpath = item.get("source_relpath")
+        quote = item.get("quote")
+        if not isinstance(relpath, str) or not relpath:
+            continue
+        if not isinstance(quote, str) or not quote:
+            continue
+        route = item.get("route")
+        evidence.append(
+            {
+                "source_relpath": relpath,
+                "route": route if isinstance(route, str) and route else candidate.source_route,
+                "quote": evidence_quote(quote),
+            }
+        )
+    return evidence
 
 
 def wiki_candidate_evidence(candidate: Candidate) -> list[dict[str, object]]:

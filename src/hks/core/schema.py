@@ -34,6 +34,7 @@ type TraceKind = Literal[
     "update_summary",
     "catalog_summary",
     "pageindex_summary",
+    "workspace_status_synthesis",
 ]
 
 

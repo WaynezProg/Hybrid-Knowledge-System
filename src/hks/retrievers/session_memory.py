@@ -8,6 +8,7 @@ from hks.retrieval.models import Candidate
 from hks.routing.session_memory import (
     SessionMemoryIntent,
     metadata_matches_session_intent,
+    workspace_id_matches,
 )
 from hks.storage.wiki import WikiPage, WikiStore
 
@@ -87,6 +88,94 @@ def prefer_session_memory_candidates(
     if not preferred:
         return candidates, 0
     return preferred, len(preferred)
+
+
+def synthesize_workspace_status(
+    candidates: list[Candidate],
+    intent: SessionMemoryIntent,
+) -> Candidate | None:
+    if not intent.workspace or not candidates:
+        return None
+
+    matched = [
+        c for c in candidates
+        if workspace_id_matches(
+            str(c.metadata.get("workspace_id") or ""),
+            intent.workspace,
+        )
+    ]
+    if not matched:
+        return None
+
+    matched.sort(
+        key=lambda c: str(c.metadata.get("date") or ""),
+        reverse=True,
+    )
+
+    latest_date = str(matched[0].metadata.get("date") or "unknown")
+    workspace_display = intent.workspace
+
+    lines: list[str] = [f"## {workspace_display} workspace 狀態", ""]
+    lines.append(f"最近活動日期：{latest_date}")
+    lines.append("")
+
+    current_date = ""
+    for candidate in matched:
+        entry_date = str(candidate.metadata.get("date") or "unknown")
+        if entry_date != current_date:
+            current_date = entry_date
+            lines.append(f"### {current_date}")
+
+        text = candidate.text.strip()
+        if text:
+            for line in text.splitlines():
+                stripped = line.strip()
+                if stripped:
+                    lines.append(f"- {stripped}" if not stripped.startswith("-") else stripped)
+        lines.append("")
+
+    merged_meta: dict[str, object] = {
+        "workspace": workspace_display,
+        "latest_date": latest_date,
+        "entry_count": len(matched),
+        "synthesized": True,
+    }
+    source_relpaths: list[str] = []
+    evidence_text_by_relpath: dict[str, list[str]] = {}
+    route_by_relpath: dict[str, str] = {}
+    for candidate in matched:
+        relpath = str(candidate.metadata.get("source_relpath") or "")
+        if not relpath:
+            continue
+        if relpath not in evidence_text_by_relpath:
+            source_relpaths.append(relpath)
+            evidence_text_by_relpath[relpath] = []
+            route_by_relpath[relpath] = candidate.source_route
+        evidence_text_by_relpath[relpath].append(candidate.text)
+
+    if source_relpaths:
+        merged_meta["source_relpaths"] = source_relpaths
+        merged_meta["source_relpath"] = source_relpaths[0]
+        merged_meta["_hks_evidence_items"] = [
+            {
+                "source_relpath": relpath,
+                "route": route_by_relpath[relpath],
+                "quote": evidence_quote("\n".join(evidence_text_by_relpath[relpath])),
+            }
+            for relpath in source_relpaths
+        ]
+
+    quote = evidence_quote("\n".join(lines))
+
+    best_score = max(c.score for c in matched)
+    merged_meta["quote"] = quote
+
+    return Candidate(
+        text="\n".join(lines),
+        source_route=matched[0].source_route,
+        score=best_score,
+        metadata=merged_meta,
+    )
 
 
 def _answer_text(page: WikiPage) -> str:

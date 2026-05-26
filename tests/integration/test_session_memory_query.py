@@ -93,3 +93,144 @@ def test_session2memory_entry_metadata_reaches_vector_chunks(
     assert entry_hit.metadata["tool"] == "codex"
     assert entry_hit.metadata["session_id"] == "s1"
     assert entry_hit.metadata["evidence_id"] == "e000001"
+
+
+@pytest.mark.integration
+def test_workspace_status_query_prefers_vector_over_wiki(
+    cli_runner,
+    tmp_path: Path,
+) -> None:
+    """Workspace status query should use workspace-matched vector hits,
+    not generic wiki date pages."""
+    docs = tmp_path / "docs"
+    daily_dir = docs / "daily"
+    daily_dir.mkdir(parents=True)
+
+    (daily_dir / "2026-05-21.md").write_text(
+        "---\n"
+        "hks_type: session_daily\n"
+        "date: 2026-05-21\n"
+        "generator: session2memory\n"
+        "source_domain: coding_session\n"
+        "tools: [codex]\n"
+        "schema_version: 1\n"
+        "---\n"
+        "# 2026-05-21\n\n"
+        "## Entries\n"
+        "- [verification] pytest 4 passed "
+        "{workspace_id=social-bank-check-d61a68f0 memory_kind=verification "
+        "tool=codex session_id=s1 evidence_id=e000013 lines=751-751}\n"
+        "- [verification] pytest 8 passed "
+        "{workspace_id=social-bank-check-d61a68f0 memory_kind=verification "
+        "tool=codex session_id=s1 evidence_id=e000014 lines=1701-1701}\n"
+        "- [activity] HKS metadata propagation "
+        "{workspace_id=hks-81c05951 memory_kind=activity "
+        "tool=codex session_id=s2 evidence_id=e000001 lines=2-2}\n",
+        encoding="utf-8",
+    )
+
+    ingest = cli_runner.invoke(app, ["ingest", str(docs)])
+    assert ingest.exit_code == 0, ingest.stdout
+
+    result = cli_runner.invoke(
+        app,
+        ["query", "social-bank-check 最後處理到哪", "--writeback=no"],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+
+    assert "social-bank-check" in payload["answer"]
+    assert "HKS metadata propagation" not in payload["answer"]
+
+    has_workspace_step = any(
+        step.get("kind") == "workspace_status_synthesis"
+        for step in payload["trace"]["steps"]
+    )
+    assert has_workspace_step, "should have workspace_status_synthesis trace step"
+
+
+@pytest.mark.integration
+def test_workspace_status_auto_writeback_stays_ineligible(
+    cli_runner,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docs = tmp_path / "docs"
+    daily_dir = docs / "daily"
+    daily_dir.mkdir(parents=True)
+
+    (daily_dir / "2026-05-21.md").write_text(
+        "---\n"
+        "hks_type: session_daily\n"
+        "date: 2026-05-21\n"
+        "generator: session2memory\n"
+        "source_domain: coding_session\n"
+        "schema_version: 1\n"
+        "---\n"
+        "# 2026-05-21\n\n"
+        "## Entries\n"
+        "- [verification] pytest 819 passed "
+        "{workspace_id=social-bank-check-d61a68f0 memory_kind=verification "
+        "tool=codex session_id=s1 evidence_id=e000013 lines=751-751}\n",
+        encoding="utf-8",
+    )
+
+    ingest = cli_runner.invoke(app, ["ingest", str(docs)])
+    assert ingest.exit_code == 0, ingest.stdout
+    monkeypatch.setenv("HKS_WRITEBACK_AUTO_THRESHOLD", "0")
+
+    result = cli_runner.invoke(
+        app,
+        ["query", "social-bank-check 最後處理到哪", "--writeback=auto"],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+
+    assert payload["writeback_eligible"] is False
+    assert payload["trace"]["steps"][-1]["detail"]["status"] == "auto-skipped-ineligible"
+
+
+@pytest.mark.integration
+def test_workspace_query_without_status_keyword_still_filters(
+    cli_runner,
+    tmp_path: Path,
+) -> None:
+    """Workspace query without status keywords should still prefer
+    workspace-matched candidates over generic wiki."""
+    docs = tmp_path / "docs"
+    daily_dir = docs / "daily"
+    daily_dir.mkdir(parents=True)
+
+    (daily_dir / "2026-05-21.md").write_text(
+        "---\n"
+        "hks_type: session_daily\n"
+        "date: 2026-05-21\n"
+        "generator: session2memory\n"
+        "source_domain: coding_session\n"
+        "schema_version: 1\n"
+        "---\n"
+        "# 2026-05-21\n\n"
+        "## Entries\n"
+        "- [activity] social-bank compliance check completed stage 3 "
+        "{workspace_id=social-bank-check-d61a68f0 memory_kind=activity "
+        "tool=codex session_id=s1 evidence_id=e000001 lines=10-10}\n"
+        "- [activity] HKS vector retrieval refactored "
+        "{workspace_id=hks-81c05951 memory_kind=activity "
+        "tool=codex session_id=s2 evidence_id=e000002 lines=20-20}\n",
+        encoding="utf-8",
+    )
+
+    ingest = cli_runner.invoke(app, ["ingest", str(docs)])
+    assert ingest.exit_code == 0, ingest.stdout
+
+    result = cli_runner.invoke(
+        app,
+        ["query", "social-bank-check 做了什麼", "--writeback=no"],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+
+    assert "HKS vector retrieval" not in payload["answer"]
