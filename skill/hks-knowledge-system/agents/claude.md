@@ -28,6 +28,26 @@ uv run ks graphify build --mode preview --provider fake
 uv run ks watch scan --source-root <source-dir>
 ```
 
+## Session Memory / Workspace Status Query
+
+查詢「某個 workspace 最後處理到哪？」時，**先 resolve workspace_id，再用明確格式查詢**。不要把口語名稱（social-bank-check、HKS、OpenClaw）直接丟給 `ks query`。
+
+```bash
+# Step 1: resolve workspace_id
+uv run ks workspace list
+uv run ks source list
+# 找不到時 grep：
+rg -n "workspace_id=" "$KS_ROOT/wiki/pages" "$KS_ROOT/raw_sources"
+
+# Step 2: 用 workspace_id= prefix 查詢
+uv run ks query "workspace_id=social-bank-check 最後處理到哪？" --writeback=no
+uv run ks query "workspace_id=hks 最近完成什麼？" --writeback=no
+uv run ks query "workspace_id=openclaw 2026-05-22 做了什麼？" --writeback=no
+```
+
+- 預設 `--writeback=no`。
+- 只有在無法 resolve workspace_id 時才 fallback 到自然語言 query，並在回覆中標記信心較低。
+
 ## Deep References
 
 - Full command map: `../commands/cli.md`

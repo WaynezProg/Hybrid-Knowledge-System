@@ -57,6 +57,38 @@ uv run ks workspace query work "目前有哪些資料？" --writeback=no
 
 如果本機已有既有 runtime，將 `.hks-runs/shared-runtime.env` 指向那套 runtime；所有 agent source `shared-runtime.sh` 後會共用同一套。`HKS_EMBEDDING_MODEL` 必須跟該 runtime ingest 時使用的 model 一致，否則 vector query 會出現 dimension mismatch。
 
+## Session Memory / Workspace Status Query
+
+查詢 session memory 的 workspace 狀態時，**不要用口語名稱組寬鬆自然語言 query**。HKS 的 intent detection 對短詞、大小寫、alias 容易誤判，導致 retrieval 結果混入不相關條目。
+
+### 正確流程
+
+1. **先 resolve workspace_id**（不要跳過）：
+   ```bash
+   uv run ks workspace list              # 已註冊 workspace
+   uv run ks source list                 # manifest 裡的 source metadata
+   # 必要時 grep raw data：
+   rg -n "workspace_id=" "$KS_ROOT/wiki/pages" "$KS_ROOT/raw_sources"
+   ```
+
+2. **用明確 workspace_id 查詢**：
+   ```bash
+   uv run ks query "workspace_id=<id> 最後處理到哪？" --writeback=no
+   uv run ks query "workspace_id=<id> 最近完成什麼？" --writeback=no
+   uv run ks query "workspace_id=<id> 2026-05-22 做了什麼？" --writeback=no
+   ```
+
+3. **預設 `--writeback=no`**。
+
+### 禁止的做法
+
+- **不要** 直接 `ks query "social-bank-check 最後處理到哪？"` — 口語名稱容易 miss 或 false-match。
+- **不要** 依賴 HKS 猜測使用者說的 project 名稱對應哪個 workspace_id。
+
+### Fallback
+
+只有在所有 resolve 手段都找不到 workspace_id 時，才可以用自然語言 query 作 fallback，但 agent 必須在回覆中標記「信心較低，未能 resolve workspace_id」。
+
 ## 權威來源
 
 - Architecture：`docs/main.md`
