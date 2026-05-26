@@ -13,7 +13,7 @@ from slugify import slugify
 from hks.core.manifest import atomic_write
 from hks.core.paths import RuntimePaths, runtime_paths
 
-type EntityType = Literal["Person", "Project", "Document", "Event", "Concept"]
+type EntityType = Literal["Person", "Project", "Document", "Event", "Concept", "Decision", "Constraint", "Risk", "Milestone"]
 type RelationType = Literal[
     "owns",
     "depends_on",

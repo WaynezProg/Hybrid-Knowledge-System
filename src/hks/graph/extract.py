@@ -327,6 +327,10 @@ def _infer_contextual_entity_type(
         return "Project"
     inferred = _infer_entity_type(label, default=default)
     if role == "source" and relation in ("causes", "impacts") and inferred == "Concept":
+        if _looks_like_risk(label):
+            return "Risk"
+        if _looks_like_decision(label):
+            return "Decision"
         return "Event"
     return inferred
 
@@ -353,6 +357,14 @@ def _infer_entity_type(label: str, *, default: EntityType) -> EntityType:
         return "Project"
     if "project " in lowered and "service" not in lowered:
         return "Project"
+    if _looks_like_decision(label):
+        return "Decision"
+    if _looks_like_constraint(label):
+        return "Constraint"
+    if _looks_like_risk(label):
+        return "Risk"
+    if _looks_like_milestone(label):
+        return "Milestone"
     if _looks_like_event(label):
         return "Event"
     if re.fullmatch(r"[A-Z][a-z]+(?: [A-Z][a-z]+)+", label):
@@ -364,12 +376,40 @@ def _infer_entity_type(label: str, *, default: EntityType) -> EntityType:
 
 def _looks_like_event(label: str) -> bool:
     lowered = label.lower()
-    if any(keyword in label for keyword in ("延遲", "風險", "里程碑", "事故", "事件")):
+    if any(keyword in label for keyword in ("延遲", "事故", "事件")):
         return True
     return any(
         keyword in lowered
-        for keyword in ("delay", "risk", "milestone", "incident", "event", "window")
+        for keyword in ("delay", "incident", "event", "window")
     )
+
+
+def _looks_like_decision(label: str) -> bool:
+    lowered = label.lower()
+    if any(keyword in label for keyword in ("決策", "決定", "方案", "選擇")):
+        return True
+    return any(keyword in lowered for keyword in ("decision", "choice", "trade-off", "tradeoff"))
+
+
+def _looks_like_constraint(label: str) -> bool:
+    lowered = label.lower()
+    if any(keyword in label for keyword in ("限制", "約束", "邊界", "前提")):
+        return True
+    return any(keyword in lowered for keyword in ("constraint", "limitation", "boundary", "prerequisite"))
+
+
+def _looks_like_risk(label: str) -> bool:
+    lowered = label.lower()
+    if any(keyword in label for keyword in ("風險", "隱患", "漏洞", "威脅")):
+        return True
+    return any(keyword in lowered for keyword in ("risk", "vulnerability", "threat"))
+
+
+def _looks_like_milestone(label: str) -> bool:
+    lowered = label.lower()
+    if any(keyword in label for keyword in ("完成", "驗證", "通過", "上線", "里程碑")):
+        return True
+    return any(keyword in lowered for keyword in ("milestone", "completion", "verification", "release"))
 
 
 def _apply_contextual_graph_heuristics(
