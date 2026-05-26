@@ -209,11 +209,21 @@ _ENTRY_LINE_RE = re.compile(
     re.MULTILINE,
 )
 _DATE_HEADING_RE = re.compile(r"^#{1,6}\s+\d{4}-\d{2}-\d{2}\s*$", re.MULTILINE)
+_LLM_BOILERPLATE_RE = re.compile(
+    r'["“”]?\.\s*You can (?:now )?continue with these answers in mind[.!?]?'
+    r"|Please let me know if you (?:need|have|want).*?[.!?]"
+    r"|Feel free to (?:ask|reach|let).*?[.!?]"
+    r"|Let me know if (?:you|there).*?[.!?]"
+    r"|Hope this helps[.!?]?"
+    r"|Is there anything else[^.!?\n]*[.!?]?",
+    re.IGNORECASE,
+)
 
 
 def _clean_entry_text(text: str) -> str:
     cleaned = _ENTRY_LINE_RE.sub(r"\1", text)
     cleaned = _DATE_HEADING_RE.sub("", cleaned)
+    cleaned = _LLM_BOILERPLATE_RE.sub("", cleaned)
     return cleaned.strip()
 
 

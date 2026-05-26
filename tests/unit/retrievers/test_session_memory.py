@@ -57,6 +57,30 @@ class TestCleanEntryText:
         )
         assert _clean_entry_text(raw) == "Entry text"
 
+    def test_strips_llm_boilerplate_continue(self) -> None:
+        raw = 'Completed review". You can now continue with these answers in mind.'
+        result = _clean_entry_text(raw)
+        assert "continue with these answers" not in result
+        assert "Completed review" in result
+
+    def test_strips_llm_boilerplate_let_me_know(self) -> None:
+        raw = "Fixed the bug. Let me know if you need anything else."
+        result = _clean_entry_text(raw)
+        assert "Let me know" not in result
+        assert "Fixed the bug" in result
+
+    def test_strips_llm_boilerplate_feel_free(self) -> None:
+        raw = "Task done. Feel free to ask if you have questions."
+        result = _clean_entry_text(raw)
+        assert "Feel free" not in result
+        assert "Task done" in result
+
+    def test_strips_llm_boilerplate_question_tail(self) -> None:
+        raw = "Task done. Let me know if you have any questions?"
+        result = _clean_entry_text(raw)
+        assert "Let me know" not in result
+        assert "Task done" in result
+
 
 class TestPreferSessionMemoryCandidatesWorkspace:
     def test_filters_to_workspace_matched_candidates(self) -> None:
