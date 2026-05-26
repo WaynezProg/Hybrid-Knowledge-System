@@ -105,6 +105,36 @@ class VectorStore:
         if ids:
             self.collection.delete(ids=ids)
 
+    def get_by_metadata(
+        self,
+        where: dict[str, object],
+    ) -> list[SearchHit]:
+        if self.count() == 0:
+            return []
+        result = cast(
+            dict[str, Any],
+            self.collection.get(
+                where=cast(Any, where),
+                include=["documents", "metadatas"],
+            ),
+        )
+        ids = result.get("ids", [])
+        documents = result.get("documents", [])
+        metadatas = result.get("metadatas", [])
+        hits: list[SearchHit] = []
+        for chunk_id, document, metadata in zip(
+            ids, documents, metadatas, strict=False
+        ):
+            hits.append(
+                SearchHit(
+                    chunk_id=str(chunk_id),
+                    text=str(document),
+                    similarity=1.0,
+                    metadata=dict(metadata or {}),
+                )
+            )
+        return hits
+
     def search(self, query: str, *, top_k: int = 5) -> list[SearchHit]:
         if self.count() == 0:
             return []

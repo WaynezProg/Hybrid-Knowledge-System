@@ -151,6 +151,60 @@ def test_workspace_status_query_prefers_vector_over_wiki(
 
 
 @pytest.mark.integration
+def test_workspace_status_query_with_date_filters_vector_entries(
+    cli_runner,
+    tmp_path: Path,
+) -> None:
+    docs = tmp_path / "docs"
+    daily_dir = docs / "daily"
+    daily_dir.mkdir(parents=True)
+
+    (daily_dir / "2026-05-20.md").write_text(
+        "---\n"
+        "hks_type: session_daily\n"
+        "date: 2026-05-20\n"
+        "generator: session2memory\n"
+        "source_domain: coding_session\n"
+        "schema_version: 1\n"
+        "---\n"
+        "# 2026-05-20\n\n"
+        "## Entries\n"
+        "- [activity] old status entry "
+        "{workspace_id=social-bank-check-d61a68f0 memory_kind=activity "
+        "tool=codex session_id=s1 evidence_id=e000001 lines=10-10}\n",
+        encoding="utf-8",
+    )
+    (daily_dir / "2026-05-21.md").write_text(
+        "---\n"
+        "hks_type: session_daily\n"
+        "date: 2026-05-21\n"
+        "generator: session2memory\n"
+        "source_domain: coding_session\n"
+        "schema_version: 1\n"
+        "---\n"
+        "# 2026-05-21\n\n"
+        "## Entries\n"
+        "- [activity] latest status entry "
+        "{workspace_id=social-bank-check-d61a68f0 memory_kind=activity "
+        "tool=codex session_id=s2 evidence_id=e000002 lines=20-20}\n",
+        encoding="utf-8",
+    )
+
+    ingest = cli_runner.invoke(app, ["ingest", str(docs)])
+    assert ingest.exit_code == 0, ingest.stdout
+
+    result = cli_runner.invoke(
+        app,
+        ["query", "2026/5/21 social-bank-check 狀態", "--writeback=no"],
+    )
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert "latest status entry" in payload["answer"]
+    assert "old status entry" not in payload["answer"]
+
+
+@pytest.mark.integration
 def test_workspace_status_auto_writeback_stays_ineligible(
     cli_runner,
     tmp_path: Path,

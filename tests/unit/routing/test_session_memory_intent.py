@@ -66,6 +66,50 @@ def test_workspace_with_date_combines_both() -> None:
     assert intent.is_status_query is True
 
 
+def test_detects_single_word_workspace_in_status_query() -> None:
+    intent = analyze_session_memory_intent("hks 最後處理到哪")
+
+    assert intent is not None
+    assert intent.workspace == "hks"
+    assert intent.is_status_query is True
+
+
+def test_detects_uppercase_single_word_workspace_in_status_query() -> None:
+    intent = analyze_session_memory_intent("HKS 最後處理到哪")
+
+    assert intent is not None
+    assert intent.workspace == "hks"
+    assert intent.is_status_query is True
+
+
+def test_detects_single_word_workspace_near_english_status_keyword() -> None:
+    intent = analyze_session_memory_intent("what is hks status")
+
+    assert intent is not None
+    assert intent.workspace == "hks"
+    assert intent.is_status_query is True
+
+
+def test_detects_single_word_workspace_openclaw() -> None:
+    intent = analyze_session_memory_intent("openclaw 最後處理到哪")
+
+    assert intent is not None
+    assert intent.workspace == "openclaw"
+    assert intent.is_status_query is True
+
+
+def test_single_word_not_triggered_without_status_keyword() -> None:
+    intent = analyze_session_memory_intent("hks 做了什麼")
+
+    assert intent is None
+
+
+def test_single_word_excludes_status_keywords() -> None:
+    intent = analyze_session_memory_intent("status 最後處理到哪")
+
+    assert intent is None or intent.workspace is None
+
+
 def test_no_workspace_no_date_returns_none() -> None:
     intent = analyze_session_memory_intent("什麼是知識管理")
 

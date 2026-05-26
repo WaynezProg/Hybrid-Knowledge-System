@@ -3,6 +3,7 @@ from __future__ import annotations
 from hks.retrieval.evidence import candidate_evidence
 from hks.retrieval.models import Candidate
 from hks.retrievers.session_memory import (
+    _clean_entry_text,
     prefer_session_memory_candidates,
     synthesize_workspace_status,
 )
@@ -16,6 +17,45 @@ def _make_candidate(
     **meta: object,
 ) -> Candidate:
     return Candidate(text=text, source_route=route, score=score, metadata=dict(meta))
+
+
+class TestCleanEntryText:
+    def test_strips_entry_prefix_and_metadata_suffix(self) -> None:
+        raw = (
+            "- [tool_result] 完成了 compliance 審查 "
+            "(workspace_id:abc, evidence_id:def, tool:claude, session_id:ghi)"
+        )
+        assert _clean_entry_text(raw) == "完成了 compliance 審查"
+
+    def test_strips_brace_metadata(self) -> None:
+        raw = (
+            "- [tool_result] Content here "
+            "{workspace_id:abc, evidence_id:def, tool:claude, session_id:ghi}"
+        )
+        assert _clean_entry_text(raw) == "Content here"
+
+    def test_strips_date_heading(self) -> None:
+        raw = "# 2026-05-21\n\nSome content"
+        assert _clean_entry_text(raw) == "Some content"
+
+    def test_preserves_non_entry_lines(self) -> None:
+        raw = "Normal text without entry format"
+        assert _clean_entry_text(raw) == "Normal text without entry format"
+
+    def test_handles_embedded_parentheses(self) -> None:
+        raw = (
+            "- [tool_result] Reviewed items (3 of 5) for compliance "
+            "(workspace_id:abc, evidence_id:def, tool:claude, session_id:ghi)"
+        )
+        assert _clean_entry_text(raw) == "Reviewed items (3 of 5) for compliance"
+
+    def test_cleans_multiline_with_heading_and_entry(self) -> None:
+        raw = (
+            "# 2026-05-21\n\n"
+            "- [tool_result] Entry text "
+            "(workspace_id:abc, evidence_id:def, tool:claude, session_id:ghi)"
+        )
+        assert _clean_entry_text(raw) == "Entry text"
 
 
 class TestPreferSessionMemoryCandidatesWorkspace:
@@ -197,3 +237,28 @@ class TestSynthesizeWorkspaceStatus:
         )
 
         assert result is None
+
+    def test_cleans_entry_markup_in_synthesis(self) -> None:
+        intent = SessionMemoryIntent(
+            workspace="social-bank-check",
+            is_status_query=True,
+        )
+        raw_text = (
+            "- [tool_result] pytest 4 passed "
+            "(workspace_id:social-bank-check-d61a68f0, "
+            "evidence_id:ev1, tool:claude, session_id:s1)"
+        )
+        candidates = [
+            _make_candidate(
+                raw_text,
+                workspace_id="social-bank-check-d61a68f0",
+                date="2026-05-21",
+            ),
+        ]
+
+        result = synthesize_workspace_status(candidates, intent)
+
+        assert result is not None
+        assert "- [tool_result]" not in result.text
+        assert "workspace_id:" not in result.text
+        assert "pytest 4 passed" in result.text

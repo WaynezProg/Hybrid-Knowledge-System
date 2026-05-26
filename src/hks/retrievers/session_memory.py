@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from hks.core.schema import TraceStep
 from hks.retrieval.evidence import evidence_quote
 from hks.retrieval.models import Candidate
@@ -10,6 +12,7 @@ from hks.routing.session_memory import (
     metadata_matches_session_intent,
     workspace_id_matches,
 )
+from hks.storage.vector import VectorStore
 from hks.storage.wiki import WikiPage, WikiStore
 
 
@@ -90,6 +93,29 @@ def prefer_session_memory_candidates(
     return preferred, len(preferred)
 
 
+def collect_workspace_vector_entries(
+    *,
+    vector_store: VectorStore,
+    intent: SessionMemoryIntent,
+) -> list[Candidate]:
+    if not intent.workspace:
+        return []
+    hits = vector_store.get_by_metadata({"hks_type": "session_daily"})
+    candidates: list[Candidate] = []
+    for hit in hits:
+        if not metadata_matches_session_intent(hit.metadata, intent):
+            continue
+        candidates.append(
+            Candidate(
+                text=hit.text,
+                source_route="vector",
+                score=1.0,
+                metadata=dict(hit.metadata),
+            )
+        )
+    return candidates
+
+
 def synthesize_workspace_status(
     candidates: list[Candidate],
     intent: SessionMemoryIntent,
@@ -126,7 +152,7 @@ def synthesize_workspace_status(
             current_date = entry_date
             lines.append(f"### {current_date}")
 
-        text = candidate.text.strip()
+        text = _clean_entry_text(candidate.text.strip())
         if text:
             for line in text.splitlines():
                 stripped = line.strip()
@@ -178,8 +204,21 @@ def synthesize_workspace_status(
     )
 
 
+_ENTRY_LINE_RE = re.compile(
+    r"^\s*-\s+\[[^\]]+\]\s+(.+?)\s+(?:\([^)]*\)|\{[^}]*\})\s*$",
+    re.MULTILINE,
+)
+_DATE_HEADING_RE = re.compile(r"^#{1,6}\s+\d{4}-\d{2}-\d{2}\s*$", re.MULTILINE)
+
+
+def _clean_entry_text(text: str) -> str:
+    cleaned = _ENTRY_LINE_RE.sub(r"\1", text)
+    cleaned = _DATE_HEADING_RE.sub("", cleaned)
+    return cleaned.strip()
+
+
 def _answer_text(page: WikiPage) -> str:
     body = page.body.strip()
     if body:
-        return body
+        return _clean_entry_text(body)
     return f"{page.title}: {page.summary}"

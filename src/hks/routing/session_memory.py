@@ -34,6 +34,14 @@ _WORKSPACE_ID_EXPLICIT_RE = re.compile(
 
 _KEBAB_SLUG_RE = re.compile(r"\b(?P<slug>[a-z][a-z0-9]*(?:-[a-z0-9]+)+)\b")
 
+_SINGLE_WORD_WS_RE = re.compile(r"\b(?P<word>[a-z][a-z0-9]+)\b")
+
+_SINGLE_WORD_WS_EXCLUDED = frozenset({
+    "a", "about", "an", "are", "current", "for", "in", "is", "last", "latest",
+    "me", "now", "of", "on", "please", "progress", "run", "show", "status", "tell",
+    "the", "was", "were", "what", "when", "where", "which", "who", "workspace",
+})
+
 _STATUS_KEYWORDS = frozenset({
     "最後處理到哪", "處理到哪", "進度", "狀態", "目前狀態",
     "做到哪", "跑到哪", "完成了嗎", "做完了嗎",
@@ -56,6 +64,9 @@ def analyze_session_memory_intent(
 
     workspace = _extract_workspace(question)
     is_status = bool(_STATUS_KEYWORDS_RE.search(question))
+
+    if workspace is None and is_status:
+        workspace = _extract_single_word_workspace(question)
 
     explicit = _explicit_date_intent(question)
     if explicit is not None:
@@ -98,6 +109,33 @@ def _extract_workspace(question: str) -> str | None:
         return max(slugs, key=len)
 
     return None
+
+
+def _extract_single_word_workspace(question: str) -> str | None:
+    lowered = question.lower()
+    candidates = [
+        (match.group("word"), match.start(), match.end())
+        for match in _SINGLE_WORD_WS_RE.finditer(lowered)
+        if match.group("word") not in _SINGLE_WORD_WS_EXCLUDED
+    ]
+    if not candidates:
+        return None
+    keyword_spans = [
+        (match.start(), match.end())
+        for match in _STATUS_KEYWORDS_RE.finditer(question)
+    ]
+    if not keyword_spans:
+        return max((word for word, _, _ in candidates), key=len)
+
+    def candidate_key(candidate: tuple[str, int, int]) -> tuple[int, int, int]:
+        word, start, end = candidate
+        distance = min(
+            max(keyword_start - end, start - keyword_end, 0)
+            for keyword_start, keyword_end in keyword_spans
+        )
+        return distance, -len(word), start
+
+    return min(candidates, key=candidate_key)[0]
 
 
 def _explicit_date_intent(question: str) -> SessionMemoryIntent | None:

@@ -116,7 +116,7 @@ def _session_segments(
         segments.append(
             Segment(
                 kind="session_entry",
-                text=entry.group(0).strip(),
+                text=entry.group("text").strip(),
                 metadata=entry_metadata,
             )
         )

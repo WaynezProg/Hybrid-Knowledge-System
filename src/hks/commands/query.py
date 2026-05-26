@@ -19,6 +19,7 @@ from hks.retrievers.graph import collect_graph_candidates
 from hks.retrievers.page_tree import collect_page_tree_candidates
 from hks.retrievers.session_memory import (
     collect_session_memory_candidates,
+    collect_workspace_vector_entries,
     prefer_session_memory_candidates,
     synthesize_workspace_status,
 )
@@ -190,7 +191,11 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
         and session_intent.is_status_query
         and session_intent.workspace is not None
     ):
-        status_candidate = synthesize_workspace_status(ranked, session_intent)
+        workspace_entries = collect_workspace_vector_entries(
+            vector_store=vector_store,
+            intent=session_intent,
+        )
+        status_candidate = synthesize_workspace_status(workspace_entries, session_intent)
         if status_candidate is not None:
             steps.append(
                 TraceStep(
