@@ -138,7 +138,7 @@
         "candidate_id": { "type": "string", "minLength": 1 },
         "type": {
           "type": "string",
-          "enum": ["Person", "Project", "Document", "Event", "Concept"]
+          "enum": ["Person", "Project", "Document", "Event", "Concept", "Decision", "Constraint", "Risk", "Milestone"]
         },
         "label": { "type": "string", "minLength": 1 },
         "aliases": {

@@ -8,6 +8,7 @@ from typing import Any
 from hks.commands import ingest as ingest_command
 from hks.core.runtime_context import scoped_ks_root
 from hks.core.schema import QueryResponse, Trace, TraceStep
+from hks.errors import ExitCode, KSError
 from hks.ingest.parsers.md import _split_frontmatter
 from hks.workspace.service import ensure_workspace
 
@@ -31,10 +32,26 @@ def run_routed_ingest(
     registry_path_value: str | Path | None = None,
 ) -> QueryResponse:
     source_dir = path.resolve()
+    if not source_dir.exists():
+        raise KSError(
+            f"路徑不存在：{source_dir}",
+            exit_code=ExitCode.NOINPUT,
+            code="NOINPUT",
+            hint="確認檔案或目錄路徑正確",
+            route="wiki",
+        )
     if source_dir.is_file():
         files = [source_dir]
     else:
         files = sorted(f for f in source_dir.rglob("*") if f.is_file())
+    if not files:
+        raise KSError(
+            f"目錄中沒有可 ingest 的檔案：{source_dir}",
+            exit_code=ExitCode.NOINPUT,
+            code="NOINPUT",
+            hint="確認目錄包含可處理的檔案",
+            route="wiki",
+        )
 
     groups: dict[str | None, list[Path]] = defaultdict(list)
     for file in files:

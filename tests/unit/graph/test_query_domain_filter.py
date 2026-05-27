@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from hks.graph.query import answer_query
-from hks.graph.store import GraphEdge, GraphNode, GraphPayload, GraphStore
+from hks.graph.store import GraphEdge, GraphNode, GraphPayload
 
 
 def _payload_with_document_and_domain() -> GraphPayload:

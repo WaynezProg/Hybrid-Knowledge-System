@@ -4,11 +4,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from typer.testing import CliRunner
 
 from hks.cli import app
-from hks.workspace.registry import load_registry
 
 runner = CliRunner()
 

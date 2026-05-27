@@ -22,7 +22,7 @@ def registry_path(path: str | Path | None = None) -> Path:
     if env_path:
         return Path(env_path).expanduser().resolve(strict=False)
     project_local = Path.cwd() / ".hks-runs" / "workspaces.json"
-    if project_local.exists():
+    if project_local.exists() or project_local.parent.exists():
         return project_local.resolve(strict=False)
     xdg_config = os.environ.get("XDG_CONFIG_HOME")
     if xdg_config:
