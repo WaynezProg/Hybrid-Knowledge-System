@@ -194,6 +194,13 @@ def ingest(
         str | None,
         typer.Option("-w", "--workspace", help="Workspace id — ingest into its KS_ROOT."),
     ] = None,
+    workspace_route: Annotated[
+        bool,
+        typer.Option(
+            "--workspace-route",
+            help="Auto-route files by frontmatter workspace_id.",
+        ),
+    ] = False,
     registry_path_opt: Annotated[
         Path | None,
         typer.Option("--registry-path", help="Explicit workspace registry path."),
@@ -207,7 +214,23 @@ def ingest(
     except ValueError as error:
         raise typer.Exit(code=_emit_usage_error("ingest", str(error))) from error
 
-    if workspace:
+    if workspace and workspace_route:
+        raise typer.Exit(
+            code=_emit_usage_error("ingest", "-w and --workspace-route are mutually exclusive")
+        )
+
+    if workspace_route:
+        from hks.commands.ingest_router import run_routed_ingest
+
+        run_command(
+            "ingest",
+            run_routed_ingest,
+            path,
+            prune=prune,
+            pptx_notes=pptx_notes == PptxNotesMode.include,
+            registry_path_value=registry_path_opt,
+        )
+    elif workspace:
         from hks.core.runtime_context import scoped_ks_root
         from hks.workspace.service import get_workspace
 
