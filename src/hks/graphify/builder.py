@@ -11,18 +11,31 @@ from slugify import slugify
 from hks.core.manifest import load_manifest, utc_now_iso
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.errors import ExitCode, KSError
-from hks.graph.store import GraphPayload, GraphStore
+from hks.graph.store import EntityType, GraphPayload, GraphStore
 from hks.graphify.clustering import cluster
 from hks.graphify.models import (
     GraphifyAuditFinding,
     GraphifyEdge,
     GraphifyGraph,
     GraphifyNode,
+    GraphifyNodeKind,
     GraphifyProvenance,
     GraphifySourceLayer,
 )
 from hks.graphify.validation import validate_graph
 from hks.storage.wiki import WikiPage
+
+_ENTITY_TYPE_TO_KIND: dict[EntityType, GraphifyNodeKind] = {
+    "Person": "person",
+    "Project": "project",
+    "Document": "entity",
+    "Event": "event",
+    "Concept": "concept",
+    "Decision": "decision",
+    "Constraint": "constraint",
+    "Risk": "risk",
+    "Milestone": "milestone",
+}
 
 
 def build_graph(paths: RuntimePaths | None = None, *, include_artifacts: bool = False) -> tuple[GraphifyGraph, str, list[str]]:
@@ -102,11 +115,12 @@ def build_graph(paths: RuntimePaths | None = None, *, include_artifacts: bool = 
         graphify_id = _node_id("graph", node.id)
         if node.type == "Document":
             document_entity_ids.add(graphify_id)
+        node_kind = _ENTITY_TYPE_TO_KIND.get(node.type, "entity")
         nodes.append(
             GraphifyNode(
                 id=graphify_id,
                 label=node.label,
-                kind="entity",
+                kind=node_kind,
                 source_layer="graph",
                 source_ref=node.id,
                 provenance=GraphifyProvenance(

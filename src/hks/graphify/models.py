@@ -11,7 +11,10 @@ from hks.llm.models import LlmProviderConfig
 
 type GraphifyMode = Literal["preview", "store"]
 type GraphifyRunStatus = Literal["valid", "invalid", "partial"]
-type GraphifyNodeKind = Literal["source", "wiki_page", "entity", "concept", "artifact", "community"]
+type GraphifyNodeKind = Literal[
+    "source", "wiki_page", "entity", "concept", "artifact", "community",
+    "person", "project", "event", "decision", "constraint", "risk", "milestone",
+]
 type GraphifySourceLayer = Literal["wiki", "graph", "llm_extraction", "llm_wiki", "graphify"]
 type GraphifyEvidence = Literal["EXTRACTED", "INFERRED", "AMBIGUOUS"]
 type GraphifyFindingSeverity = Literal["info", "warning", "error"]
