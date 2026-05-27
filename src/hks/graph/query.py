@@ -26,16 +26,30 @@ def answer_query(question: str, graph_store: GraphStore | None = None) -> GraphQ
     if not payload.edges:
         return None
 
+    # Filter out Document-type nodes and edges touching them — only
+    # domain nodes (Concept, Event, Person, …) should participate in query.
+    domain_nodes = {
+        nid: node for nid, node in payload.nodes.items() if node.type != "Document"
+    }
+    domain_edges = {
+        eid: edge
+        for eid, edge in payload.edges.items()
+        if edge.source in domain_nodes and edge.target in domain_nodes
+    }
+    filtered = GraphPayload(version=payload.version, nodes=domain_nodes, edges=domain_edges)
+    if not filtered.edges:
+        return None
+
     desired_relations = _desired_relations(question)
     if not desired_relations:
         return None
-    node_scores = _score_nodes(question, payload)
-    edge_scores = _score_edges(question, payload, node_scores, desired_relations)
+    node_scores = _score_nodes(question, filtered)
+    edge_scores = _score_edges(question, filtered, node_scores, desired_relations)
     if not edge_scores:
         return None
 
     ranked = sorted(edge_scores.items(), key=lambda item: item[1], reverse=True)
-    ranked_edges = [payload.edges[edge_id] for edge_id, score in ranked if score > 0]
+    ranked_edges = [filtered.edges[edge_id] for edge_id, score in ranked if score > 0]
     if desired_relations:
         desired_edges = [edge for edge in ranked_edges if edge.relation in desired_relations]
         if desired_edges:
@@ -44,7 +58,7 @@ def answer_query(question: str, graph_store: GraphStore | None = None) -> GraphQ
     if not top_edges:
         return None
 
-    answer = _render_answer(question, payload, top_edges)
+    answer = _render_answer(question, filtered, top_edges)
     relpaths = sorted({edge.source_relpath for edge in top_edges})
     node_ids = sorted({edge.source for edge in top_edges} | {edge.target for edge in top_edges})
     relations = sorted({edge.relation for edge in top_edges})
