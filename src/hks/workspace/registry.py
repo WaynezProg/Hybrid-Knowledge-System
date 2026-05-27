@@ -30,6 +30,11 @@ def registry_path(path: str | Path | None = None) -> Path:
     return (Path.home() / ".config" / "hks" / "workspaces.json").resolve(strict=False)
 
 
+def default_ks_root(workspace_id: str) -> Path:
+    """Convention: `<cwd>/.hks-runs/<workspace_id>/ks`."""
+    return (Path.cwd() / ".hks-runs" / workspace_id / "ks").resolve(strict=False)
+
+
 def empty_registry() -> WorkspaceRegistry:
     return WorkspaceRegistry(schema_version=SCHEMA_VERSION, updated_at=utc_now_iso(), workspaces={})
 
