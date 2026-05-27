@@ -96,10 +96,15 @@ def build_graph(paths: RuntimePaths | None = None, *, include_artifacts: bool = 
                 )
             )
 
+    # Track Document-type entity node IDs for domain filtering
+    document_entity_ids: set[str] = set()
     for node in graph_payload.nodes.values():
+        graphify_id = _node_id("graph", node.id)
+        if node.type == "Document":
+            document_entity_ids.add(graphify_id)
         nodes.append(
             GraphifyNode(
-                id=_node_id("graph", node.id),
+                id=graphify_id,
                 label=node.label,
                 kind="entity",
                 source_layer="graph",
@@ -146,6 +151,10 @@ def build_graph(paths: RuntimePaths | None = None, *, include_artifacts: bool = 
             hint="run `ks ingest <path>` first",
             route="graph",
         )
+
+    # Domain-only filtering: exclude storage artifact nodes when not requested
+    if not include_artifacts:
+        nodes, edges = _filter_domain_only(nodes, edges, document_entity_ids)
 
     deduped_nodes = _dedupe_nodes(nodes)
     clustered_nodes, communities = cluster(deduped_nodes, _dedupe_edges(edges))
@@ -230,6 +239,29 @@ def _edge(
         source_ref=source_ref,
         rationale=rationale,
     )
+
+
+def _filter_domain_only(
+    nodes: list[GraphifyNode],
+    edges: list[GraphifyEdge],
+    document_entity_ids: set[str],
+) -> tuple[list[GraphifyNode], list[GraphifyEdge]]:
+    """Keep only domain graph nodes (non-Document entities), drop artifact layers.
+
+    Artifact nodes (kind=source, kind=wiki_page) and Document-type entity nodes
+    are removed. Edges are kept only when both endpoints survive filtering.
+    """
+    _ARTIFACT_KINDS: set[str] = {"source", "wiki_page"}
+    domain_nodes = [
+        n for n in nodes
+        if n.kind not in _ARTIFACT_KINDS and n.id not in document_entity_ids
+    ]
+    domain_ids = {n.id for n in domain_nodes}
+    domain_edges = [
+        e for e in edges
+        if e.source in domain_ids and e.target in domain_ids
+    ]
+    return domain_nodes, domain_edges
 
 
 def _dedupe_nodes(nodes: list[GraphifyNode]) -> list[GraphifyNode]:
