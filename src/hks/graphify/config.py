@@ -35,6 +35,7 @@ def build_request(
     algorithm_version: str | None = None,
     include_html: bool = True,
     include_report: bool = True,
+    include_artifacts: bool = False,
     force_new_run: bool = False,
     requested_by: str | None = None,
 ) -> GraphifyRequest:
@@ -44,6 +45,7 @@ def build_request(
         algorithm_version=algorithm_version or DEFAULT_ALGORITHM_VERSION,
         include_html=include_html,
         include_report=include_report,
+        include_artifacts=include_artifacts,
         force_new_run=force_new_run,
         requested_by=requested_by,
     )

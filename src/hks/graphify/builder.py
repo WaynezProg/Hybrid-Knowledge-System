@@ -25,7 +25,7 @@ from hks.graphify.validation import validate_graph
 from hks.storage.wiki import WikiPage
 
 
-def build_graph(paths: RuntimePaths | None = None) -> tuple[GraphifyGraph, str, list[str]]:
+def build_graph(paths: RuntimePaths | None = None, *, include_artifacts: bool = False) -> tuple[GraphifyGraph, str, list[str]]:
     resolved = paths or runtime_paths()
     _assert_runtime_ready(resolved)
     manifest = load_manifest(resolved.manifest)

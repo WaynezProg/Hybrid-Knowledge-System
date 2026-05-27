@@ -13,7 +13,7 @@ from hks.graphify.validation import validate_result
 
 def build(request: Any) -> GraphifyResult:
     paths = runtime_paths()
-    graph, input_fingerprint, source = build_graph(paths)
+    graph, input_fingerprint, source = build_graph(paths, include_artifacts=request.include_artifacts)
     if request.mode == "preview":
         return validate_result(
             GraphifyResult(
