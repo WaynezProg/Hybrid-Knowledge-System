@@ -190,6 +190,14 @@ def ingest(
             help="Include or exclude pptx speaker notes (default: include).",
         ),
     ] = PptxNotesMode.include,
+    workspace: Annotated[
+        str | None,
+        typer.Option("-w", "--workspace", help="Workspace id — ingest into its KS_ROOT."),
+    ] = None,
+    registry_path_opt: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
 ) -> None:
     from hks.ingest.guards import load_image_limits, load_office_limits
 
@@ -198,13 +206,28 @@ def ingest(
         load_image_limits()
     except ValueError as error:
         raise typer.Exit(code=_emit_usage_error("ingest", str(error))) from error
-    run_command(
-        "ingest",
-        ingest_command.run,
-        path,
-        prune=prune,
-        pptx_notes=pptx_notes == PptxNotesMode.include,
-    )
+
+    if workspace:
+        from hks.core.runtime_context import scoped_ks_root
+        from hks.workspace.service import get_workspace
+
+        record, status = get_workspace(workspace, registry_path_value=registry_path_opt)
+        with scoped_ks_root(record.ks_root):
+            run_command(
+                "ingest",
+                ingest_command.run,
+                path,
+                prune=prune,
+                pptx_notes=pptx_notes == PptxNotesMode.include,
+            )
+    else:
+        run_command(
+            "ingest",
+            ingest_command.run,
+            path,
+            prune=prune,
+            pptx_notes=pptx_notes == PptxNotesMode.include,
+        )
 
 
 def _emit_usage_error(command: str, message: str) -> int:
