@@ -395,7 +395,10 @@ def _looks_like_constraint(label: str) -> bool:
     lowered = label.lower()
     if any(keyword in label for keyword in ("限制", "約束", "邊界", "前提")):
         return True
-    return any(keyword in lowered for keyword in ("constraint", "limitation", "boundary", "prerequisite"))
+    return any(
+        keyword in lowered
+        for keyword in ("constraint", "limitation", "boundary", "prerequisite")
+    )
 
 
 def _looks_like_risk(label: str) -> bool:
@@ -409,7 +412,10 @@ def _looks_like_milestone(label: str) -> bool:
     lowered = label.lower()
     if any(keyword in label for keyword in ("完成", "驗證", "通過", "上線", "里程碑")):
         return True
-    return any(keyword in lowered for keyword in ("milestone", "completion", "verification", "release"))
+    return any(
+        keyword in lowered
+        for keyword in ("milestone", "completion", "verification", "release")
+    )
 
 
 def _apply_contextual_graph_heuristics(

@@ -38,7 +38,11 @@ _ENTITY_TYPE_TO_KIND: dict[EntityType, GraphifyNodeKind] = {
 }
 
 
-def build_graph(paths: RuntimePaths | None = None, *, include_artifacts: bool = False) -> tuple[GraphifyGraph, str, list[str]]:
+def build_graph(
+    paths: RuntimePaths | None = None,
+    *,
+    include_artifacts: bool = False,
+) -> tuple[GraphifyGraph, str, list[str]]:
     resolved = paths or runtime_paths()
     _assert_runtime_ready(resolved)
     manifest = load_manifest(resolved.manifest)

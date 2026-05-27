@@ -55,7 +55,11 @@ def run_routed_ingest(
                         pptx_notes=pptx_notes,
                         source_root_override=file.parent,
                     )
-            results.append({"workspace_id": wid, "files": len(group_files), "ks_root": record.ks_root})
+            results.append({
+                "workspace_id": wid,
+                "files": len(group_files),
+                "ks_root": record.ks_root,
+            })
         else:
             for file in group_files:
                 ingest_command.run(
