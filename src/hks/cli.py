@@ -278,8 +278,26 @@ def query(
             help="Override write-back behavior.",
         ),
     ] = WritebackMode.no,
+    workspace: Annotated[
+        str | None,
+        typer.Option("-w", "--workspace", help="Workspace id — query its KS_ROOT."),
+    ] = None,
+    registry_path_opt: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
 ) -> None:
-    run_command("query", query_command.run, question, writeback=writeback.value)
+    if workspace:
+        run_command(
+            "query",
+            workspace_command.run_query,
+            workspace,
+            question,
+            writeback=writeback.value,
+            registry_path=registry_path_opt,
+        )
+    else:
+        run_command("query", query_command.run, question, writeback=writeback.value)
 
 
 @app.command(
@@ -330,6 +348,14 @@ def source_list(
         Path | None,
         typer.Option("--ks-root", help="Explicit HKS runtime root."),
     ] = None,
+    workspace: Annotated[
+        str | None,
+        typer.Option("-w", "--workspace", help="Workspace id — use its KS_ROOT."),
+    ] = None,
+    registry_path_opt: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
     format: Annotated[
         str | None,
         typer.Option("--format", help="Filter by source format."),
@@ -341,10 +367,16 @@ def source_list(
     limit: Annotated[int | None, typer.Option("--limit", help="Maximum rows.")] = None,
     offset: Annotated[int | None, typer.Option("--offset", help="Rows to skip.")] = None,
 ) -> None:
+    resolved_root = ks_root
+    if workspace:
+        from hks.workspace.service import get_workspace
+
+        record, _ = get_workspace(workspace, registry_path_value=registry_path_opt)
+        resolved_root = Path(record.ks_root)
     run_command(
         "source list",
         source_command.run_list,
-        ks_root=ks_root,
+        ks_root=resolved_root,
         format=format,
         relpath_query=relpath_query,
         limit=limit,
@@ -359,8 +391,22 @@ def source_show(
         Path | None,
         typer.Option("--ks-root", help="Explicit HKS runtime root."),
     ] = None,
+    workspace: Annotated[
+        str | None,
+        typer.Option("-w", "--workspace", help="Workspace id — use its KS_ROOT."),
+    ] = None,
+    registry_path_opt: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
 ) -> None:
-    run_command("source show", source_command.run_show, relpath, ks_root=ks_root)
+    resolved_root = ks_root
+    if workspace:
+        from hks.workspace.service import get_workspace
+
+        record, _ = get_workspace(workspace, registry_path_value=registry_path_opt)
+        resolved_root = Path(record.ks_root)
+    run_command("source show", source_command.run_show, relpath, ks_root=resolved_root)
 
 
 @workspace_app.command("list")
