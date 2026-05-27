@@ -102,10 +102,12 @@ Phase 1-3 已完成；現在的重點是避免回歸，不是阻止已完成能�
 
 ## Graph schema
 
-穩定最小集合，擴充前需更新 [docs/main.md](docs/main.md) 與 contract tests：
+Entity 與 Relation type 定義於 `src/hks/graph/store.py`，擴充前需更新 [docs/main.md](docs/main.md) 與 contract tests：
 
-- Entity：`Person` / `Project` / `Document` / `Event` / `Concept`
-- Relation：`owns` / `depends_on` / `impacts` / `references` / `belongs_to`
+- Entity：`Person` / `Project` / `Document` / `Event` / `Concept` / `Decision` / `Constraint` / `Risk` / `Milestone`
+- Relation：`owns` / `depends_on` / `impacts` / `references` / `belongs_to` / `causes` / `contradicts` / `succeeds`
+
+> `Document` type 僅作 provenance 追蹤。Graph query 與 Graphify HTML 預設排除 Document 節點（domain-only filtering）。`ks graphify build --include-artifacts` 可顯示完整圖。
 
 ## Non-goals
 
@@ -135,6 +137,11 @@ Phase 1-3 已完成；現在的重點是避免回歸，不是阻止已完成能�
 - 012 read-only source catalog over `manifest.json`; workspace registry persisted through `HKS_WORKSPACE_REGISTRY` / XDG config, not inside `KS_ROOT`
 
 ## Recent Changes
+- Workspace isolation: `-w`/`--workspace` flag 讓 ingest/source/query/graphify 走 workspace-scoped KS_ROOT（`.hks-runs/<wid>/ks`）；`--workspace-route` 依 frontmatter 自動分流
+- Domain graph filtering: graph query 與 Graphify HTML 預設排除 Document type 節點；`--include-artifacts` 可顯示完整圖
+- EntityType 擴充至 9 types：新增 `Decision` / `Constraint` / `Risk` / `Milestone`
+- Graphify entity 分色：Person/Project/Event/Decision/Constraint/Risk/Milestone 各有獨立顏色
+- Registry path 優先順序調整：project-local `.hks-runs/workspaces.json` 優先於 XDG
 - Fused retrieval: query 同時從 wiki / graph / vector / page_tree 收集 candidates，LLM reranker 排序（RRF fallback）；response 新增 `evidence[]` 溯源
 - OpenAI-compatible LLM provider: env-gated `openai` provider for classify / synthesize / graphify / enrich
 - Obsidian compatibility: frontmatter 全面 JSON-quoted，writeback link text escape `[]\`
