@@ -187,3 +187,50 @@ def test_metadata_no_workspace_id_rejected_for_workspace_intent() -> None:
     metadata = {"source_relpath": "daily/2026-05-21.md", "slug": "2026-05-21"}
 
     assert metadata_matches_session_intent(metadata, intent) is False
+
+
+def test_session_memory_intent_to_detail_includes_date_range() -> None:
+    from hks.routing.session_memory import SessionMemoryIntent
+
+    intent = SessionMemoryIntent(
+        date_start="2026-05-25",
+        date_end="2026-05-27",
+    )
+    detail = intent.to_detail()
+
+    assert detail["date_start"] == "2026-05-25"
+    assert detail["date_end"] == "2026-05-27"
+    assert detail["date"] is None
+
+
+def test_metadata_matches_date_range_inclusive() -> None:
+    from hks.routing.session_memory import SessionMemoryIntent
+
+    intent = SessionMemoryIntent(date_start="2026-05-25", date_end="2026-05-27")
+    session_meta = {
+        "hks_type": "session_daily",
+        "date": "2026-05-26",
+        "source_relpath": "daily/2026-05-26.md",
+    }
+
+    assert metadata_matches_session_intent(session_meta, intent) is True
+    assert metadata_matches_session_intent({**session_meta, "date": "2026-05-24"}, intent) is False
+    assert metadata_matches_session_intent({**session_meta, "date": "2026-05-28"}, intent) is False
+
+
+def test_metadata_workspace_with_date_range() -> None:
+    from hks.routing.session_memory import SessionMemoryIntent
+
+    intent = SessionMemoryIntent(
+        workspace="social-bank-check",
+        date_start="2026-05-25",
+        date_end="2026-05-27",
+    )
+    in_range = {
+        "workspace_id": "social-bank-check-d61a68f0",
+        "date": "2026-05-26",
+    }
+    out_range = {**in_range, "date": "2026-05-20"}
+
+    assert metadata_matches_session_intent(in_range, intent) is True
+    assert metadata_matches_session_intent(out_range, intent) is False

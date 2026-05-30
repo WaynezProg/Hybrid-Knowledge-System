@@ -288,3 +288,61 @@ def test_workspace_query_without_status_keyword_still_filters(
     payload = json.loads(result.stdout)
 
     assert "HKS vector retrieval" not in payload["answer"]
+
+
+@pytest.mark.integration
+def test_session_memory_date_range_query_synthesizes_three_days(
+    cli_runner,
+    tmp_path: Path,
+) -> None:
+    docs = tmp_path / "docs"
+    daily_dir = docs / "daily"
+    daily_dir.mkdir(parents=True)
+
+    fixtures = {
+        "2026-05-25": "project-alpha step one done",
+        "2026-05-26": "project-alpha step two done",
+        "2026-05-27": "project-beta step three done",
+    }
+    for day, snippet in fixtures.items():
+        (daily_dir / f"{day}.md").write_text(
+            "---\n"
+            f"hks_type: session_daily\n"
+            f"date: {day}\n"
+            "generator: session2memory\n"
+            "source_domain: coding_session\n"
+            "schema_version: 1\n"
+            "---\n"
+            f"# {day}\n\n"
+            "## Entries\n"
+            f"- [activity] {snippet} "
+            "{workspace_id=demo-project memory_kind=activity tool=codex "
+            "session_id=s1 evidence_id=e000001 lines=1-1}\n",
+            encoding="utf-8",
+        )
+
+    ingest = cli_runner.invoke(app, ["ingest", str(docs)])
+    assert ingest.exit_code == 0, ingest.stdout
+
+    result = cli_runner.invoke(
+        app,
+        ["query", "25~27 之間 project 做了哪些事情", "--writeback=no"],
+    )
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+
+    for day in fixtures:
+        assert day in payload["answer"]
+        assert fixtures[day] in payload["answer"]
+
+    evidence_paths = {item["source_relpath"] for item in payload["evidence"]}
+    assert evidence_paths >= {
+        "daily/2026-05-25.md",
+        "daily/2026-05-26.md",
+        "daily/2026-05-27.md",
+    }
+
+    assert any(
+        step.get("kind") == "date_range_synthesis"
+        for step in payload["trace"]["steps"]
+    )

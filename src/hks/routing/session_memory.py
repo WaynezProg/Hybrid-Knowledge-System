@@ -6,16 +6,25 @@ import re
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from hks.routing.session_memory_dates import parse_session_memory_date_range
+
 
 @dataclass(frozen=True, slots=True)
 class SessionMemoryIntent:
     date: str | None = None
     date_prefix: str | None = None
+    date_start: str | None = None
+    date_end: str | None = None
     workspace: str | None = None
     is_status_query: bool = False
 
     def to_detail(self) -> dict[str, object]:
-        detail: dict[str, object] = {"date": self.date, "date_prefix": self.date_prefix}
+        detail: dict[str, object] = {
+            "date": self.date,
+            "date_prefix": self.date_prefix,
+            "date_start": self.date_start,
+            "date_end": self.date_end,
+        }
         if self.workspace is not None:
             detail["workspace"] = self.workspace
         if self.is_status_query:
@@ -67,6 +76,15 @@ def analyze_session_memory_intent(
 
     if workspace is None and is_status:
         workspace = _extract_single_word_workspace(question)
+
+    parsed_range = parse_session_memory_date_range(question, today=current_date)
+    if parsed_range is not None:
+        return SessionMemoryIntent(
+            date_start=parsed_range.date_start,
+            date_end=parsed_range.date_end,
+            workspace=workspace,
+            is_status_query=is_status,
+        )
 
     explicit = _explicit_date_intent(question)
     if explicit is not None:
@@ -172,6 +190,8 @@ def _metadata_matches_date(
     date_text = date_value if isinstance(date_value, str) else ""
     if intent.date is not None:
         return date_text == intent.date
+    if intent.date_start is not None and intent.date_end is not None:
+        return intent.date_start <= date_text <= intent.date_end
     if intent.date_prefix is not None:
         return date_text.startswith(intent.date_prefix)
     return True
@@ -189,6 +209,9 @@ def _metadata_matches_workspace(
     if intent.date is not None:
         date_text = str(metadata.get("date") or "")
         return date_text == intent.date
+    if intent.date_start is not None and intent.date_end is not None:
+        date_text = str(metadata.get("date") or "")
+        return intent.date_start <= date_text <= intent.date_end
     return True
 
 

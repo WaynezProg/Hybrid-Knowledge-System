@@ -5,6 +5,7 @@ from hks.retrieval.models import Candidate
 from hks.retrievers.session_memory import (
     _clean_entry_text,
     prefer_session_memory_candidates,
+    synthesize_date_range_summary,
     synthesize_workspace_status,
 )
 from hks.routing.session_memory import SessionMemoryIntent
@@ -286,3 +287,39 @@ class TestSynthesizeWorkspaceStatus:
         assert "- [tool_result]" not in result.text
         assert "workspace_id:" not in result.text
         assert "pytest 4 passed" in result.text
+
+
+def test_synthesize_date_range_summary_groups_by_date() -> None:
+    intent = SessionMemoryIntent(
+        date_start="2026-05-25",
+        date_end="2026-05-27",
+    )
+    candidates = [
+        _make_candidate(
+            "alpha project work",
+            route="wiki",
+            score=1.0,
+            date="2026-05-25",
+            source_relpath="daily/2026-05-25.md",
+            hks_type="session_daily",
+        ),
+        _make_candidate(
+            "beta project work",
+            route="wiki",
+            score=1.0,
+            date="2026-05-27",
+            source_relpath="daily/2026-05-27.md",
+            hks_type="session_daily",
+        ),
+    ]
+    result = synthesize_date_range_summary(candidates, intent)
+    assert result is not None
+    assert "2026-05-25" in result.text
+    assert "2026-05-27" in result.text
+    assert "alpha project work" in result.text
+    assert "beta project work" in result.text
+    assert result.metadata.get("synthesis_kind") == "date_range"
+    evidence_items = result.metadata.get("_hks_evidence_items")
+    assert isinstance(evidence_items, list)
+    assert len(evidence_items) == 2
+    assert result.score == 1.0
