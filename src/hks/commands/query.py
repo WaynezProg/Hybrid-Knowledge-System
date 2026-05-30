@@ -20,7 +20,9 @@ from hks.retrievers.page_tree import collect_page_tree_candidates
 from hks.retrievers.session_memory import (
     collect_session_memory_candidates,
     collect_workspace_vector_entries,
+    is_date_range_intent,
     prefer_session_memory_candidates,
+    synthesize_date_range_summary,
     synthesize_workspace_status,
 )
 from hks.retrievers.vector import collect_vector_candidates
@@ -170,22 +172,6 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
             )
         )
 
-    ranked, strategy, rerank_detail = rerank_candidates(question, all_candidates)
-    steps.append(TraceStep(kind="rerank", detail=rerank_detail))
-    steps.append(
-        TraceStep(
-            kind="merge",
-            detail={
-                "strategy": strategy,
-                "candidate_count": len(all_candidates),
-                "top_candidate": {
-                    "route": ranked[0].source_route,
-                    "score": ranked[0].score,
-                },
-            },
-        )
-    )
-
     if (
         session_intent is not None
         and session_intent.is_status_query
@@ -232,6 +218,62 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
                 wiki_store=wiki_store,
                 assessment=assessment,
             )
+
+    if session_intent is not None and is_date_range_intent(session_intent):
+        range_summary = synthesize_date_range_summary(session_candidates, session_intent)
+        if range_summary is not None:
+            steps.append(
+                TraceStep(
+                    kind="date_range_synthesis",
+                    detail={
+                        "date_start": session_intent.date_start,
+                        "date_end": session_intent.date_end,
+                        "entry_count": range_summary.metadata.get("entry_count"),
+                        "source_relpaths": range_summary.metadata.get("source_relpaths"),
+                    },
+                )
+            )
+            evidence = candidate_evidence(range_summary)
+            assessment = ConfidenceAssessment(
+                retrieval_score=range_summary.score,
+                calibrated_confidence=range_summary.score,
+                writeback_eligible=False,
+                auto_threshold=999.0,
+                reasons=["date range synthesis is not auto-writeback eligible"],
+            )
+            response = QueryResponse(
+                answer=range_summary.text,
+                source=[range_summary.source_route],
+                confidence=assessment.calibrated_confidence,
+                trace=Trace(route=range_summary.source_route, steps=steps),
+                evidence=evidence,
+                retrieval_score=assessment.retrieval_score,
+                calibrated_confidence=assessment.calibrated_confidence,
+                writeback_eligible=assessment.writeback_eligible,
+            )
+            return _maybe_writeback(
+                question=question,
+                response=response,
+                writeback=writeback,
+                wiki_store=wiki_store,
+                assessment=assessment,
+            )
+
+    ranked, strategy, rerank_detail = rerank_candidates(question, all_candidates)
+    steps.append(TraceStep(kind="rerank", detail=rerank_detail))
+    steps.append(
+        TraceStep(
+            kind="merge",
+            detail={
+                "strategy": strategy,
+                "candidate_count": len(all_candidates),
+                "top_candidate": {
+                    "route": ranked[0].source_route,
+                    "score": ranked[0].score,
+                },
+            },
+        )
+    )
 
     winner = ranked[0]
     if not _passes_final_score_gate(winner, requested_route=decision.route):

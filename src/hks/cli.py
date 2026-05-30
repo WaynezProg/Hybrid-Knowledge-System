@@ -18,6 +18,7 @@ from hks.commands import lint as lint_command
 from hks.commands import llm as llm_command
 from hks.commands import pageindex as pageindex_command
 from hks.commands import query as query_command
+from hks.commands import session_memory as session_memory_command
 from hks.commands import source as source_command
 from hks.commands import update as update_command
 from hks.commands import watch as watch_command
@@ -39,6 +40,7 @@ graphify_app = typer.Typer(add_completion=False, no_args_is_help=True)
 watch_app = typer.Typer(add_completion=False, no_args_is_help=True)
 pageindex_app = typer.Typer(add_completion=False, no_args_is_help=True)
 source_app = typer.Typer(add_completion=False, no_args_is_help=True)
+session_memory_app = typer.Typer(add_completion=False, no_args_is_help=True)
 workspace_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_session_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_lease_app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -53,6 +55,7 @@ app.add_typer(graphify_app, name="graphify")
 app.add_typer(watch_app, name="watch")
 app.add_typer(pageindex_app, name="pageindex")
 app.add_typer(source_app, name="source")
+app.add_typer(session_memory_app, name="session-memory")
 app.add_typer(workspace_app, name="workspace")
 
 
@@ -315,6 +318,24 @@ def source_show(
     ] = None,
 ) -> None:
     run_command("source show", source_command.run_show, relpath, ks_root=ks_root)
+
+
+@session_memory_app.command("summary")
+def session_memory_summary(
+    date_from: Annotated[str, typer.Option("--from", help="Start date (YYYY-MM-DD).")],
+    date_to: Annotated[str, typer.Option("--to", help="End date (YYYY-MM-DD).")],
+    workspace: Annotated[
+        str | None,
+        typer.Option("--workspace", help="Optional workspace id filter."),
+    ] = None,
+) -> None:
+    run_command(
+        "session-memory summary",
+        session_memory_command.run_summary,
+        date_from=date_from,
+        date_to=date_to,
+        workspace=workspace,
+    )
 
 
 @workspace_app.command("list")

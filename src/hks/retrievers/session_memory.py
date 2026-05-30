@@ -15,6 +15,24 @@ from hks.routing.session_memory import (
 from hks.storage.vector import VectorStore
 from hks.storage.wiki import WikiPage, WikiStore
 
+DATE_RANGE_SYNTHESIS_SCORE = 1.0
+
+
+def is_date_range_intent(intent: SessionMemoryIntent) -> bool:
+    return has_date_span_intent(intent, allow_single_day=False)
+
+
+def has_date_span_intent(
+    intent: SessionMemoryIntent,
+    *,
+    allow_single_day: bool = False,
+) -> bool:
+    if intent.date_start is None or intent.date_end is None:
+        return False
+    if intent.date_start == intent.date_end:
+        return allow_single_day
+    return True
+
 
 def collect_session_memory_candidates(
     question: str,
@@ -114,6 +132,95 @@ def collect_workspace_vector_entries(
             )
         )
     return candidates
+
+
+def synthesize_date_range_summary(
+    candidates: list[Candidate],
+    intent: SessionMemoryIntent,
+    *,
+    allow_single_day: bool = False,
+) -> Candidate | None:
+    if not has_date_span_intent(intent, allow_single_day=allow_single_day) or not candidates:
+        return None
+
+    matched = list(candidates)
+    if intent.workspace:
+        filtered: list[Candidate] = []
+        for candidate in matched:
+            workspace_id = str(candidate.metadata.get("workspace_id") or "")
+            if workspace_id and workspace_id_matches(workspace_id, intent.workspace):
+                filtered.append(candidate)
+            elif not workspace_id:
+                filtered.append(candidate)
+        matched = filtered
+    if not matched:
+        return None
+
+    matched.sort(key=lambda candidate: str(candidate.metadata.get("date") or ""), reverse=True)
+
+    lines: list[str] = [
+        f"## Session memory（{intent.date_start} ～ {intent.date_end}）",
+        "",
+    ]
+    if intent.workspace:
+        lines.append(f"Workspace filter：`{intent.workspace}`")
+        lines.append("")
+
+    current_date = ""
+    for candidate in matched:
+        entry_date = str(candidate.metadata.get("date") or "unknown")
+        if entry_date != current_date:
+            current_date = entry_date
+            lines.append(f"### {entry_date}")
+        text = _clean_entry_text(candidate.text.strip())
+        if text:
+            for line in text.splitlines():
+                stripped = line.strip()
+                if stripped:
+                    lines.append(f"- {stripped}" if not stripped.startswith("-") else stripped)
+        lines.append("")
+
+    source_relpaths: list[str] = []
+    evidence_text_by_relpath: dict[str, list[str]] = {}
+    route_by_relpath: dict[str, str] = {}
+    for candidate in matched:
+        relpath = str(candidate.metadata.get("source_relpath") or "")
+        if not relpath:
+            continue
+        if relpath not in evidence_text_by_relpath:
+            source_relpaths.append(relpath)
+            evidence_text_by_relpath[relpath] = []
+            route_by_relpath[relpath] = candidate.source_route
+        evidence_text_by_relpath[relpath].append(candidate.text)
+
+    merged_meta: dict[str, object] = {
+        "synthesized": True,
+        "synthesis_kind": "date_range",
+        "date_start": intent.date_start,
+        "date_end": intent.date_end,
+        "entry_count": len(matched),
+    }
+    if source_relpaths:
+        merged_meta["source_relpaths"] = source_relpaths
+        merged_meta["source_relpath"] = source_relpaths[0]
+        merged_meta["_hks_evidence_items"] = [
+            {
+                "source_relpath": relpath,
+                "route": route_by_relpath[relpath],
+                "quote": evidence_quote("\n".join(evidence_text_by_relpath[relpath])),
+            }
+            for relpath in source_relpaths
+        ]
+
+    quote = evidence_quote("\n".join(lines))
+    merged_meta["quote"] = quote
+
+    return Candidate(
+        text="\n".join(lines),
+        source_route=matched[0].source_route,
+        score=DATE_RANGE_SYNTHESIS_SCORE,
+        metadata=merged_meta,
+    )
 
 
 def synthesize_workspace_status(
