@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import shlex
 
 from hks.core.schema import TraceStep
 from hks.retrieval.evidence import evidence_quote
@@ -145,14 +146,12 @@ def synthesize_date_range_summary(
 
     matched = list(candidates)
     if intent.workspace:
-        filtered: list[Candidate] = []
+        narrowed: list[Candidate] = []
         for candidate in matched:
-            workspace_id = str(candidate.metadata.get("workspace_id") or "")
-            if workspace_id and workspace_id_matches(workspace_id, intent.workspace):
-                filtered.append(candidate)
-            elif not workspace_id:
-                filtered.append(candidate)
-        matched = filtered
+            filtered = _narrow_candidate_for_workspace(candidate, intent.workspace)
+            if filtered is not None:
+                narrowed.append(filtered)
+        matched = narrowed
     if not matched:
         return None
 
@@ -311,6 +310,11 @@ def synthesize_workspace_status(
     )
 
 
+_SESSION_ENTRY_RE = re.compile(
+    r"^\s*-\s+\[(?P<kind>[^\]]+)\]\s+(?P<text>.+?)\s+"
+    r"(?:\((?P<paren_meta>[^)]*)\)|\{(?P<brace_meta>[^}]*)\})\s*$",
+    re.MULTILINE,
+)
 _ENTRY_LINE_RE = re.compile(
     r"^\s*-\s+\[[^\]]+\]\s+(.+?)\s+(?:\([^)]*\)|\{[^}]*\})\s*$",
     re.MULTILINE,
@@ -325,6 +329,61 @@ _LLM_BOILERPLATE_RE = re.compile(
     r"|Is there anything else[^.!?\n]*[.!?]?",
     re.IGNORECASE,
 )
+
+
+def _parse_entry_meta_pairs(raw_meta: str) -> dict[str, str]:
+    pairs: dict[str, str] = {}
+    for part in raw_meta.split(","):
+        if ":" not in part:
+            continue
+        key, value = part.split(":", 1)
+        normalized_key = key.strip().lower().replace(" ", "_")
+        if normalized_key in {"workspace", "workspace_id"}:
+            pairs["workspace_id"] = value.strip()
+    try:
+        parts = shlex.split(raw_meta)
+    except ValueError:
+        parts = raw_meta.split()
+    for part in parts:
+        if "=" not in part:
+            continue
+        key, value = part.rstrip(",").split("=", 1)
+        normalized_key = key.strip().lower()
+        if normalized_key in {"workspace", "workspace_id"}:
+            pairs["workspace_id"] = value.strip()
+    return pairs
+
+
+def _narrow_candidate_for_workspace(
+    candidate: Candidate,
+    workspace: str,
+) -> Candidate | None:
+    workspace_id = str(candidate.metadata.get("workspace_id") or "")
+    if workspace_id:
+        if not workspace_id_matches(workspace_id, workspace):
+            return None
+        return candidate
+
+    entry_lines: list[str] = []
+    for match in _SESSION_ENTRY_RE.finditer(candidate.text):
+        raw_meta = match.group("paren_meta") or match.group("brace_meta") or ""
+        entry_workspace = _parse_entry_meta_pairs(raw_meta).get("workspace_id")
+        if not entry_workspace or not workspace_id_matches(entry_workspace, workspace):
+            continue
+        entry_lines.append(_clean_entry_text(match.group(0)))
+
+    if not entry_lines:
+        return None
+
+    filtered_text = "\n".join(entry_lines)
+    metadata = dict(candidate.metadata)
+    metadata["quote"] = evidence_quote(filtered_text)
+    return Candidate(
+        text=filtered_text,
+        source_route=candidate.source_route,
+        score=candidate.score,
+        metadata=metadata,
+    )
 
 
 def _clean_entry_text(text: str) -> str:
