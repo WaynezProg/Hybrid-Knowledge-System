@@ -346,3 +346,67 @@ def test_session_memory_date_range_query_synthesizes_three_days(
         step.get("kind") == "date_range_synthesis"
         for step in payload["trace"]["steps"]
     )
+
+
+@pytest.mark.integration
+def test_session_memory_summary_cli_returns_three_day_range(
+    cli_runner,
+    tmp_path: Path,
+) -> None:
+    docs = tmp_path / "docs"
+    daily_dir = docs / "daily"
+    daily_dir.mkdir(parents=True)
+
+    fixtures = {
+        "2026-05-25": "cli-alpha step one",
+        "2026-05-26": "cli-alpha step two",
+        "2026-05-27": "cli-beta step three",
+    }
+    for day, snippet in fixtures.items():
+        (daily_dir / f"{day}.md").write_text(
+            "---\n"
+            f"hks_type: session_daily\n"
+            f"date: {day}\n"
+            "generator: session2memory\n"
+            "source_domain: coding_session\n"
+            "schema_version: 1\n"
+            "---\n"
+            f"# {day}\n\n"
+            "## Entries\n"
+            f"- [activity] {snippet} "
+            "{workspace_id=demo-project memory_kind=activity tool=codex "
+            "session_id=s1 evidence_id=e000001 lines=1-1}\n",
+            encoding="utf-8",
+        )
+
+    ingest = cli_runner.invoke(app, ["ingest", str(docs)])
+    assert ingest.exit_code == 0, ingest.stdout
+
+    result = cli_runner.invoke(
+        app,
+        [
+            "session-memory",
+            "summary",
+            "--from",
+            "2026-05-25",
+            "--to",
+            "2026-05-27",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+
+    for day, snippet in fixtures.items():
+        assert day in payload["answer"]
+        assert snippet in payload["answer"]
+
+    evidence_paths = {item["source_relpath"] for item in payload["evidence"]}
+    assert evidence_paths >= {
+        "daily/2026-05-25.md",
+        "daily/2026-05-26.md",
+        "daily/2026-05-27.md",
+    }
+    assert any(
+        step.get("kind") == "session_memory_summary"
+        for step in payload["trace"]["steps"]
+    )

@@ -19,11 +19,19 @@ DATE_RANGE_SYNTHESIS_SCORE = 1.0
 
 
 def is_date_range_intent(intent: SessionMemoryIntent) -> bool:
-    return (
-        intent.date_start is not None
-        and intent.date_end is not None
-        and intent.date_start != intent.date_end
-    )
+    return has_date_span_intent(intent, allow_single_day=False)
+
+
+def has_date_span_intent(
+    intent: SessionMemoryIntent,
+    *,
+    allow_single_day: bool = False,
+) -> bool:
+    if intent.date_start is None or intent.date_end is None:
+        return False
+    if intent.date_start == intent.date_end:
+        return allow_single_day
+    return True
 
 
 def collect_session_memory_candidates(
@@ -129,8 +137,10 @@ def collect_workspace_vector_entries(
 def synthesize_date_range_summary(
     candidates: list[Candidate],
     intent: SessionMemoryIntent,
+    *,
+    allow_single_day: bool = False,
 ) -> Candidate | None:
-    if not is_date_range_intent(intent) or not candidates:
+    if not has_date_span_intent(intent, allow_single_day=allow_single_day) or not candidates:
         return None
 
     matched = list(candidates)
