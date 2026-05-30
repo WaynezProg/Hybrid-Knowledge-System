@@ -176,7 +176,12 @@ def metadata_matches_session_intent(
 ) -> bool:
     if intent.workspace is not None:
         entry_workspace = str(metadata.get("workspace_id") or "")
-        if not entry_workspace and _is_session_memory_metadata(metadata):
+        if (
+            not entry_workspace
+            and _is_session_memory_metadata(metadata)
+            and intent.date_start is not None
+            and intent.date_end is not None
+        ):
             return _metadata_matches_date(metadata, intent)
         return _metadata_matches_workspace(metadata, intent)
 
