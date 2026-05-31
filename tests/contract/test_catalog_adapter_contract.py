@@ -18,6 +18,9 @@ WORKSPACE_OPERATIONS = {
     "/workspaces",
     "/workspaces/{workspace_id}",
     "/workspaces/{workspace_id}/query",
+    "/workspaces/{workspace_id}/ingest/session-memory",
+    "/workspaces/{workspace_id}/catalog/sources",
+    "/session-memory/summary",
 }
 
 
@@ -30,6 +33,9 @@ def test_catalog_adapter_contracts_are_valid() -> None:
     assert paths["/workspaces"]["post"]
     assert paths["/workspaces/{workspace_id}"]["post"]
     assert paths["/workspaces/{workspace_id}/query"]["post"]
+    assert paths["/workspaces/{workspace_id}/ingest/session-memory"]["post"]
+    assert paths["/workspaces/{workspace_id}/catalog/sources"]["post"]
+    assert paths["/session-memory/summary"]["post"]
     assert spec["components"]["securitySchemes"]["BearerAuth"]["scheme"] == "bearer"
 
     for path in WORKSPACE_OPERATIONS:
@@ -50,6 +56,22 @@ def test_catalog_mcp_tool_contract_accepts_payloads() -> None:
     validate_catalog_tool_input(
         "hks_workspace_query",
         {"workspace_id": "proj-a", "question": "重點", "writeback": "no"},
+    )
+    validate_catalog_tool_input(
+        "hks_workspace_ingest_session_memory",
+        {"workspace_id": "proj-a", "path": "daily/2026-05-31.md"},
+    )
+    validate_catalog_tool_input(
+        "hks_session_memory_summary",
+        {
+            "workspace_id": "proj-a",
+            "date_from": "2026-05-31",
+            "date_to": "2026-05-31",
+        },
+    )
+    validate_catalog_tool_input(
+        "hks_source_list",
+        {"workspace_id": "proj-a", "limit": 10},
     )
 
 

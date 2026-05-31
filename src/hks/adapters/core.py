@@ -1007,6 +1007,19 @@ def hks_workspace_ingest_session_memory(
     request_id: str | None = None,
 ) -> dict[str, Any]:
     del project_root  # reserved for future id verification against slugify
+    payload = {
+        "workspace_id": workspace_id,
+        "path": path,
+        "prune": prune,
+        "registry_path": registry_path,
+    }
+    try:
+        validate_catalog_tool_input(
+            "hks_workspace_ingest_session_memory",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
     try:
         normalized_id = validate_workspace_id(workspace_id)
     except KSError as error:
@@ -1045,6 +1058,19 @@ def hks_session_memory_summary(
     registry_path: str | None = None,
     request_id: str | None = None,
 ) -> dict[str, Any]:
+    payload = {
+        "workspace_id": workspace_id,
+        "date_from": date_from,
+        "date_to": date_to,
+        "registry_path": registry_path,
+    }
+    try:
+        validate_catalog_tool_input(
+            "hks_session_memory_summary",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
     ks_root = _resolve_workspace_ks_root(
         workspace_id,
         registry_path=registry_path,
@@ -1070,6 +1096,21 @@ def hks_workspace_source_list(
     registry_path: str | None = None,
     request_id: str | None = None,
 ) -> dict[str, Any]:
+    payload = {
+        "workspace_id": workspace_id,
+        "format": format,
+        "relpath_query": relpath_query,
+        "limit": limit,
+        "offset": offset,
+        "registry_path": registry_path,
+    }
+    try:
+        validate_catalog_tool_input(
+            "hks_source_list",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
     ks_root = _resolve_workspace_ks_root(
         workspace_id,
         registry_path=registry_path,
@@ -1092,6 +1133,18 @@ def hks_workspace_source_show(
     registry_path: str | None = None,
     request_id: str | None = None,
 ) -> dict[str, Any]:
+    payload = {
+        "workspace_id": workspace_id,
+        "relpath": relpath,
+        "registry_path": registry_path,
+    }
+    try:
+        validate_catalog_tool_input(
+            "hks_source_show",
+            {key: value for key, value in payload.items() if value is not None},
+        )
+    except Exception as error:
+        raise _usage_error(str(error), request_id=request_id) from error
     ks_root = _resolve_workspace_ks_root(
         workspace_id,
         registry_path=registry_path,
