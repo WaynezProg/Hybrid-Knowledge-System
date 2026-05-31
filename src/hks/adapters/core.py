@@ -6,6 +6,10 @@ from contextlib import nullcontext
 from pathlib import Path
 from typing import Any, cast
 
+from hks.adapters.agent_config import (
+    ks_root_for_workspace,
+    require_export_root,
+)
 from hks.adapters.contracts import (
     validate_catalog_tool_input,
     validate_coordination_tool_input,
@@ -42,6 +46,11 @@ from hks.adapters.models import (
     WikiSynthesisMode,
     WritebackMode,
 )
+from hks.adapters.session_memory_source import (
+    SessionMemorySourceError,
+    assert_session_memory_tree,
+    resolve_export_path,
+)
 from hks.commands import coord as coord_command
 from hks.commands import graphify as graphify_command
 from hks.commands import ingest as ingest_command
@@ -49,6 +58,7 @@ from hks.commands import lint as lint_command
 from hks.commands import llm as llm_command
 from hks.commands import pageindex as pageindex_command
 from hks.commands import query as query_command
+from hks.commands import session_memory as session_memory_command
 from hks.commands import source as source_command
 from hks.commands import watch as watch_command
 from hks.commands import wiki as wiki_command
@@ -56,6 +66,8 @@ from hks.commands import workspace as workspace_command
 from hks.core.runtime_context import scoped_ks_root
 from hks.core.schema import QueryResponse, Route, build_error_response, validate
 from hks.errors import ExitCode, KSError
+from hks.workspace.registry import load_registry
+from hks.workspace.validation import validate_workspace_id
 
 
 def _usage_error(message: str, *, request_id: str | None = None) -> AdapterToolError:
@@ -921,5 +933,172 @@ def hks_watch_status(
     return _run_command(
         watch_command.run_status,
         ks_root=ks_root,
+        request_id=request_id,
+    )
+
+
+def _raise_session_memory_source_error(
+    error: SessionMemorySourceError,
+    *,
+    request_id: str | None = None,
+) -> None:
+    raise AdapterToolError(
+        AdapterError(
+            code=error.code,
+            exit_code=error.exit_code,
+            message=error.message,
+            request_id=request_id,
+        )
+    ) from error
+
+
+def _resolve_workspace_ks_root(
+    workspace_id: str,
+    *,
+    registry_path: str | None = None,
+    request_id: str | None = None,
+) -> Path:
+    try:
+        normalized_id = validate_workspace_id(workspace_id)
+    except KSError as error:
+        raise _to_adapter_error(error, request_id=request_id) from error
+    registry = load_registry(registry_path)
+    record = registry.workspaces.get(normalized_id)
+    if record is None:
+        raise AdapterToolError(
+            AdapterError(
+                code="WORKSPACE_NOT_READY",
+                exit_code=ExitCode.NOINPUT,
+                message=f"workspace `{normalized_id}` 不存在",
+                hint="run workspace ingest to auto-register",
+                request_id=request_id,
+            )
+        )
+    return Path(record.ks_root).expanduser().resolve(strict=False)
+
+
+def _ensure_workspace_registered(
+    workspace_id: str,
+    *,
+    registry_path: str | None = None,
+    request_id: str | None = None,
+) -> Path:
+    ks_root = ks_root_for_workspace(workspace_id)
+    ks_root.mkdir(parents=True, exist_ok=True)
+    registry = load_registry(registry_path)
+    if workspace_id not in registry.workspaces:
+        hks_workspace_register(
+            workspace_id=workspace_id,
+            ks_root=str(ks_root),
+            label=workspace_id,
+            registry_path=registry_path,
+            request_id=request_id,
+        )
+    return ks_root
+
+
+def hks_workspace_ingest_session_memory(
+    *,
+    workspace_id: str,
+    path: str,
+    project_root: str | None = None,
+    prune: bool = False,
+    registry_path: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    del project_root  # reserved for future id verification against slugify
+    try:
+        normalized_id = validate_workspace_id(workspace_id)
+    except KSError as error:
+        raise _to_adapter_error(error, request_id=request_id) from error
+    try:
+        export_root = require_export_root()
+        resolved = resolve_export_path(
+            export_root=export_root,
+            workspace_id=normalized_id,
+            path=path,
+        )
+        assert_session_memory_tree(root=resolved, workspace_id=normalized_id)
+    except SessionMemorySourceError as error:
+        _raise_session_memory_source_error(error, request_id=request_id)
+    except KSError as error:
+        raise _to_adapter_error(error, request_id=request_id) from error
+
+    ks_root = _ensure_workspace_registered(
+        normalized_id,
+        registry_path=registry_path,
+        request_id=request_id,
+    )
+    return hks_ingest(
+        path=str(resolved),
+        prune=prune,
+        ks_root=str(ks_root),
+        request_id=request_id,
+    )
+
+
+def hks_session_memory_summary(
+    *,
+    workspace_id: str,
+    date_from: str,
+    date_to: str,
+    registry_path: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    ks_root = _resolve_workspace_ks_root(
+        workspace_id,
+        registry_path=registry_path,
+        request_id=request_id,
+    )
+    return _run_command(
+        session_memory_command.run_summary,
+        date_from=date_from,
+        date_to=date_to,
+        workspace=workspace_id,
+        ks_root=str(ks_root),
+        request_id=request_id,
+    )
+
+
+def hks_workspace_source_list(
+    *,
+    workspace_id: str,
+    format: str | None = None,
+    relpath_query: str | None = None,
+    limit: int | None = None,
+    offset: int | None = None,
+    registry_path: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    ks_root = _resolve_workspace_ks_root(
+        workspace_id,
+        registry_path=registry_path,
+        request_id=request_id,
+    )
+    return hks_source_list(
+        ks_root=str(ks_root),
+        format=format,
+        relpath_query=relpath_query,
+        limit=limit,
+        offset=offset,
+        request_id=request_id,
+    )
+
+
+def hks_workspace_source_show(
+    *,
+    workspace_id: str,
+    relpath: str,
+    registry_path: str | None = None,
+    request_id: str | None = None,
+) -> dict[str, Any]:
+    ks_root = _resolve_workspace_ks_root(
+        workspace_id,
+        registry_path=registry_path,
+        request_id=request_id,
+    )
+    return hks_source_show(
+        relpath=relpath,
+        ks_root=str(ks_root),
         request_id=request_id,
     )
