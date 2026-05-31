@@ -58,6 +58,27 @@ uv run hks-api --profile agent --host 127.0.0.1 --port 8766
 
 Agent profile exposes: `hks_workspace_query`, `hks_workspace_ingest_session_memory`, `hks_workspace_list`, `hks_workspace_show`, `hks_session_memory_summary`, `hks_source_list`, `hks_source_show` (workspace-scoped). Full tools such as `hks_ingest`, `hks_graphify_build`, and `hks_watch_run` are hidden.
 
+### Task-end（session2memory ingest）
+
+自動化 agent 在任務結束時 **只** 呼叫 `hks_workspace_ingest_session_memory`。不要用 `hks_ingest` 餵 harness transcript。
+
+Export 檔案路徑：
+
+```text
+$HKS_SESSION2MEMORY_EXPORT_ROOT/<workspace_id>/daily/YYYY-MM-DD.md
+```
+
+MCP 工具參數範例（`path` 為相對 `{export_root}/{workspace_id}/`）：
+
+```json
+{
+  "workspace_id": "hks",
+  "path": "daily/2026-05-31.md"
+}
+```
+
+日常查詢用 `hks_workspace_query`，`writeback` 預設 `no`。
+
 HTTP agent routes include `POST /workspaces/{workspace_id}/ingest/session-memory`, `POST /session-memory/summary`, and `POST /workspaces/{workspace_id}/catalog/sources`. Generic `POST /ingest` and `POST /query` return `403` with `AGENT_PROFILE_FORBIDDEN`.
 
 ## HTTP First
@@ -237,3 +258,30 @@ uv run hks-api --help
 uv run hks-mcp --help
 uv run pytest tests/integration/test_http_adapter.py tests/integration/test_mcp_query.py --tb=short -q
 ```
+
+### Agent profile smoke
+
+確認 agent profile 只暴露 allowlist tools（`src/hks/adapters/agent_config.py` → `AGENT_TOOL_NAMES`）：
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+export HKS_SESSION2MEMORY_EXPORT_ROOT="${HKS_SESSION2MEMORY_EXPORT_ROOT:-$HOME/session2memory/export}"
+export HKS_KS_ROOT_BASE="${HKS_KS_ROOT_BASE:-$HOME/.local/share/hks/workspaces}"
+mkdir -p "$HKS_SESSION2MEMORY_EXPORT_ROOT" "$HKS_KS_ROOT_BASE"
+
+# 供 MCP client 掛載（stdio）；列舉 tools 用下方 Python / pytest
+# uv run hks-mcp --profile agent --transport stdio
+
+uv run python -c "
+from hks.adapters.agent_config import AGENT_TOOL_NAMES
+from hks.adapters.mcp_server import create_agent_server
+names = set(create_agent_server()._tool_manager._tools.keys())
+assert names == set(AGENT_TOOL_NAMES), (sorted(names), sorted(AGENT_TOOL_NAMES))
+assert 'hks_ingest' not in names
+print('OK', sorted(names))
+"
+
+uv run pytest tests/contract/test_agent_profile_contract.py::test_agent_profile_exposes_only_allowlisted_tools -q
+```
+
+完整步驟與完成標準：`skill/hks-knowledge-system/workflows/smoke-test.md`（Agent profile MCP smoke）。
