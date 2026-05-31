@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Any
+import os
+from typing import Annotated, Any, Literal
 
 import typer
 import uvicorn
@@ -14,6 +15,7 @@ from starlette.responses import JSONResponse, Response
 from starlette.routing import Route
 
 from hks.adapters import core
+from hks.adapters.agent_http import agent_profile_dispatch
 from hks.adapters.http_security import (
     HTTP_INGEST_BLOCKED_PATH_SEGMENTS,
     HttpIngestPath,
@@ -23,6 +25,7 @@ from hks.adapters.http_security import (
     security_error_response,
 )
 from hks.adapters.models import AdapterToolError
+from hks.core.config import ENV_AGENT_PROFILE
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
 
@@ -203,6 +206,38 @@ async def workspace_query_endpoint(request: Request) -> Response:
     return _response(core.hks_workspace_query, **payload)
 
 
+async def workspace_ingest_session_memory_endpoint(request: Request) -> Response:
+    try:
+        payload = await _json(request)
+    except Exception as error:
+        return _usage_response(str(error))
+    payload["workspace_id"] = request.path_params["workspace_id"]
+    return _response(core.hks_workspace_ingest_session_memory, **payload)
+
+
+async def session_memory_summary_endpoint(request: Request) -> Response:
+    return await _adapter_response(request, core.hks_session_memory_summary)
+
+
+async def workspace_source_list_endpoint(request: Request) -> Response:
+    try:
+        payload = await _json(request)
+    except Exception as error:
+        return _usage_response(str(error))
+    payload["workspace_id"] = request.path_params["workspace_id"]
+    return _response(core.hks_workspace_source_list, **payload)
+
+
+async def workspace_source_show_endpoint(request: Request) -> Response:
+    try:
+        payload = await _json(request)
+    except Exception as error:
+        return _usage_response(str(error))
+    payload["workspace_id"] = request.path_params["workspace_id"]
+    payload["relpath"] = request.path_params["relpath"]
+    return _response(core.hks_workspace_source_show, **payload)
+
+
 async def coord_session_endpoint(request: Request) -> Response:
     return await _adapter_response(request, core.hks_coord_session)
 
@@ -221,7 +256,10 @@ async def coord_status_endpoint(request: Request) -> Response:
 
 def create_app() -> Starlette:
     return Starlette(
-        middleware=[Middleware(BaseHTTPMiddleware, dispatch=http_security_dispatch)],
+        middleware=[
+            Middleware(BaseHTTPMiddleware, dispatch=agent_profile_dispatch),
+            Middleware(BaseHTTPMiddleware, dispatch=http_security_dispatch),
+        ],
         routes=[
             Route("/query", query_endpoint, methods=["POST"]),
             Route("/ingest", ingest_endpoint, methods=["POST"]),
@@ -239,6 +277,22 @@ def create_app() -> Starlette:
             Route("/workspaces", workspaces_endpoint, methods=["POST"]),
             Route("/workspaces/{workspace_id}", workspace_endpoint, methods=["POST"]),
             Route("/workspaces/{workspace_id}/query", workspace_query_endpoint, methods=["POST"]),
+            Route(
+                "/workspaces/{workspace_id}/ingest/session-memory",
+                workspace_ingest_session_memory_endpoint,
+                methods=["POST"],
+            ),
+            Route(
+                "/workspaces/{workspace_id}/catalog/sources",
+                workspace_source_list_endpoint,
+                methods=["POST"],
+            ),
+            Route(
+                "/workspaces/{workspace_id}/catalog/sources/{relpath:path}",
+                workspace_source_show_endpoint,
+                methods=["POST"],
+            ),
+            Route("/session-memory/summary", session_memory_summary_endpoint, methods=["POST"]),
             Route("/coord/session", coord_session_endpoint, methods=["POST"]),
             Route("/coord/lease", coord_lease_endpoint, methods=["POST"]),
             Route("/coord/handoff", coord_handoff_endpoint, methods=["POST"]),
@@ -262,12 +316,18 @@ def _validate_host(host: str, *, allow_non_loopback: bool) -> None:
 def run(
     host: Annotated[str, typer.Option("--host", help="HTTP host.")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", help="HTTP port.")] = 8766,
+    profile: Annotated[
+        Literal["full", "agent"],
+        typer.Option("--profile", help="HTTP surface: full or agent allowlist."),
+    ] = "full",
     allow_non_loopback: Annotated[
         bool,
         typer.Option("--allow-non-loopback", help="Allow binding non-loopback host."),
     ] = False,
 ) -> None:
     _validate_host(host, allow_non_loopback=allow_non_loopback)
+    if profile == "agent":
+        os.environ[ENV_AGENT_PROFILE] = "1"
     uvicorn.run(create_app(), host=host, port=port)
 
 

@@ -16,6 +16,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * 013：完成（PageIndex / page_tree ingest、pageindex show/enrich、page_tree retrieval）
 * 014-017：完成（runtime isolation / HTTP safety、write-back confidence gate、retrieval quality gate、query refactor）
 * 019：設計通過，待 implementation（write-back review queue；目前 runtime 尚未改成 queue）
+* Agent integration：MCP/HTTP **agent profile** 已實作（session2memory-only ingest、per-project workspace）；見 `docs/superpowers/specs/2026-05-31-hks-agent-integration-design.md`
 
 ---
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Annotated, Any, Literal
 
 import typer
@@ -11,6 +12,7 @@ from mcp.types import CallToolResult, TextContent
 
 from hks.adapters import core
 from hks.adapters.models import AdapterToolError
+from hks.core.config import ENV_AGENT_PROFILE
 
 app = typer.Typer(add_completion=False, no_args_is_help=False)
 
@@ -24,7 +26,58 @@ def _error_result(error: AdapterToolError) -> CallToolResult:
     )
 
 
-def create_server() -> FastMCP:
+FULL_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "hks_query",
+        "hks_ingest",
+        "hks_lint",
+        "hks_pageindex_show",
+        "hks_pageindex_enrich",
+        "hks_llm_classify",
+        "hks_wiki_synthesize",
+        "hks_graphify_build",
+        "hks_watch_scan",
+        "hks_watch_run",
+        "hks_watch_status",
+        "hks_source_list",
+        "hks_source_show",
+        "hks_workspace_list",
+        "hks_workspace_register",
+        "hks_workspace_show",
+        "hks_workspace_remove",
+        "hks_workspace_use",
+        "hks_workspace_query",
+        "hks_workspace_ingest_session_memory",
+        "hks_session_memory_summary",
+        "hks_coord_session",
+        "hks_coord_lease",
+        "hks_coord_handoff",
+        "hks_coord_status",
+    }
+)
+
+
+def tool_names_for_profile(profile: str) -> list[str]:
+    from hks.adapters.agent_config import AGENT_TOOL_NAMES
+
+    if profile == "agent":
+        return sorted(AGENT_TOOL_NAMES)
+    return sorted(FULL_TOOL_NAMES)
+
+
+def list_tool_names_for_current_profile() -> list[str]:
+    from hks.adapters.agent_config import is_agent_profile
+
+    return tool_names_for_profile("agent" if is_agent_profile() else "full")
+
+
+def create_server(*, profile: str = "full") -> FastMCP:
+    if profile == "agent":
+        return create_agent_server()
+    return create_full_server()
+
+
+def create_full_server() -> FastMCP:
     server = FastMCP("Hybrid Knowledge System", json_response=True)
 
     @server.tool()
@@ -435,6 +488,154 @@ def create_server() -> FastMCP:
         except AdapterToolError as error:
             return _error_result(error)
 
+    @server.tool()
+    def hks_workspace_ingest_session_memory(
+        workspace_id: str,
+        path: str,
+        project_root: str | None = None,
+        prune: bool = False,
+    ) -> Any:
+        """Ingest session2memory export artifacts for one workspace."""
+        try:
+            return core.hks_workspace_ingest_session_memory(
+                workspace_id=workspace_id,
+                path=path,
+                project_root=project_root,
+                prune=prune,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_session_memory_summary(
+        workspace_id: str,
+        date_from: str,
+        date_to: str,
+    ) -> Any:
+        """Return a structured session-memory summary for a date range."""
+        try:
+            return core.hks_session_memory_summary(
+                workspace_id=workspace_id,
+                date_from=date_from,
+                date_to=date_to,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    return server
+
+
+def create_agent_server() -> FastMCP:
+    server = FastMCP("Hybrid Knowledge System", json_response=True)
+
+    @server.tool()
+    def hks_workspace_list(registry_path: str | None = None) -> Any:
+        """List registered HKS workspaces."""
+        try:
+            return core.hks_workspace_list(registry_path=registry_path)
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_workspace_show(workspace_id: str, registry_path: str | None = None) -> Any:
+        """Show one registered HKS workspace."""
+        try:
+            return core.hks_workspace_show(workspace_id=workspace_id, registry_path=registry_path)
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_workspace_query(
+        workspace_id: str,
+        question: str,
+        writeback: str = "no",
+        registry_path: str | None = None,
+    ) -> Any:
+        """Query one registered HKS workspace."""
+        try:
+            return core.hks_workspace_query(
+                workspace_id=workspace_id,
+                question=question,
+                writeback=writeback,
+                registry_path=registry_path,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_workspace_ingest_session_memory(
+        workspace_id: str,
+        path: str,
+        project_root: str | None = None,
+        prune: bool = False,
+    ) -> Any:
+        """Ingest session2memory export artifacts for one workspace."""
+        try:
+            return core.hks_workspace_ingest_session_memory(
+                workspace_id=workspace_id,
+                path=path,
+                project_root=project_root,
+                prune=prune,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_session_memory_summary(
+        workspace_id: str,
+        date_from: str,
+        date_to: str,
+        registry_path: str | None = None,
+    ) -> Any:
+        """Return a structured session-memory summary for a date range."""
+        try:
+            return core.hks_session_memory_summary(
+                workspace_id=workspace_id,
+                date_from=date_from,
+                date_to=date_to,
+                registry_path=registry_path,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_source_list(
+        workspace_id: str,
+        format: str | None = None,
+        relpath_query: str | None = None,
+        limit: int | None = None,
+        offset: int | None = None,
+        registry_path: str | None = None,
+    ) -> Any:
+        """List manifest-derived sources for one workspace."""
+        try:
+            return core.hks_workspace_source_list(
+                workspace_id=workspace_id,
+                format=format,
+                relpath_query=relpath_query,
+                limit=limit,
+                offset=offset,
+                registry_path=registry_path,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
+    @server.tool()
+    def hks_source_show(
+        workspace_id: str,
+        relpath: str,
+        registry_path: str | None = None,
+    ) -> Any:
+        """Show one manifest source for a workspace."""
+        try:
+            return core.hks_workspace_source_show(
+                workspace_id=workspace_id,
+                relpath=relpath,
+                registry_path=registry_path,
+            )
+        except AdapterToolError as error:
+            return _error_result(error)
+
     return server
 
 
@@ -457,13 +658,19 @@ def run(
     ] = "stdio",
     host: Annotated[str, typer.Option("--host", help="Host for streamable-http.")] = "127.0.0.1",
     port: Annotated[int, typer.Option("--port", help="Port for streamable-http.")] = 8765,
+    profile: Annotated[
+        Literal["full", "agent"],
+        typer.Option("--profile", help="Tool surface: full or agent allowlist."),
+    ] = "full",
     allow_non_loopback: Annotated[
         bool,
         typer.Option("--allow-non-loopback", help="Allow binding non-loopback host."),
     ] = False,
 ) -> None:
     _validate_host(host, allow_non_loopback=allow_non_loopback)
-    server = create_server()
+    if profile == "agent":
+        os.environ[ENV_AGENT_PROFILE] = "1"
+    server = create_server(profile=profile)
     server.settings.host = host
     server.settings.port = port
     server.run(transport=transport)

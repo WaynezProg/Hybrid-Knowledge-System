@@ -17,7 +17,9 @@
         "hks_workspace_show",
         "hks_workspace_remove",
         "hks_workspace_use",
-        "hks_workspace_query"
+        "hks_workspace_query",
+        "hks_workspace_ingest_session_memory",
+        "hks_session_memory_summary"
       ],
       "properties": {
         "hks_source_list": { "$ref": "#/$defs/sourceListInput" },
@@ -27,7 +29,11 @@
         "hks_workspace_show": { "$ref": "#/$defs/workspaceIdInput" },
         "hks_workspace_remove": { "$ref": "#/$defs/workspaceIdInput" },
         "hks_workspace_use": { "$ref": "#/$defs/workspaceIdInput" },
-        "hks_workspace_query": { "$ref": "#/$defs/workspaceQueryInput" }
+        "hks_workspace_query": { "$ref": "#/$defs/workspaceQueryInput" },
+        "hks_workspace_ingest_session_memory": {
+          "$ref": "#/$defs/workspaceIngestSessionMemoryInput"
+        },
+        "hks_session_memory_summary": { "$ref": "#/$defs/sessionMemorySummaryInput" }
       }
     }
   },
@@ -36,24 +42,55 @@
     "registryPath": { "type": ["string", "null"], "minLength": 1 },
     "workspaceId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$" },
     "sourceListInput": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "ks_root": { "$ref": "#/$defs/ksRoot" },
-        "format": { "type": ["string", "null"] },
-        "relpath_query": { "type": ["string", "null"] },
-        "limit": { "type": ["integer", "null"], "minimum": 1 },
-        "offset": { "type": ["integer", "null"], "minimum": 0 }
-      }
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["workspace_id"],
+          "properties": {
+            "workspace_id": { "$ref": "#/$defs/workspaceId" },
+            "format": { "type": ["string", "null"] },
+            "relpath_query": { "type": ["string", "null"] },
+            "limit": { "type": ["integer", "null"], "minimum": 1 },
+            "offset": { "type": ["integer", "null"], "minimum": 0 },
+            "registry_path": { "$ref": "#/$defs/registryPath" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "ks_root": { "$ref": "#/$defs/ksRoot" },
+            "format": { "type": ["string", "null"] },
+            "relpath_query": { "type": ["string", "null"] },
+            "limit": { "type": ["integer", "null"], "minimum": 1 },
+            "offset": { "type": ["integer", "null"], "minimum": 0 }
+          }
+        }
+      ]
     },
     "sourceShowInput": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["relpath"],
-      "properties": {
-        "relpath": { "type": "string", "minLength": 1 },
-        "ks_root": { "$ref": "#/$defs/ksRoot" }
-      }
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["workspace_id", "relpath"],
+          "properties": {
+            "workspace_id": { "$ref": "#/$defs/workspaceId" },
+            "relpath": { "type": "string", "minLength": 1 },
+            "registry_path": { "$ref": "#/$defs/registryPath" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["relpath"],
+          "properties": {
+            "relpath": { "type": "string", "minLength": 1 },
+            "ks_root": { "$ref": "#/$defs/ksRoot" }
+          }
+        }
+      ]
     },
     "workspaceListInput": {
       "type": "object",
@@ -92,6 +129,29 @@
         "workspace_id": { "$ref": "#/$defs/workspaceId" },
         "question": { "type": "string", "minLength": 1 },
         "writeback": { "type": "string", "enum": ["auto", "yes", "no", "ask"] },
+        "registry_path": { "$ref": "#/$defs/registryPath" }
+      }
+    },
+    "workspaceIngestSessionMemoryInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace_id", "path"],
+      "properties": {
+        "workspace_id": { "$ref": "#/$defs/workspaceId" },
+        "path": { "type": "string", "minLength": 1 },
+        "project_root": { "type": ["string", "null"], "minLength": 1 },
+        "prune": { "type": "boolean" },
+        "registry_path": { "$ref": "#/$defs/registryPath" }
+      }
+    },
+    "sessionMemorySummaryInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace_id", "date_from", "date_to"],
+      "properties": {
+        "workspace_id": { "$ref": "#/$defs/workspaceId" },
+        "date_from": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        "date_to": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
         "registry_path": { "$ref": "#/$defs/registryPath" }
       }
     }

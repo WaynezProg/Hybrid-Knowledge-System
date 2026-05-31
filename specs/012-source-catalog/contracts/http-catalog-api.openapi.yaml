@@ -166,6 +166,145 @@ paths:
           description: Adapter error envelope
         "500":
           description: Adapter error envelope
+  /workspaces/{workspace_id}/ingest/session-memory:
+    post:
+      summary: Ingest session2memory export artifacts for one workspace
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [path]
+              properties:
+                path:
+                  type: string
+                  minLength: 1
+                project_root:
+                  type: [string, "null"]
+                prune:
+                  type: boolean
+                  default: false
+                registry_path:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: HKS ingest response
+        "400":
+          description: Adapter error envelope
+        "403":
+          description: Agent profile forbidden
+        "500":
+          description: Adapter error envelope
+  /workspaces/{workspace_id}/catalog/sources:
+    post:
+      summary: List sources for one workspace
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                format:
+                  type: [string, "null"]
+                relpath_query:
+                  type: [string, "null"]
+                limit:
+                  type: [integer, "null"]
+                  minimum: 1
+                offset:
+                  type: [integer, "null"]
+                  minimum: 0
+                registry_path:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: HKS QueryResponse with catalog_summary detail
+        "400":
+          description: Adapter error envelope
+        "500":
+          description: Adapter error envelope
+  /workspaces/{workspace_id}/catalog/sources/{relpath}:
+    post:
+      summary: Show one workspace source detail
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: workspace_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: relpath
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                registry_path:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: HKS QueryResponse with catalog_summary detail
+        "400":
+          description: Adapter error envelope
+        "500":
+          description: Adapter error envelope
+  /session-memory/summary:
+    post:
+      summary: Structured session-memory summary for a workspace date range
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [workspace_id, date_from, date_to]
+              properties:
+                workspace_id:
+                  type: string
+                date_from:
+                  type: string
+                date_to:
+                  type: string
+                registry_path:
+                  type: [string, "null"]
+      responses:
+        "200":
+          description: HKS QueryResponse with session_memory_summary trace
+        "400":
+          description: Adapter error envelope
+        "500":
+          description: Adapter error envelope
 components:
   securitySchemes:
     BearerAuth:

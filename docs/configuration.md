@@ -110,6 +110,27 @@ LLM OpenAI-compatible provider、PageTree enrich、query reranker 都沿用同�
 
 HTTP `/ingest` 只接受 `HKS_API_INGEST_ROOTS` 底下的 relative paths。多個 ingest roots 時 request 必須帶 `source_root_id`；單一 root 時可省略，但建議明確帶。CLI `ks ingest` 與 MCP `hks_ingest` 維持 local-tool path semantics，可由可信任 agent automation 使用任意本機路徑。
 
+## Agent profile（session2memory → HKS）
+
+Coding agents（Cursor / Codex / Claude / OpenClaw）應使用 **agent profile**，只 ingest session2memory 產物，不 ingest raw harness transcript。設計規格見 `docs/superpowers/specs/2026-05-31-hks-agent-integration-design.md`。
+
+- `HKS_AGENT_PROFILE`：設為 `1` / `true` / `yes` 時，HTTP 會拒絕 full-profile 路由（`403` + `AGENT_PROFILE_FORBIDDEN`）。啟動時也可用 `hks-mcp --profile agent` 或 `hks-api --profile agent` 自動設定。
+- `HKS_SESSION2MEMORY_EXPORT_ROOT`：session2memory 輸出根目錄；ingest 路徑必須在 `{root}/{workspace_id}/` 底下。
+- `HKS_KS_ROOT_BASE`：各 workspace 的 `KS_ROOT` 父目錄，通常為 `{base}/{workspace_id}/`。
+
+範例：
+
+```bash
+export HKS_SESSION2MEMORY_EXPORT_ROOT="$HOME/session2memory/export"
+export HKS_KS_ROOT_BASE="$HOME/.local/share/hks/workspaces"
+export HKS_API_TOKEN='replace-with-local-token'
+uv run hks-mcp --profile agent --transport stdio
+# 或
+uv run hks-api --profile agent --host 127.0.0.1 --port 8766
+```
+
+Task-end ingest 使用 MCP `hks_workspace_ingest_session_memory` 或 HTTP `POST /workspaces/{workspace_id}/ingest/session-memory`；查詢使用 `hks_workspace_query` / `POST /workspaces/{workspace_id}/query`，預設 `writeback=no`。
+
 ## 啟用設定
 
 所有 agent session 先跑：

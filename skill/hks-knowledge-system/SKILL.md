@@ -57,6 +57,19 @@ uv run ks workspace query work "目前有哪些資料？" --writeback=no
 
 如果本機已有既有 runtime，將 `.hks-runs/shared-runtime.env` 指向那套 runtime；所有 agent source `shared-runtime.sh` 後會共用同一套。`HKS_EMBEDDING_MODEL` 必須跟該 runtime ingest 時使用的 model 一致，否則 vector query 會出現 dimension mismatch。
 
+## Agent profile（session2memory task-end）
+
+OpenClaw / Cursor / Codex / Claude 應使用 MCP/HTTP **agent profile**，只 ingest session2memory 產物（不 ingest harness transcript）：
+
+```bash
+export HKS_SESSION2MEMORY_EXPORT_ROOT="$HOME/session2memory/export"
+export HKS_KS_ROOT_BASE="$HOME/.local/share/hks/workspaces"
+export HKS_EMBEDDING_MODEL=simple
+uv run hks-mcp --profile agent --transport stdio
+```
+
+Task-end：`hks_workspace_ingest_session_memory(workspace_id=<repo-basename>, path="daily/YYYY-MM-DD.md")`（路徑相對 `{export_root}/{workspace_id}/`）。日常查詢：`hks_workspace_query(..., writeback=no)`。
+
 ## Session Memory / Workspace Status Query
 
 查詢 session memory 的 workspace 狀態時，**不要用口語名稱組寬鬆自然語言 query**。HKS 的 intent detection 對短詞、大小寫、alias 容易誤判，導致 retrieval 結果混入不相關條目。
