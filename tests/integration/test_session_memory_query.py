@@ -410,3 +410,54 @@ def test_session_memory_summary_cli_returns_three_day_range(
         step.get("kind") == "session_memory_summary"
         for step in payload["trace"]["steps"]
     )
+
+
+@pytest.mark.integration
+def test_session_memory_summary_cli_filters_by_workspace(
+    cli_runner,
+    tmp_path: Path,
+) -> None:
+    docs = tmp_path / "docs"
+    daily_dir = docs / "daily"
+    daily_dir.mkdir(parents=True)
+
+    (daily_dir / "2026-05-27.md").write_text(
+        "---\n"
+        "hks_type: session_daily\n"
+        "date: 2026-05-27\n"
+        "generator: session2memory\n"
+        "source_domain: coding_session\n"
+        "schema_version: 1\n"
+        "---\n"
+        "# 2026-05-27\n\n"
+        "## Entries\n"
+        "- [activity] bootstrap filtered entry "
+        "{workspace_id=bootstrap-4fef2fa7 memory_kind=activity tool=codex "
+        "session_id=s1 evidence_id=e000001 lines=1-1}\n"
+        "- [activity] hks unrelated entry "
+        "{workspace_id=hks-81c05951 memory_kind=activity tool=codex "
+        "session_id=s2 evidence_id=e000002 lines=2-2}\n",
+        encoding="utf-8",
+    )
+
+    ingest = cli_runner.invoke(app, ["ingest", str(docs)])
+    assert ingest.exit_code == 0, ingest.stdout
+
+    result = cli_runner.invoke(
+        app,
+        [
+            "session-memory",
+            "summary",
+            "--from",
+            "2026-05-27",
+            "--to",
+            "2026-05-27",
+            "--workspace",
+            "bootstrap",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+
+    assert "bootstrap filtered entry" in payload["answer"]
+    assert "hks unrelated entry" not in payload["answer"]

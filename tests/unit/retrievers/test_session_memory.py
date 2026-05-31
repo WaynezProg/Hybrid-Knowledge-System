@@ -289,6 +289,35 @@ class TestSynthesizeWorkspaceStatus:
         assert "pytest 4 passed" in result.text
 
 
+def test_synthesize_date_range_summary_filters_wiki_entries_by_workspace() -> None:
+    intent = SessionMemoryIntent(
+        date_start="2026-05-27",
+        date_end="2026-05-27",
+        workspace="bootstrap",
+    )
+    candidates = [
+        _make_candidate(
+            (
+                "- [activity] bootstrap-only work "
+                "{workspace_id=bootstrap-4fef2fa7 memory_kind=activity tool=codex "
+                "session_id=s1 evidence_id=e000001 lines=1-1}\n"
+                "- [activity] other workspace work "
+                "{workspace_id=hks-81c05951 memory_kind=activity tool=codex "
+                "session_id=s2 evidence_id=e000002 lines=2-2}"
+            ),
+            route="wiki",
+            score=1.0,
+            date="2026-05-27",
+            source_relpath="daily/2026-05-27.md",
+            hks_type="session_daily",
+        ),
+    ]
+    result = synthesize_date_range_summary(candidates, intent, allow_single_day=True)
+    assert result is not None
+    assert "bootstrap-only work" in result.text
+    assert "other workspace work" not in result.text
+
+
 def test_synthesize_date_range_summary_groups_by_date() -> None:
     intent = SessionMemoryIntent(
         date_start="2026-05-25",

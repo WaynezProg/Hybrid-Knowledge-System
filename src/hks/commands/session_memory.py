@@ -11,8 +11,10 @@ from hks.errors import ExitCode, KSError
 from hks.retrieval.evidence import candidate_evidence
 from hks.retrievers.session_memory import (
     collect_session_memory_candidates,
+    collect_workspace_vector_entries,
     synthesize_date_range_summary,
 )
+from hks.storage.vector import VectorStore
 from hks.routing.session_memory import SessionMemoryIntent
 from hks.storage.wiki import WikiStore
 
@@ -69,6 +71,13 @@ def run_summary(
         wiki_store=wiki_store,
         intent=intent,
     )
+    if workspace:
+        vector_candidates = collect_workspace_vector_entries(
+            vector_store=VectorStore(paths),
+            intent=intent,
+        )
+        if vector_candidates:
+            candidates = vector_candidates
     summary = synthesize_date_range_summary(
         candidates,
         intent,

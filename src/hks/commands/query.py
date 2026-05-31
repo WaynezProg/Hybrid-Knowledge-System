@@ -220,7 +220,15 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
             )
 
     if session_intent is not None and is_date_range_intent(session_intent):
-        range_summary = synthesize_date_range_summary(session_candidates, session_intent)
+        range_candidates = list(session_candidates)
+        if session_intent.workspace:
+            vector_candidates = collect_workspace_vector_entries(
+                vector_store=vector_store,
+                intent=session_intent,
+            )
+            if vector_candidates:
+                range_candidates = vector_candidates
+        range_summary = synthesize_date_range_summary(range_candidates, session_intent)
         if range_summary is not None:
             steps.append(
                 TraceStep(

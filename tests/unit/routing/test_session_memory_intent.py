@@ -218,6 +218,23 @@ def test_metadata_matches_date_range_inclusive() -> None:
     assert metadata_matches_session_intent({**session_meta, "date": "2026-05-28"}, intent) is False
 
 
+def test_metadata_session_daily_page_with_workspace_intent_matches_by_date() -> None:
+    from hks.routing.session_memory import SessionMemoryIntent
+
+    intent = SessionMemoryIntent(
+        workspace="bootstrap",
+        date_start="2026-05-25",
+        date_end="2026-05-27",
+    )
+    page_meta = {
+        "hks_type": "session_daily",
+        "date": "2026-05-27",
+        "source_relpath": "daily/2026-05-27.md",
+    }
+
+    assert metadata_matches_session_intent(page_meta, intent) is True
+
+
 def test_metadata_workspace_with_date_range() -> None:
     from hks.routing.session_memory import SessionMemoryIntent
 
