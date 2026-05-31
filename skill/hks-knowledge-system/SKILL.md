@@ -70,6 +70,16 @@ uv run hks-mcp --profile agent --transport stdio
 
 Task-end：`hks_workspace_ingest_session_memory(workspace_id=<repo-basename>, path="daily/YYYY-MM-DD.md")`（路徑相對 `{export_root}/{workspace_id}/`）。日常查詢：`hks_workspace_query(..., writeback=no)`。
 
+### Session2memory 輸出路徑（固定）
+
+| 層級 | 路徑 |
+|------|------|
+| 本機 export 檔案 | `$HKS_SESSION2MEMORY_EXPORT_ROOT/<workspace_id>/daily/YYYY-MM-DD.md` |
+| MCP `path` 參數 | `daily/YYYY-MM-DD.md`（相對 `{export_root}/{workspace_id}/`） |
+| `workspace_id` | 目前 git repo 目錄名（slug，例如 clone 為 `hks` 則 `workspace_id=hks`） |
+
+Task-end **只** 呼叫 `hks_workspace_ingest_session_memory`。**不要** 用 `hks_ingest` 或 CLI `ks ingest` 餵 agent harness / transcript。
+
 ## Session Memory / Workspace Status Query
 
 查詢 session memory 的 workspace 狀態時，**不要用口語名稱組寬鬆自然語言 query**。HKS 的 intent detection 對短詞、大小寫、alias 容易誤判，導致 retrieval 結果混入不相關條目。
