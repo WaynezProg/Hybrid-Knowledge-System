@@ -20,6 +20,17 @@ uv run ks lint --strict
 
 注意：`ks ingest` 不會整理原始資料夾，不會重新命名或移動來源檔；它整理的是 `$KS_ROOT` 內的知識層。
 
+## Agent profile ingest（session2memory）
+
+自動化 agent 在任務結束時應呼叫 MCP `hks_workspace_ingest_session_memory`（`hks-mcp --profile agent`），不要用 `hks_ingest` 餵 harness transcript。export 慣例：`$HKS_SESSION2MEMORY_EXPORT_ROOT/<workspace_id>/`（`workspace_id` = git repo 目錄名 slug）。
+
+```bash
+export HKS_SESSION2MEMORY_EXPORT_ROOT="$HOME/session2memory/export"
+export HKS_KS_ROOT_BASE="$HOME/.local/share/hks/workspaces"
+# MCP tool: workspace_id=hks, path=daily/2026-05-31.md
+uv run ks workspace query hks "今天做了什麼？" --writeback=no
+```
+
 ## Session Memory / Workspace Status Query
 
 查詢 session memory 的 workspace 狀態時，不要用口語名稱組自然語言 query。先 resolve workspace_id，再用明確格式。

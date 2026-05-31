@@ -43,6 +43,23 @@ lsof -nP -iTCP:8765 -sTCP:LISTEN -iTCP:8766 -sTCP:LISTEN
 
 Start only while a client needs adapter access.
 
+## Agent profile
+
+For Cursor / Codex / Claude / OpenClaw automation that only ingests **session2memory** exports:
+
+```bash
+export HKS_SESSION2MEMORY_EXPORT_ROOT="$HOME/session2memory/export"
+export HKS_KS_ROOT_BASE="$HOME/.local/share/hks/workspaces"
+export HKS_API_TOKEN='replace-with-local-token'
+uv run hks-mcp --profile agent --transport stdio
+# or
+uv run hks-api --profile agent --host 127.0.0.1 --port 8766
+```
+
+Agent profile exposes: `hks_workspace_query`, `hks_workspace_ingest_session_memory`, `hks_workspace_list`, `hks_workspace_show`, `hks_session_memory_summary`, `hks_source_list`, `hks_source_show` (workspace-scoped). Full tools such as `hks_ingest`, `hks_graphify_build`, and `hks_watch_run` are hidden.
+
+HTTP agent routes include `POST /workspaces/{workspace_id}/ingest/session-memory`, `POST /session-memory/summary`, and `POST /workspaces/{workspace_id}/catalog/sources`. Generic `POST /ingest` and `POST /query` return `403` with `AGENT_PROFILE_FORBIDDEN`.
+
 ## HTTP First
 
 Start the loopback HTTP facade:
@@ -68,6 +85,9 @@ POST /catalog/sources/{relpath}
 POST /workspaces
 POST /workspaces/{workspace_id}
 POST /workspaces/{workspace_id}/query
+POST /workspaces/{workspace_id}/ingest/session-memory
+POST /workspaces/{workspace_id}/catalog/sources
+POST /session-memory/summary
 POST /lint
 POST /llm/classify
 POST /wiki/synthesize
