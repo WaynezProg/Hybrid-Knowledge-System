@@ -66,6 +66,22 @@ def test_http_adapter_maps_adapter_error_to_status_and_envelope(
 
 
 @pytest.mark.integration
+def test_agent_profile_forbids_generic_ingest(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HKS_AGENT_PROFILE", "1")
+    monkeypatch.setenv("HKS_API_TOKEN", "secret")
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/ingest",
+        json={"path": "x"},
+        headers=_headers("secret"),
+    )
+
+    assert response.status_code == 403
+    assert response.json()["error"]["code"] == "AGENT_PROFILE_FORBIDDEN"
+
+
+@pytest.mark.integration
 def test_http_adapter_rejects_non_object_json_with_usage_envelope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

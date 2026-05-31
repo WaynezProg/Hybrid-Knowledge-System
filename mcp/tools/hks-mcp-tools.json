@@ -121,6 +121,28 @@
       }
     },
     {
+      "name": "hks_workspace_ingest_session_memory",
+      "description": "Ingest session2memory export artifacts for one workspace (agent profile).",
+      "required": ["workspace_id", "path"],
+      "properties": {
+        "workspace_id": "string",
+        "path": "string",
+        "project_root": "string|null",
+        "prune": "boolean"
+      }
+    },
+    {
+      "name": "hks_session_memory_summary",
+      "description": "Structured session-memory summary for a workspace date range.",
+      "required": ["workspace_id", "date_from", "date_to"],
+      "properties": {
+        "workspace_id": "string",
+        "date_from": "string",
+        "date_to": "string",
+        "registry_path": "string|null"
+      }
+    },
+    {
       "name": "hks_pageindex_show",
       "description": "Show the page tree for a specific source.",
       "required": ["source_relpath"],
