@@ -339,8 +339,17 @@ class WikiStore:
             return []
         return [page for page in self.list_pages() if page.source_relpath in wanted]
 
-    def search(self, query: str, *, tree_store: TreeStore | None = None) -> WikiPage | None:
-        pages = self.list_pages()
+    def search(
+        self,
+        query: str,
+        *,
+        tree_store: TreeStore | None = None,
+        pages: list[WikiPage] | None = None,
+    ) -> WikiPage | None:
+        """The page that best matches ``query``. ``pages`` spares reading them again when
+        the caller already holds ``list_pages()``."""
+        if pages is None:
+            pages = self.list_pages()
         if not pages:
             return None
 

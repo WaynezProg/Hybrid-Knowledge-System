@@ -53,14 +53,55 @@ def test_relevance_counts_whole_terms_and_ignores_answer_kind_words() -> None:
     assert wiki_page_relevance("Project Atlas", atlas, PAGES) == pytest.approx(1.0)
     assert wiki_page_relevance("Project Atlas 摘要", atlas, PAGES) == pytest.approx(1.0)
     partial = wiki_page_relevance("Project Atlas 的負責人是誰", atlas, PAGES)
-    assert 0.15 < partial < 1.0
+    assert partial is not None and 0.0 < partial < 1.0
+
+
+@pytest.mark.contract
+def test_answer_kind_words_follow_the_routing_rules_and_spare_names() -> None:
+    atlas = PAGES[1]
+    store = _page("store", "Store", "Generic storage notes.")
+    pages = [*PAGES, store]
+
+    # "summarize" and "概述" come from the routing rules, like "summary".
+    for wording in ("summary Project Atlas", "summarize Project Atlas", "Project Atlas 概述"):
+        assert wiki_page_relevance(wording, atlas, pages) == pytest.approx(1.0), wording
+    # "summary" inside a name is part of the name: the Store page does not hold it.
+    named = wiki_page_relevance("summary SummaryStore", store, pages)
+    assert named is not None and named < 1.0
+
+
+@pytest.mark.contract
+@pytest.mark.parametrize("question", ["火 摘要", "overview", "摘要"])
+def test_a_question_with_nothing_to_compare_keeps_the_page(question: str) -> None:
+    atlas = PAGES[1]
+    store: Any = _Store(atlas)
+
+    assert wiki_page_relevance(question, atlas, PAGES) is None
+    candidates, steps = collect_wiki_candidates(question, wiki_store=store, is_primary=True)
+
+    assert [candidate.score for candidate in candidates] == [1.0]
+    assert steps[0].detail["hit"] is True and "relevance" not in steps[0].detail
+
+
+@pytest.mark.contract
+def test_a_page_that_shares_only_its_subject_is_still_offered() -> None:
+    owner = _page("atlas", "Atlas", "Owner: Alice.")
+    store: Any = _Store(owner)
+    store.list_pages = lambda: [owner]
+
+    candidates, steps = collect_wiki_candidates(
+        "Who owns Atlas?", wiki_store=store, is_primary=True
+    )
+
+    assert len(candidates) == 1 and 0.7 <= candidates[0].score < 1.0
+    assert 0.0 < steps[0].detail["relevance"] < 0.15
 
 
 class _Store:
     def __init__(self, found: WikiPage) -> None:
         self.found = found
 
-    def search(self, question: str) -> WikiPage:
+    def search(self, question: str, *, pages: list[WikiPage] | None = None) -> WikiPage:
         return self.found
 
     def list_pages(self) -> list[WikiPage]:
