@@ -14,8 +14,8 @@ from hks.retrievers.session_memory import (
     collect_workspace_vector_entries,
     synthesize_date_range_summary,
 )
-from hks.storage.vector import VectorStore
 from hks.routing.session_memory import SessionMemoryIntent
+from hks.storage.vector import VectorStore
 from hks.storage.wiki import WikiStore
 
 
