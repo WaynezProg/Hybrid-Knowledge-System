@@ -82,3 +82,40 @@ def test_route_mode_defers_to_the_vector_route_for_a_shared_chunk(
     fused = json.loads(cli_runner.invoke(app, ["query", "ERR-4012", "--writeback=no"]).stdout)
     assert fused["source"] == ["vector"]
     assert "lexical_lookup" not in [step["kind"] for step in fused["trace"]["steps"]]
+
+
+@pytest.mark.integration
+def test_a_question_about_an_identifier_nothing_mentions_is_a_no_hit(
+    cli_runner, tmp_path: Path
+) -> None:
+    import json
+
+    from hks.cli import app
+    from hks.core.schema import validate
+
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "incident.md").write_text(
+        "# Incident\n\nTicket ERR-4012 was resolved by rotating the gateway token.\n",
+        encoding="utf-8",
+    )
+    (docs / "notes.md").write_text(
+        "# Notes\n\nGeneral remarks about the planning cycle and gateway upkeep.\n",
+        encoding="utf-8",
+    )
+    assert cli_runner.invoke(app, ["ingest", str(docs)]).exit_code == 0
+
+    def ask(question: str) -> dict[str, object]:
+        result = cli_runner.invoke(app, ["query", question, "--writeback=no"])
+        assert result.exit_code == 0, result.stdout
+        return validate(json.loads(result.stdout))
+
+    known = ask("ERR-4012 gateway token")
+    assert known["evidence"][0]["source_relpath"] == "incident.md"  # type: ignore[index]
+
+    unknown = ask("ERR-9999 gateway token")
+    assert unknown["source"] == [] and unknown["confidence"] == 0.0
+    fallback = [s for s in unknown["trace"]["steps"] if s["kind"] == "fallback"][-1]  # type: ignore[index]
+    assert fallback["detail"]["reason"] == "identifier_not_found"
+    assert fallback["detail"]["identifiers"] == ["9999"]
+    assert "_hks_match_text" not in json.dumps(known) + json.dumps(unknown)

@@ -21,6 +21,29 @@ def lexical_tokens(text: str) -> list[str]:
     return tokens
 
 
+def identifier_terms(text: str) -> set[str]:
+    """Terms that name one specific thing: ticket numbers, versions, codes, file names.
+
+    A term counts when it mixes letters and digits (``rc2``, ``svc01``) or is a run of
+    three or more digits that is not a plain year (``4012``, ``00001``). Short numbers and
+    years are left out: "top 10 risks" or "2026 roadmap" ask about a topic, and an answer
+    need not repeat the number.
+    """
+    found: set[str] = set()
+    for term in lexical_tokens(text):
+        if not any(char.isdigit() for char in term):
+            continue
+        if not term.isdigit():
+            found.add(term)
+        elif len(term) >= 3 and not (len(term) == 4 and term[:2] in {"19", "20"}):
+            found.add(term)
+    return found
+
+
+def holds_identifiers(required: set[str], text: str) -> bool:
+    return not required or required <= set(lexical_tokens(text))
+
+
 def bm25_rank(query: str, documents: Sequence[str], *, top_k: int) -> list[tuple[int, float]]:
     """``(document index, score)`` of the best matches, best first; no match, no entry."""
     query_terms = set(lexical_tokens(query))

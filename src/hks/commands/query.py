@@ -12,6 +12,7 @@ from hks.errors import ExitCode, KSError
 from hks.graph.store import GraphStore
 from hks.page_tree.store import TreeStore
 from hks.rerank.llm import rerank_candidates
+from hks.retrieval.bm25 import holds_identifiers, identifier_terms
 from hks.retrieval.confidence import ConfidenceAssessment, assess
 from hks.retrieval.evidence import candidate_evidence
 from hks.retrieval.models import Candidate
@@ -79,6 +80,14 @@ def _passes_final_score_gate(
         candidate,
         requested_route=requested_route,
     )
+
+
+def _identifier_text(candidate: Candidate) -> str:
+    """What a candidate is checked against: the whole chunk or page, not just the excerpt."""
+    whole = candidate.metadata.get("_hks_match_text")
+    quote = candidate.metadata.get("quote")
+    parts = [candidate.text, whole if isinstance(whole, str) else "", str(quote or "")]
+    return "\n".join(parts)
 
 
 def _retrieval_score_for_assessment(candidate: Candidate) -> float:
@@ -281,6 +290,33 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
                 assessment=assessment,
             )
 
+    # A question that names a specific thing (a ticket, a version, a file) is answered only
+    # by content that mentions it. Related content about another ticket is not an answer.
+    identifiers = identifier_terms(question)
+    candidate_total = len(all_candidates)
+    all_candidates = [
+        candidate
+        for candidate in all_candidates
+        if holds_identifiers(identifiers, _identifier_text(candidate))
+    ]
+    identifier_filtered = candidate_total - len(all_candidates)
+    if not all_candidates:
+        steps.append(
+            TraceStep(
+                kind="fallback",
+                detail={
+                    "status": "no-hit",
+                    "reason": "identifier_not_found",
+                    "identifiers": sorted(identifiers),
+                    "candidates_dropped": identifier_filtered,
+                },
+            )
+        )
+        response = _build_no_hit_response(decision.route, steps)
+        return _maybe_writeback(
+            question=question, response=response, writeback=writeback, wiki_store=wiki_store
+        )
+
     ranked, strategy, rerank_detail = rerank_candidates(question, all_candidates)
     steps.append(TraceStep(kind="rerank", detail=rerank_detail))
     steps.append(
@@ -289,6 +325,7 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
             detail={
                 "strategy": strategy,
                 "candidate_count": len(all_candidates),
+                "identifier_filtered": identifier_filtered,
                 "top_candidate": {
                     "route": ranked[0].source_route,
                     "score": ranked[0].score,

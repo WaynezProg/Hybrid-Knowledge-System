@@ -5,7 +5,7 @@ from __future__ import annotations
 from hks.core.manifest import Manifest
 from hks.core.schema import TraceStep
 from hks.page_tree.store import TreeStore
-from hks.retrieval.bm25 import bm25_rank, lexical_tokens, query_coverage
+from hks.retrieval.bm25 import bm25_rank, holds_identifiers, identifier_terms, query_coverage
 from hks.retrieval.models import Candidate
 from hks.retrievers.vector import (
     best_vector_passage,
@@ -53,14 +53,13 @@ def collect_lexical_candidates(
         candidate.metadata.get("chunk_id"): candidate for candidate in vector_candidates or []
     }
     shared = 0
-    # Terms with a digit are identifiers, versions or amounts. A chunk that lacks one of
-    # them is about something else that merely shares a word ("INC-00001" against a note
-    # on INC-90217), however well the rest matches.
-    required = {term for term in lexical_tokens(question) if any(c.isdigit() for c in term)}
+    # A chunk that lacks an identifier the question names is about something else that
+    # merely shares a word ("INC-00001" against a note on INC-90217).
+    required = identifier_terms(question)
     missing_identifier = 0
     for rank, (index, bm25_score) in enumerate(matches, start=1):
         chunk = corpus[index]
-        if required and not required <= set(lexical_tokens(chunk.text)):
+        if not holds_identifiers(required, chunk.text):
             missing_identifier += 1
             continue
         already = nominated.get(chunk.chunk_id)
@@ -73,6 +72,7 @@ def collect_lexical_candidates(
         score = round(_MAX_SCORE * query_coverage(question, chunk.text, texts), 4)
         metadata: dict[str, object] = dict(chunk.metadata)
         metadata["chunk_id"] = chunk.chunk_id
+        metadata["_hks_match_text"] = chunk.text
         metadata["lexical_overlap"] = vector_hit_lexical_score(question, chunk)
         metadata["lexical_rank"] = rank
         metadata["bm25_score"] = round(bm25_score, 4)
