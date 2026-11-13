@@ -201,9 +201,10 @@ Source / route 語意對照：
 * trace 會包含 `rerank` step；LLM rerank 失敗時會記錄 fallback reason
 * page_tree 只把有 LLM-enriched summary 的 section node 作為候選；裸標題仍主要由 wiki / vector 覆蓋
 * Keyword 檢索（BM25，對所有 chunk 即時計算，不落地索引）由 `HKS_HYBRID_SEARCH` 控制，詳見 `specs/020-hybrid-lexical-retrieval/spec.md`：
-  * `route`（預設）：embedding 沒帶出、但含有問句關鍵詞（名稱、ID、錯誤碼）的 chunk 以 `lexical` route 成為候選，trace 多一個 `lexical_lookup` step。vector route 已提名的 chunk 仍歸 vector；問句中帶數字的詞必須全部出現在 chunk 中；lexical 答案不具 auto write-back 資格
+  * `route`（預設）：embedding 沒帶出、但含有問句關鍵詞（名稱、ID、錯誤碼）的 chunk 以 `lexical` route 成為候選，trace 多一個 `lexical_lookup` step。vector route 已提名的 chunk 仍歸 vector；lexical 答案不具 auto write-back 資格
   * `fused`：BM25 排名與 dense 排名以 RRF 融合後取前 5 筆為 vector candidates，不產生新 route；`vector_lookup` trace detail 的 `retrieval_mode` 為 `hybrid`
   * `off`：只用 dense
+* Rerank 前的 identifier 過濾：問句點名的 identifier（英數混合的詞，或三位以上且非年份的數字，如 `ERR-4012` 的 `4012`）必須出現在候選的完整 chunk / wiki page 中，否則該候選不採用；全部被濾掉時回 no-hit，trace 的 `fallback` step 記 `reason: identifier_not_found`。問「ERR-9999」不會以講 ERR-4012 的內容作答
 * chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`（預設 20000）時略過 keyword 檢索，並在 trace 記 `lexical_skipped`
 * session-memory temporal intent（`今天` / `昨天` / `today` / `yesterday` / `YYYY-MM-DD`）會優先使用 matching session daily source，避免 graph 測試資料搶答
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
