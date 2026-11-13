@@ -303,6 +303,8 @@ uv run mypy src/hks
 
 ## 進一步文件
 
+- [docs/architecture.md](./docs/architecture.md) — 架構圖、ingest / query 流程圖、query 時序圖
+
 <details>
 <summary>Spec 目錄</summary>
 
