@@ -105,7 +105,7 @@
 
 identifier 類同時變好，是因為原本以較高分數搶走答案的錯誤 wiki page 被濾掉了。keyword 與 paraphrase 類的問句不含 identifier，數字不變。Golden gate 在 `route` 與 `fused` 模式仍為 3/3。
 
-沒有解決的情況：問一個語料裡完全沒有的主題、問句又不含 identifier 時（評測中的「What is the vacation policy for contractors?」，每個 seed 都誤答），仍會被 vector route 以相似度約 0.35 的內容作答。同一個 model 下正確的 paraphrase 答案相似度也只有 0.36–0.39，提高門檻會誤殺它們，所以沒有動相似度門檻。這類情況需要 LLM reranker 或 answerability 判斷。
+沒有解決的情況：問一個語料裡完全沒有的主題、問句又不含 identifier 時（例如評測中的「What is the vacation policy for contractors?」，逐題檢查的那個 seed 仍誤答），仍會被 vector route 以相似度約 0.35 的內容作答。同一個 model 下正確的 paraphrase 答案相似度也只有 0.36–0.39，提高門檻會誤殺它們，所以沒有動相似度門檻。這類情況需要 LLM reranker 或 answerability 判斷。
 
 ## 5. 限制
 
