@@ -70,6 +70,43 @@ FACTS = [
     ("paraphrase", "付款對不上帳時要找誰", "發票與帳本不符時，請聯絡財務對帳窗口林雅婷。"),
     ("paraphrase", "手機版當機要怎麼回報", "手持裝置用戶端閃退時，請附上日誌並開立缺陷單。"),
 ]
+# HKS_EVAL_EXTRA=1 adds the cases below, taken from questions that went wrong on real
+# knowledge bases. They are placed without disturbing the base corpus's random draws, but
+# they add sentences to it, so base numbers are only comparable with the same setting.
+EXTRA = os.environ.get("HKS_EVAL_EXTRA", "") not in {"", "0"}
+EXTRA_FACTS = [
+    # a code inside a sentence whose other words are in no document
+    ("code-in-sentence", "VID-236 的畫面是用來決定什麼", "逐句 delta 稿第 3 段的 A／B 版依 VID-236 畫面選。"),
+    ("code-in-sentence", "PO-77120 這張單後來怎麼處理", "Purchase order PO-77120 was cancelled after the vendor missed two deadlines."),
+    ("code-in-sentence", "請問 KB-41007 這篇文章在講什麼內容呢", "Article KB-41007 covers rotating the signing keys."),
+    ("code-in-sentence", "tell me everything you know regarding INC-30558 please", "事件 INC-30558 起因於排程器重複派工。"),
+    # the same code written another way
+    ("code-spelling", "VID412 的進度", "VID-412 已完成初剪，等待配音。"),
+    ("code-spelling", "what is RFC0207", "RFC-0207 proposes a shared retry budget for the gateway."),
+    ("code-spelling", "svc-07 owner", "The service svc07 is owned by Chen Wei."),
+    ("code-spelling", "ERR_5120 怎麼修", "Ticket ERR-5120 was fixed by clearing the stale lock file."),
+    # a code with a short number, next to content that has the same words apart
+    ("short-code", "Atlas-10 對應哪一個 risk", "Atlas-10 對應 risk-10：測試資料尚未匿名化。"),
+    ("short-code", "phase-2 的截止日", "phase-2 的截止日是六月十五日。"),
+    ("short-code", "Lot-7 的檢驗結果", "Lot-7 的檢驗結果為合格，已放行出貨。"),
+    # a name with a digit inside it; the answer does not repeat the name
+    ("name-with-digit", "session2memory 的 reconcile 步驟做了哪些事", "reconcile 步驟會找出同一個 project 內互相矛盾或重複的記憶。"),
+    ("name-with-digit", "k8s 叢集升級的順序", "叢集升級先動控制平面，再逐一輪替工作節點。"),
+    ("name-with-digit", "i18n 字串要放在哪裡", "介面字串統一放在 locales 目錄，每個語系一個檔。"),
+]
+# Sentences that share words with a short-code fact without naming the code.
+EXTRA_DISTRACTORS = [
+    "Atlas 專案目前有 10 個主要風險，最大的是供應商交期延遲。",
+    "各 phase 的規劃仍在討論，第 2 季會再確認時程。",
+    "本月共檢驗 7 個 lot，結果彙整於週報。",
+]
+EXTRA_NO_ANSWER = [
+    "VID999 的進度",
+    "Atlas-99 對應哪一個 risk",
+    "PO-00000 這張單後來怎麼處理",
+    "phase-9 的截止日",
+]
+
 NO_ANSWER = [
     "ERR-9999 怎麼修",
     "What is the vacation policy for contractors?",
@@ -84,6 +121,7 @@ def build_corpus(target: Path, *, documents: int, seed: int) -> dict[str, str]:
     target.mkdir(parents=True)
     holders = rng.sample(range(documents), len(FACTS))
     answers: dict[str, str] = {}
+    pages: list[tuple[str, list[str]]] = []
     for index in range(documents):
         topic, about = TOPICS[index % len(TOPICS)]
         lines = [f"# {topic.title()} note {index:03d}", "", f"This note covers {about}."]
@@ -93,7 +131,19 @@ def build_corpus(target: Path, *, documents: int, seed: int) -> dict[str, str]:
             lines.insert(rng.randint(3, len(lines)), fact)
             answers[question] = f"{topic}-{index:03d}.md"
         lines += rng.sample(FILLER, 2)
-        (target / f"{topic}-{index:03d}.md").write_text("\n\n".join(lines) + "\n", encoding="utf-8")
+        pages.append((f"{topic}-{index:03d}.md", lines))
+    if EXTRA:
+        # A generator of its own, and only documents that hold no base fact.
+        extra_rng = random.Random(seed + 1000)
+        free = [index for index in range(documents) if index not in holders]
+        spots = extra_rng.sample(free, len(EXTRA_FACTS) + len(EXTRA_DISTRACTORS))
+        for spot, (_, question, fact) in zip(spots, EXTRA_FACTS, strict=False):
+            pages[spot][1].insert(3, fact)
+            answers[question] = pages[spot][0]
+        for spot, sentence in zip(spots[len(EXTRA_FACTS) :], EXTRA_DISTRACTORS, strict=True):
+            pages[spot][1].insert(3, sentence)
+    for name, lines in pages:
+        (target / name).write_text("\n\n".join(lines) + "\n", encoding="utf-8")
     return answers
 
 
@@ -114,7 +164,7 @@ def evaluate(mode: str, answers: dict[str, str]) -> dict[str, dict[str, list[int
     def record(kind: str, metric: str, hit: bool) -> None:
         results.setdefault(kind, {}).setdefault(metric, []).append(int(hit))
 
-    for kind, question, _ in FACTS:
+    for kind, question, _ in [*FACTS, *(EXTRA_FACTS if EXTRA else [])]:
         expected = answers[question]
         payload = query_run(question, writeback="no").to_dict()
         cited = {item.get("source_relpath") for item in payload.get("evidence", [])}
@@ -126,6 +176,9 @@ def evaluate(mode: str, answers: dict[str, str]) -> dict[str, dict[str, list[int
     for question in NO_ANSWER:
         payload = query_run(question, writeback="no").to_dict()
         record("no-answer", "no-hit", not payload.get("source"))
+    for question in EXTRA_NO_ANSWER if EXTRA else []:
+        payload = query_run(question, writeback="no").to_dict()
+        record("no-answer-code", "no-hit", not payload.get("source"))
     return results
 
 
@@ -138,7 +191,11 @@ def main() -> int:
         with tempfile.TemporaryDirectory() as scratch:
             root = Path(scratch)
             os.environ["KS_ROOT"] = str(root / "ks")
-            os.environ["HKS_CONFIG_FILE"] = str(root / "missing.yaml")
+            # HKS_EVAL_CONFIG_FILE: a config file to take the embedding backend from (an
+            # API-backed model needs its endpoint and key). KS_ROOT above still wins.
+            os.environ["HKS_CONFIG_FILE"] = os.environ.get(
+                "HKS_EVAL_CONFIG_FILE", str(root / "missing.yaml")
+            )
             os.environ["HKS_CONFIG_ENV"] = str(root / "missing.env")
             answers = build_corpus(root / "docs", documents=documents, seed=seed)
             from typer.testing import CliRunner

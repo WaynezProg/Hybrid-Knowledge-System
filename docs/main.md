@@ -205,6 +205,7 @@ Source / route 語意對照：
   * `fused`：BM25 排名與 dense 排名以 RRF 融合後取前 5 筆為 vector candidates，不產生新 route；`vector_lookup` trace detail 的 `retrieval_mode` 為 `hybrid`
   * `off`：只用 dense
 * Rerank 前的 identifier 過濾：問句點名的 identifier（複合編號如 `ERR-4012`、`Atlas-10`、`vid236`，有無 `-`／`_` 視為相同並以 `err-4012` 的寫法表示；結尾是數字或含三個以上數字的英數混合詞如 `v17r2`；三位以上且非年份的數字。`session2memory` 這類數字夾在字母中間的名稱不算。規則見 `specs/022-identifier-rules/spec.md`）必須出現在候選的完整 chunk / wiki page 中，否則該候選不採用；全部被濾掉時回 no-hit，trace 的 `fallback` step 記 `reason: identifier_not_found`。問「ERR-9999」不會以講 ERR-4012 的內容作答
+* 問句有 identifier 時，lexical 候選的 score 為 `0.85 ×（0.5 + 0.5 × coverage）`：編號夾帶在長問句中（「VID-236 的畫面是用來決定什麼」）不會因為其餘詞彙不在語料中而被 gate 擋掉。沒有 identifier 的問句維持 `0.85 × coverage`。見 `specs/023-lexical-identifier-floor/spec.md`
 * chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`（預設 20000）時略過 keyword 檢索，並在 trace 記 `lexical_skipped`
 * session-memory temporal intent（`今天` / `昨天` / `today` / `yesterday` / `YYYY-MM-DD`）會優先使用 matching session daily source，避免 graph 測試資料搶答
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`

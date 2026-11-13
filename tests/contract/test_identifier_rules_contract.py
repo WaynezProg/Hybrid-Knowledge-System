@@ -82,3 +82,28 @@ def test_a_name_with_a_digit_inside_it_is_not_required_of_the_answer(ask) -> Non
 
     assert _sources(payload) == {"pipeline.md"}
     assert [detail["identifier_filtered"] for detail in _steps(payload, "merge")] == [0]
+
+
+@pytest.mark.contract
+def test_a_code_wrapped_in_a_sentence_is_answered_by_the_keyword_route(
+    cli_runner, tmp_path: Path
+) -> None:
+    docs = tmp_path / "many"
+    docs.mkdir()
+    for index in range(30):
+        (docs / f"note-{index:02d}.md").write_text(
+            f"# Note {index}\n\n每週例會紀錄第 {index} 則：沒有特別事項，照常進行維護與檢查。\n",
+            encoding="utf-8",
+        )
+    (docs / "tickets.md").write_text(DOCS["tickets.md"], encoding="utf-8")
+    assert cli_runner.invoke(app, ["ingest", str(docs)]).exit_code == 0
+
+    result = cli_runner.invoke(
+        app, ["query", "請問 VID-236 那支後來到底是怎麼處理的呢", "--writeback=no"]
+    )
+    payload = validate(json.loads(result.stdout))
+
+    assert _sources(payload) == {"tickets.md"}
+    assert _steps(payload, "fallback") == []
+    assert payload["confidence"] >= 0.3
+    assert "identifier_match" not in result.stdout
