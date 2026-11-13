@@ -30,7 +30,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
   * `page_trees/`：source section tree 與 LLM-enriched section summaries
 * Processing Layer
   * ingestion pipeline：parse → normalize → extract → update
-  * query pipeline：routing backend → wiki / graph / vector / page_tree fused candidates → rerank / write-back
+  * query pipeline：routing backend → wiki / graph / vector / lexical / page_tree fused candidates → rerank / write-back
 * Tool Layer
   * `ks ingest`
   * `ks query`
@@ -191,16 +191,18 @@ Source / route 語意對照：
 
 ### 5.3 Fused retrieval + rerank
 
-`ks query` 不是 sequential fallback。Query 會收集 wiki / graph / vector / page_tree candidates，再統一 rerank：
+`ks query` 不是 sequential fallback。Query 會收集 wiki / graph / vector / lexical / page_tree candidates，再統一 rerank：
 
 * `HKS_LLM_NETWORK_OPT_IN=1` 且有 OpenAI-compatible key 時，使用 LLM rerank
 * 未 explicit opt-in 或缺 credential 時，使用 deterministic RRF rerank
 * implementation 已拆成 retrievers、retrieval evidence 與 rerank modules；`commands/query.py` 只負責 orchestration 與 write-back
 * trace 會包含 `rerank` step；LLM rerank 失敗時會記錄 fallback reason
 * page_tree 只把有 LLM-enriched summary 的 section node 作為候選；裸標題仍主要由 wiki / vector 覆蓋
-* vector route 內部是 hybrid：dense（embedding 相似度）與 BM25 keyword（對所有 chunk 即時計算，不落地索引）以 RRF 融合後取前 5 筆為 candidates。Embedding 沒排進前段、但含有問句關鍵詞（名稱、ID、錯誤碼）的 chunk 因此仍會成為候選
-* hybrid 只改變「哪些 chunk 進候選」；candidate score 仍是 similarity + lexical overlap bonus，route 名稱、final score gate 與 write-back threshold 不變
-* `vector_lookup` trace detail 新增 `retrieval_mode`（`hybrid` / `dense`）、`lexical_candidate_count`、`lexical_only_count`；`HKS_HYBRID_SEARCH=off` 關閉，`HKS_HYBRID_SEARCH=route` 改讓 embedding 沒帶出的 keyword 命中自成 `lexical` route（opt-in，trace 多一個 `lexical_lookup` step；與 vector 重複的 chunk 仍歸 vector，lexical 答案不自動 write-back；比較結果見 `specs/020-hybrid-lexical-retrieval/spec.md`），chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`（預設 20000）時自動退回 dense 並在 trace 記 `lexical_skipped`
+* Keyword 檢索（BM25，對所有 chunk 即時計算，不落地索引）由 `HKS_HYBRID_SEARCH` 控制，詳見 `specs/020-hybrid-lexical-retrieval/spec.md`：
+  * `route`（預設）：embedding 沒帶出、但含有問句關鍵詞（名稱、ID、錯誤碼）的 chunk 以 `lexical` route 成為候選，trace 多一個 `lexical_lookup` step。vector route 已提名的 chunk 仍歸 vector；問句中帶數字的詞必須全部出現在 chunk 中；lexical 答案不具 auto write-back 資格
+  * `fused`：BM25 排名與 dense 排名以 RRF 融合後取前 5 筆為 vector candidates，不產生新 route；`vector_lookup` trace detail 的 `retrieval_mode` 為 `hybrid`
+  * `off`：只用 dense
+* chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`（預設 20000）時略過 keyword 檢索，並在 trace 記 `lexical_skipped`
 * session-memory temporal intent（`今天` / `昨天` / `today` / `yesterday` / `YYYY-MM-DD`）會優先使用 matching session daily source，避免 graph 測試資料搶答
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
 

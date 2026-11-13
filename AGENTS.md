@@ -62,7 +62,7 @@ raw_sources (immutable) -> ingestion -> wiki + graph + vector + page_trees + man
 關鍵契約：
 
 - **Ingestion 是寫入時整理**：parse -> normalize -> extract -> update，同步更新 `raw_sources`、`wiki`、`graph`、`vector`、`manifest`。
-- **Query 走 fused retrieval**：同時從 wiki / graph / vector / page_tree 收集 candidates，以 LLM reranker 排序（無 API key 時 fallback RRF）；response 含 `evidence[]` 溯源。
+- **Query 走 fused retrieval**：同時從 wiki / graph / vector / lexical / page_tree 收集 candidates，以 LLM reranker 排序（無 API key 時 fallback RRF）；response 含 `evidence[]` 溯源。
 - **Write-back 預設 no**：agent / automation 省略 `--writeback` 不會產生頁面；只有顯式 `--writeback=auto` 且通過 route-specific eligibility 才自動寫回 wiki，`--writeback=yes` 是強制寫回。019 review queue 尚未實作，不能把它當成現行行為。
 - **Lint 已不是 stub**：`ks lint` 檢查跨層一致性；`--strict` 控制 exit code；`--fix=apply` 只執行 allowlist 修復。
 - **MCP / HTTP adapter 已是正式介面**：`hks-mcp` 與 `hks-api` 不再是非目標。

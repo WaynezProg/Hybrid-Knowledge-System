@@ -135,7 +135,8 @@ def _chunk(chunk_id: str, text: str, similarity: float = 0.0) -> SearchHit:
     )
 
 
-def test_hybrid_adds_a_keyword_match_the_embedding_missed() -> None:
+def test_hybrid_adds_a_keyword_match_the_embedding_missed(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("HKS_HYBRID_SEARCH", "fused")
     dense = [
         _chunk(f"d{index}", f"general remarks {index}", 0.6 - index / 100) for index in range(6)
     ]
@@ -158,7 +159,8 @@ def test_hybrid_adds_a_keyword_match_the_embedding_missed() -> None:
     vector_store.similarities.assert_called_once_with("ERR-4012", ["exact"])
 
 
-def test_hybrid_puts_a_chunk_found_both_ways_first() -> None:
+def test_hybrid_puts_a_chunk_found_both_ways_first(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    monkeypatch.setenv("HKS_HYBRID_SEARCH", "fused")
     dense = [_chunk("d0", "general remarks", 0.62), _chunk("both", "atlas rollout plan", 0.6)]
     vector_store = _hybrid_store(dense, list(dense))
     manifest = MagicMock()
@@ -184,7 +186,7 @@ def test_hybrid_can_be_switched_off_and_skips_a_large_store(monkeypatch) -> None
     assert len(candidates) == 1 and steps[0].detail["retrieval_mode"] == "dense"
     off.all_chunks.assert_not_called()
 
-    monkeypatch.setenv("HKS_HYBRID_SEARCH", "1")
+    monkeypatch.setenv("HKS_HYBRID_SEARCH", "fused")
     monkeypatch.setenv("HKS_HYBRID_MAX_CHUNKS", "1")
     large = _hybrid_store(dense, corpus)
     _, steps = collect_vector_candidates("ERR-4012", vector_store=large, manifest=manifest)

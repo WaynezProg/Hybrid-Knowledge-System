@@ -222,12 +222,13 @@ class RankedHit:
 
 
 def hybrid_search_mode() -> str:
-    """``fused``: BM25 joins the dense ranking inside the vector route. ``route``: keyword
-    matches are a route of their own. ``off``: dense only."""
-    value = (config_value("HKS_HYBRID_SEARCH") or "fused").strip().lower()
+    """``route`` (default): keyword matches the embedding did not bring up are a route of
+    their own. ``fused``: BM25 joins the dense ranking inside the vector route. ``off``:
+    dense only."""
+    value = (config_value("HKS_HYBRID_SEARCH") or "route").strip().lower()
     if value in {"0", "false", "no", "off"}:
         return "off"
-    return "route" if value == "route" else "fused"
+    return "fused" if value in {"fused", "1", "true", "yes", "on"} else "route"
 
 
 def hybrid_max_chunks() -> int:

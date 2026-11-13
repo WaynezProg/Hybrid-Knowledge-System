@@ -1,4 +1,4 @@
-"""Keyword (BM25) candidates as a route of their own (``HKS_HYBRID_SEARCH=route``)."""
+"""Keyword (BM25) candidates as a route of their own (``HKS_HYBRID_SEARCH=route``, the default)."""
 
 from __future__ import annotations
 

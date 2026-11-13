@@ -44,7 +44,8 @@ TEXTS = [
 
 
 def test_mode_names(monkeypatch: pytest.MonkeyPatch) -> None:
-    for value, mode in (("", "fused"), ("1", "fused"), ("0", "off"), ("route", "route")):
+    modes = (("", "route"), ("route", "route"), ("fused", "fused"), ("1", "fused"), ("0", "off"))
+    for value, mode in modes:
         monkeypatch.setenv("HKS_HYBRID_SEARCH", value)
         assert hybrid_search_mode() == mode
 
