@@ -29,7 +29,22 @@
 
 ## 4. `fused` 與 `route` 的比較
 
-`evals/hybrid_modes.py`：合成語料 240 份文件 × 3 組 seed，20 個有答案的問題與 4 個無答案的問題，`HKS_EMBEDDING_MODEL=simple`，rerank 走 RRF。
+`evals/hybrid_modes.py`：合成語料 240 份文件 × 3 組 seed，20 個有答案的問題與 4 個無答案的問題，rerank 走 RRF。每格為三組 seed 合計。
+
+### 4.1 預設 embedding model（`paraphrase-multilingual-MiniLM-L12-v2`）
+
+| 指標 | `off` | `fused` | `route` |
+|---|---|---|---|
+| identifier answer@1 | 17/30 | 24/30 | 23/30 |
+| identifier recall@5 | 22/30 | 30/30 | 30/30 |
+| keyword answer@1 | 6/15 | 10/15 | 12/15 |
+| keyword recall@5 | 5/15 | 13/15 | 15/15 |
+| paraphrase answer@1 | 4/15 | 3/15 | 4/15 |
+| paraphrase recall@5 | 4/15 | 3/15 | 4/15 |
+| no-answer 正確回 no-hit | 2/12 | 2/12 | 4/12 |
+| 有答案的問題合計 answer@1 | 27/60 | 37/60 | 39/60 |
+
+### 4.2 `simple`（hash bag-of-words）embedding
 
 | 指標 | `off` | `fused` | `route` |
 |---|---|---|---|
@@ -40,11 +55,18 @@
 | paraphrase answer@1 | 0/15 | 0/15 | 0/15 |
 | no-answer 正確回 no-hit | 4/12 | 4/12 | 6/12 |
 
-Golden gate（`tests/eval/test_golden_retrieval_quality.py`）：`off` 與 `fused` 3/3 通過；`route` 2 個 gate 失敗：`lexical` route 取代了原本預期的 `vector` route（`vector-clause-32`、`long-doc-alpha-seven-retention`），且 `vector-clause-32` 因 lexical score 達 auto write-back 門檻而成為 write-back false positive。
+### 4.3 Golden gate
 
-結論：預設採 `fused`。兩者把正確 chunk 帶進候選的能力相同，但 `route` 引入一套與其他 route 不同尺度的 score，會改變跨 route 的勝出結果與 write-back 判定，需要另行校準才適合當預設。
+`tests/eval/test_golden_retrieval_quality.py`（固定用 `simple` embedding）：`off` 與 `fused` 3/3 通過；`route` 2 個 gate 失敗：`lexical` route 取代了原本預期的 `vector` route（`vector-clause-32`、`long-doc-alpha-seven-retention`），且 `vector-clause-32` 因 lexical score 達 auto write-back 門檻而成為 write-back false positive。
 
-這份比較的限制：只用 `simple`（hash bag-of-words）embedding 跑過，該 embedding 沒有語意能力（paraphrase 全數失敗即為此故），所以 dense 的基準偏弱；語料是合成的。換成預設的 sentence-transformers model 後差距可能不同，需在可下載 model 的環境重跑 `uv run python evals/hybrid_modes.py`。
+### 4.4 結論
+
+- 兩種 hybrid 都明顯優於只用 dense（預設 model 下 37/60、39/60 對 27/60），主要來自 identifier 與 keyword 類問題。
+- `fused` 與 `route` 的答對數差距（37 對 39）在這個樣本量下不足以分出高下：`route` 在 keyword 與 no-hit 略好，`fused` 在 identifier 略好。
+- `fused` 在 paraphrase 類比只用 dense 少答對 1 題（3 對 4）：BM25 排名把一個 dense 命中擠出前 5。這是 `fused` 的已知代價。
+- 預設維持 `fused`，理由不是答對率，而是 `route` 引入另一套尺度的 score，會改變跨 route 的勝出結果並造成 auto write-back 誤判（§4.3）。`route` 的 score 與 write-back 門檻校準後，可以重新評估是否改為預設。
+
+這份比較的限制：語料與問題是合成的，每類只有 5–10 題 × 3 seed；無答案問題在三種模式下多數都答錯（最好 4/12），顯示 no-hit 判定本身偏弱，與 hybrid 無關。
 
 ## 5. 限制
 
