@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -35,6 +36,12 @@ def collection_name_for_backend(backend: TextModelBackend) -> str:
 
 
 COLLECTION_NAME = collection_name_for_backend(TextModelBackend("simple"))
+
+
+def _cosine(left: Sequence[float], right: Sequence[float]) -> float:
+    dot = sum(a * b for a, b in zip(left, right, strict=False))
+    norm = math.sqrt(sum(a * a for a in left)) * math.sqrt(sum(b * b for b in right))
+    return dot / norm if norm else 0.0
 
 
 @dataclass(slots=True)
@@ -134,6 +141,48 @@ class VectorStore:
                 )
             )
         return hits
+
+    def all_chunks(self) -> list[SearchHit]:
+        """Every stored chunk, without a similarity (``0.0``): the keyword search corpus."""
+        if self.count() == 0:
+            return []
+        result = cast(
+            dict[str, Any],
+            self.collection.get(include=["documents", "metadatas"]),
+        )
+        return [
+            SearchHit(
+                chunk_id=str(chunk_id),
+                text=str(document or ""),
+                similarity=0.0,
+                metadata=dict(metadata or {}),
+            )
+            for chunk_id, document, metadata in zip(
+                result.get("ids", []),
+                result.get("documents", []),
+                result.get("metadatas", []),
+                strict=False,
+            )
+        ]
+
+    def similarities(self, query: str, ids: list[str]) -> dict[str, float]:
+        """Cosine similarity of the query to the named chunks, from their stored vectors."""
+        if not ids:
+            return {}
+        query_embedding = [float(value) for value in self.backend.embed_query(query)]
+        result = cast(
+            dict[str, Any],
+            self.collection.get(ids=ids, include=["embeddings"]),
+        )
+        embeddings = result.get("embeddings")
+        found: dict[str, float] = {}
+        if embeddings is None:
+            return found
+        for chunk_id, embedding in zip(result.get("ids", []), embeddings, strict=False):
+            found[str(chunk_id)] = max(
+                0.0, _cosine(query_embedding, [float(value) for value in embedding])
+            )
+        return found
 
     def search(self, query: str, *, top_k: int = 5) -> list[SearchHit]:
         if self.count() == 0:

@@ -82,6 +82,8 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 ```
 
 所有 query 走 fused retrieval：同時從 wiki / graph / vector / page_tree 收集 candidates，以 LLM reranker 排序（無 API key 時 fallback RRF）。Response 包含 `evidence[]` 溯源。
+
+vector route 本身是 hybrid 檢索：embedding 相似度與 BM25 keyword 兩種排序以 RRF 融合，精確詞（名稱、ID、錯誤碼）不會因 embedding 沒排到前面而漏掉。
 含 `今天` / `昨天` / `today` / `yesterday` / `YYYY-MM-DD` 的 session-memory 查詢會優先命中對應 date 的 session daily source，避免被一般 graph/vector 內容搶答。
 
 > LLM reranker 僅在 `HKS_LLM_NETWORK_OPT_IN=1` 且 OpenAI key 齊備時啟用；啟用時會將 question 與候選 snippet（每筆截斷 200 字，含 wiki / graph / vector 命中內容）送至 hosted endpoint。未 opt-in 一律走 local RRF，不外送任何內容。
@@ -278,6 +280,8 @@ uv run hks-api --host 127.0.0.1 --port 8766
 | `HKS_LLM_NETWORK_OPT_IN` | — | 設為 `1` 才允許非 fake provider |
 | `HKS_LLM_PROVIDER_OPENAI_API_KEY` | — | OpenAI API key |
 | `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Legacy auto write-back fallback；有 `ConfidenceAssessment` 時以 route-specific `auto_threshold` 為準，且仍需 `writeback_eligible=true` |
+| `HKS_HYBRID_SEARCH` | `fused` | Keyword 檢索模式：`fused` 把 BM25 併入 vector route；`route` 讓 keyword 命中自成 `lexical` route（opt-in）；`off` 只用 dense |
+| `HKS_HYBRID_MAX_CHUNKS` | `20000` | chunk 數超過此值時略過 keyword 檢索（query 時即時計算，無落地索引） |
 | `HKS_WORKSPACE_REGISTRY` | user config path | Workspace registry JSON 路徑 |
 
 結構化設定檔用 `config/hks.yaml`（從 `config/hks.yaml.example` 複製）。讀取優先序：process env > `config/hks.env` > `config/hks.yaml` / `config/hks.json` > default。

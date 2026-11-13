@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
+from hks.core.config import config_value
 from hks.core.manifest import Manifest
 from hks.core.schema import TraceStep
 from hks.core.text_models import simple_tokenize
 from hks.page_tree.model import PageTree, TreeNode
 from hks.page_tree.store import TreeStore
+from hks.retrieval.bm25 import bm25_rank
 from hks.retrieval.evidence import evidence_quote
 from hks.retrieval.models import Candidate
 from hks.storage.vector import SearchHit, VectorStore
@@ -16,6 +19,10 @@ from hks.storage.vector import SearchHit, VectorStore
 _LEXICAL_SCORE_BONUS = 0.08
 _MAX_LEXICAL_SCORE_BONUS = 0.24
 _PASSAGE_MAX_TOKENS = 96
+_CANDIDATE_LIMIT = 5
+_LEXICAL_TOP_K = 20
+_RRF_K = 60
+_DEFAULT_HYBRID_MAX_CHUNKS = 20000
 _PASSAGE_SPLIT_RE = re.compile(r"(?<!\d\.)(?<=[.!?。！？])\s*")
 
 
@@ -200,6 +207,90 @@ def _node_for_passage(tree: PageTree, passage_text: str | None) -> TreeNode | No
     return max(matches, key=lambda node: (node.level, len(node.title)))
 
 
+@dataclass(slots=True)
+class RankedHit:
+    hit: SearchHit
+    dense_rank: int | None = None
+    lexical_rank: int | None = None
+    bm25_score: float = 0.0
+
+    @property
+    def fused_score(self) -> float:
+        return sum(
+            1.0 / (_RRF_K + rank) for rank in (self.dense_rank, self.lexical_rank) if rank
+        )
+
+
+def hybrid_search_mode() -> str:
+    """``fused``: BM25 joins the dense ranking inside the vector route. ``route``: keyword
+    matches are a route of their own. ``off``: dense only."""
+    value = (config_value("HKS_HYBRID_SEARCH") or "fused").strip().lower()
+    if value in {"0", "false", "no", "off"}:
+        return "off"
+    return "route" if value == "route" else "fused"
+
+
+def hybrid_max_chunks() -> int:
+    try:
+        return int(config_value("HKS_HYBRID_MAX_CHUNKS") or _DEFAULT_HYBRID_MAX_CHUNKS)
+    except ValueError:
+        return _DEFAULT_HYBRID_MAX_CHUNKS
+
+
+def hybrid_rank(
+    question: str,
+    dense_hits: list[SearchHit],
+    *,
+    vector_store: VectorStore,
+) -> tuple[list[RankedHit], dict[str, object]]:
+    """Fuse the dense ranking with a BM25 keyword ranking of every chunk (RRF).
+
+    A chunk the embedding ranked low, or not at all, still becomes a candidate when it
+    holds the words asked for: exact names, ids and codes. Scores keep their meaning
+    (similarity plus overlap bonus); only which chunks are considered changes.
+    """
+    ranked = {
+        hit.chunk_id: RankedHit(hit, dense_rank=rank)
+        for rank, hit in enumerate(dense_hits, start=1)
+    }
+    if hybrid_search_mode() != "fused":
+        return list(ranked.values()), {"retrieval_mode": "dense"}
+    chunk_count = vector_store.count()
+    if chunk_count > hybrid_max_chunks():
+        return list(ranked.values()), {
+            "retrieval_mode": "dense",
+            "lexical_skipped": "chunk_count_above_limit",
+        }
+
+    corpus = vector_store.all_chunks()
+    matches = bm25_rank(question, [chunk.text for chunk in corpus], top_k=_LEXICAL_TOP_K)
+    matched_ids = [corpus[index].chunk_id for index, _ in matches]
+    missing = [chunk_id for chunk_id in matched_ids if chunk_id not in ranked]
+    similarities = vector_store.similarities(question, missing) if missing else {}
+    for rank, (index, score) in enumerate(matches, start=1):
+        chunk = corpus[index]
+        item = ranked.get(chunk.chunk_id)
+        if item is None:
+            chunk.similarity = similarities.get(chunk.chunk_id, 0.0)
+            item = ranked[chunk.chunk_id] = RankedHit(chunk)
+        item.lexical_rank = rank
+        item.bm25_score = score
+
+    ordered = sorted(
+        ranked.values(),
+        key=lambda item: (
+            -item.fused_score,
+            -vector_hit_final_score(question, item.hit),
+            item.hit.chunk_id,
+        ),
+    )
+    return ordered, {
+        "retrieval_mode": "hybrid",
+        "lexical_candidate_count": len(matches),
+        "lexical_only_count": len(missing),
+    }
+
+
 def collect_vector_candidates(
     question: str,
     *,
@@ -213,14 +304,24 @@ def collect_vector_candidates(
     hits = vector_store.search(question, top_k=candidate_limit)
     top_similarity = hits[0].similarity if hits else 0.0
 
+    ranked, hybrid_detail = hybrid_rank(question, hits, vector_store=vector_store)
+    selected = ranked[:_CANDIDATE_LIMIT]
+    hits = [item.hit for item in ranked]
+
     tree_store = TreeStore(vector_store.paths)
 
-    for hit in hits[:5]:
+    for item in selected:
+        hit = item.hit
         passage_text = best_vector_passage(question, hit.text)
         metadata: dict[str, object] = dict(hit.metadata)
         metadata["lexical_overlap"] = vector_hit_lexical_score(question, hit)
         metadata["vector_similarity"] = hit.similarity
         metadata["final_score"] = vector_hit_final_score(question, hit)
+        if item.dense_rank is not None:
+            metadata["dense_rank"] = item.dense_rank
+        if item.lexical_rank is not None:
+            metadata["lexical_rank"] = item.lexical_rank
+            metadata["bm25_score"] = round(item.bm25_score, 4)
         section_ctx = vector_section_context(
             chosen_hit=hit,
             manifest=manifest,
@@ -245,6 +346,7 @@ def collect_vector_candidates(
         manifest=manifest,
         tree_store=tree_store,
     )
+    detail.update(hybrid_detail)
     steps.append(TraceStep(kind="vector_lookup", detail=detail))
 
     return candidates, steps

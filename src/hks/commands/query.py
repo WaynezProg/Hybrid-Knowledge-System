@@ -16,6 +16,7 @@ from hks.retrieval.confidence import ConfidenceAssessment, assess
 from hks.retrieval.evidence import candidate_evidence
 from hks.retrieval.models import Candidate
 from hks.retrievers.graph import collect_graph_candidates
+from hks.retrievers.lexical import collect_lexical_candidates
 from hks.retrievers.page_tree import collect_page_tree_candidates
 from hks.retrievers.session_memory import (
     collect_session_memory_candidates,
@@ -37,6 +38,7 @@ from hks.writeback.writer import WritebackContext, commit
 
 _FINAL_SCORE_THRESHOLDS: dict[Route, float] = {
     "vector": 0.25,
+    "lexical": 0.4,
 }
 _VECTOR_PRIMARY_FINAL_SCORE_THRESHOLD = 0.2
 _VECTOR_LEXICAL_FINAL_SCORE_THRESHOLD = 0.4
@@ -141,6 +143,12 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
     )
     all_candidates.extend(vector_candidates)
     steps.extend(vector_steps)
+
+    lexical_candidates, lexical_steps = collect_lexical_candidates(
+        question, vector_store=vector_store, manifest=manifest
+    )
+    all_candidates.extend(lexical_candidates)
+    steps.extend(lexical_steps)
 
     tree_store = TreeStore(paths)
     page_tree_candidates, page_tree_steps = collect_page_tree_candidates(
@@ -434,7 +442,9 @@ def _build_writeback_context(response: QueryResponse, wiki_store: WikiStore) -> 
                 related_slugs.append(cast(str, step.detail["slug"]))
             if isinstance(step.detail.get("source_relpath"), str):
                 relpaths.append(cast(str, step.detail["source_relpath"]))
-        if step.kind == "vector_lookup" and isinstance(step.detail.get("source_relpath"), str):
+        if step.kind in ("vector_lookup", "lexical_lookup") and isinstance(
+            step.detail.get("source_relpath"), str
+        ):
             relpaths.append(cast(str, step.detail["source_relpath"]))
         if step.kind == "graph_lookup":
             relpaths.extend(

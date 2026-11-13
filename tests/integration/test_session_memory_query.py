@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -299,10 +300,12 @@ def test_session_memory_date_range_query_synthesizes_three_days(
     daily_dir = docs / "daily"
     daily_dir.mkdir(parents=True)
 
+    # "25~27" without a month means the current month, so the fixtures follow it.
+    month = date.today().strftime("%Y-%m")
     fixtures = {
-        "2026-05-25": "project-alpha step one done",
-        "2026-05-26": "project-alpha step two done",
-        "2026-05-27": "project-beta step three done",
+        f"{month}-25": "project-alpha step one done",
+        f"{month}-26": "project-alpha step two done",
+        f"{month}-27": "project-beta step three done",
     }
     for day, snippet in fixtures.items():
         (daily_dir / f"{day}.md").write_text(
@@ -336,11 +339,7 @@ def test_session_memory_date_range_query_synthesizes_three_days(
         assert fixtures[day] in payload["answer"]
 
     evidence_paths = {item["source_relpath"] for item in payload["evidence"]}
-    assert evidence_paths >= {
-        "daily/2026-05-25.md",
-        "daily/2026-05-26.md",
-        "daily/2026-05-27.md",
-    }
+    assert evidence_paths >= {f"daily/{day}.md" for day in fixtures}
 
     assert any(
         step.get("kind") == "date_range_synthesis"
@@ -401,11 +400,7 @@ def test_session_memory_summary_cli_returns_three_day_range(
         assert snippet in payload["answer"]
 
     evidence_paths = {item["source_relpath"] for item in payload["evidence"]}
-    assert evidence_paths >= {
-        "daily/2026-05-25.md",
-        "daily/2026-05-26.md",
-        "daily/2026-05-27.md",
-    }
+    assert evidence_paths >= {f"daily/{day}.md" for day in fixtures}
     assert any(
         step.get("kind") == "session_memory_summary"
         for step in payload["trace"]["steps"]
