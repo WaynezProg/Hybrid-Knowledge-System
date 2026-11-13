@@ -314,6 +314,7 @@ def collect_vector_candidates(
         hit = item.hit
         passage_text = best_vector_passage(question, hit.text)
         metadata: dict[str, object] = dict(hit.metadata)
+        metadata["chunk_id"] = hit.chunk_id
         metadata["lexical_overlap"] = vector_hit_lexical_score(question, hit)
         metadata["vector_similarity"] = hit.similarity
         metadata["final_score"] = vector_hit_final_score(question, hit)

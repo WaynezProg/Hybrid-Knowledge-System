@@ -44,7 +44,7 @@ def test_all_chunks_and_similarities_read_what_was_stored(store: VectorStore) ->
 
 
 @pytest.mark.integration
-def test_route_mode_answers_through_the_lexical_route(
+def test_route_mode_defers_to_the_vector_route_for_a_shared_chunk(
     cli_runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import json
@@ -70,15 +70,13 @@ def test_route_mode_answers_through_the_lexical_route(
     assert result.exit_code == 0, result.stdout
     payload = validate(json.loads(result.stdout))
 
-    kinds = [step["kind"] for step in payload["trace"]["steps"]]
-    assert "lexical_lookup" in kinds
-    assert payload["source"] == ["lexical"] and payload["trace"]["route"] == "lexical"
-    assert payload["evidence"][0] == {
-        "source_relpath": "incident.md",
-        "route": "lexical",
-        "quote": payload["evidence"][0]["quote"],
-        "section_path": "Incident",
-    }
+    lookups = [s for s in payload["trace"]["steps"] if s["kind"] == "lexical_lookup"]
+    assert len(lookups) == 1
+    # The embedding found the same chunk, so it stays a vector answer; the lexical route
+    # only notes that the keywords agree.
+    assert lookups[0]["detail"]["shared_with_vector"] >= 1
+    assert payload["source"] == ["vector"]
+    assert payload["evidence"][0]["source_relpath"] == "incident.md"
 
     monkeypatch.setenv("HKS_HYBRID_SEARCH", "fused")
     fused = json.loads(cli_runner.invoke(app, ["query", "ERR-4012", "--writeback=no"]).stdout)
