@@ -50,3 +50,22 @@ def bm25_rank(query: str, documents: Sequence[str], *, top_k: int) -> list[tuple
         key=lambda item: (-item[1], item[0]),
     )
     return ranked[:top_k]
+
+
+def query_coverage(query: str, document: str, documents: Sequence[str]) -> float:
+    """Share (0..1) of the query's terms found in ``document``, each weighted by its rarity
+    in ``documents``. A term no document holds counts as the rarest."""
+    query_terms = set(lexical_tokens(query))
+    if not query_terms:
+        return 0.0
+    total = len(documents)
+    document_sets = [set(lexical_tokens(text)) for text in documents]
+    present = set(lexical_tokens(document))
+    matched = weight = 0.0
+    for term in query_terms:
+        containing = sum(1 for terms in document_sets if term in terms)
+        idf = math.log(1.0 + (total - containing + 0.5) / (containing + 0.5))
+        weight += idf
+        if term in present:
+            matched += idf
+    return matched / weight if weight else 0.0

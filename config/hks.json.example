@@ -20,7 +20,7 @@
     "rules_path": null
   },
   "retrieval": {
-    "hybrid_search": true,
+    "hybrid_search": "fused",
     "hybrid_max_chunks": 20000
   },
   "writeback": {

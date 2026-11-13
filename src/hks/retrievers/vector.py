@@ -221,9 +221,13 @@ class RankedHit:
         )
 
 
-def hybrid_search_enabled() -> bool:
-    value = (config_value("HKS_HYBRID_SEARCH") or "1").strip().lower()
-    return value not in {"0", "false", "no", "off"}
+def hybrid_search_mode() -> str:
+    """``fused``: BM25 joins the dense ranking inside the vector route. ``route``: keyword
+    matches are a route of their own. ``off``: dense only."""
+    value = (config_value("HKS_HYBRID_SEARCH") or "fused").strip().lower()
+    if value in {"0", "false", "no", "off"}:
+        return "off"
+    return "route" if value == "route" else "fused"
 
 
 def hybrid_max_chunks() -> int:
@@ -249,7 +253,7 @@ def hybrid_rank(
         hit.chunk_id: RankedHit(hit, dense_rank=rank)
         for rank, hit in enumerate(dense_hits, start=1)
     }
-    if not hybrid_search_enabled():
+    if hybrid_search_mode() != "fused":
         return list(ranked.values()), {"retrieval_mode": "dense"}
     chunk_count = vector_store.count()
     if chunk_count > hybrid_max_chunks():

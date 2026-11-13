@@ -12,6 +12,7 @@ _AUTO_THRESHOLDS: dict[Route, float] = {
     "graph": 0.75,
     "vector": 0.65,
     "page_tree": 0.50,
+    "lexical": 0.65,
 }
 
 
@@ -43,8 +44,8 @@ def assess(
         return _assess_wiki(retrieval_score, calibrated)
     if route == "graph":
         return _assess_graph(retrieval_score, calibrated, evidence, meta)
-    if route == "vector":
-        return _assess_vector(retrieval_score, calibrated, evidence)
+    if route in ("vector", "lexical"):
+        return _assess_vector(retrieval_score, calibrated, evidence, route=route)
     if route == "page_tree":
         return _assess_page_tree(retrieval_score, calibrated, evidence)
 
@@ -114,35 +115,37 @@ def _assess_vector(
     retrieval_score: float,
     calibrated: float,
     evidence: list[dict[str, Any]],
+    *,
+    route: Route = "vector",
 ) -> ConfidenceAssessment:
     reasons: list[str] = []
     eligible = True
 
-    threshold = _AUTO_THRESHOLDS["vector"]
+    threshold = _AUTO_THRESHOLDS[route]
     if calibrated < threshold:
         eligible = False
-        reasons.append(f"vector calibrated_confidence {calibrated:.2f} < threshold {threshold}")
+        reasons.append(f"{route} calibrated_confidence {calibrated:.2f} < threshold {threshold}")
 
     if not evidence:
         eligible = False
-        reasons.append("vector empty evidence list")
+        reasons.append(f"{route} empty evidence list")
     else:
         first = evidence[0]
         if not _has_nonempty_str(first, "source_relpath"):
             eligible = False
-            reasons.append("vector evidence missing source_relpath")
+            reasons.append(f"{route} evidence missing source_relpath")
         if not _has_nonempty_str(first, "quote"):
             eligible = False
-            reasons.append("vector evidence missing quote")
+            reasons.append(f"{route} evidence missing quote")
 
     if eligible:
-        reasons.append("vector route: all evidence requirements met")
+        reasons.append(f"{route} route: all evidence requirements met")
 
     return ConfidenceAssessment(
         retrieval_score=retrieval_score,
         calibrated_confidence=calibrated,
         writeback_eligible=eligible,
-        auto_threshold=_AUTO_THRESHOLDS["vector"],
+        auto_threshold=_AUTO_THRESHOLDS[route],
         reasons=reasons,
     )
 

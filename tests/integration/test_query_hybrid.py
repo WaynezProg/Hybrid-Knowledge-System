@@ -41,3 +41,46 @@ def test_all_chunks_and_similarities_read_what_was_stored(store: VectorStore) ->
         "same measure as the dense search"
     )
     assert store.similarities("anything", []) == {}
+
+
+@pytest.mark.integration
+def test_route_mode_answers_through_the_lexical_route(
+    cli_runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    from hks.cli import app
+    from hks.core.schema import validate
+
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    for index in range(8):
+        (docs / f"note{index}.md").write_text(
+            f"# Note {index}\n\nGeneral remarks about the planning cycle number {index}.\n",
+            encoding="utf-8",
+        )
+    (docs / "incident.md").write_text(
+        "# Incident\n\nTicket ERR-4012 was resolved by rotating the gateway token.\n",
+        encoding="utf-8",
+    )
+    assert cli_runner.invoke(app, ["ingest", str(docs)]).exit_code == 0
+
+    monkeypatch.setenv("HKS_HYBRID_SEARCH", "route")
+    result = cli_runner.invoke(app, ["query", "ERR-4012", "--writeback=no"])
+    assert result.exit_code == 0, result.stdout
+    payload = validate(json.loads(result.stdout))
+
+    kinds = [step["kind"] for step in payload["trace"]["steps"]]
+    assert "lexical_lookup" in kinds
+    assert payload["source"] == ["lexical"] and payload["trace"]["route"] == "lexical"
+    assert payload["evidence"][0] == {
+        "source_relpath": "incident.md",
+        "route": "lexical",
+        "quote": payload["evidence"][0]["quote"],
+        "section_path": "Incident",
+    }
+
+    monkeypatch.setenv("HKS_HYBRID_SEARCH", "fused")
+    fused = json.loads(cli_runner.invoke(app, ["query", "ERR-4012", "--writeback=no"]).stdout)
+    assert fused["source"] == ["vector"]
+    assert "lexical_lookup" not in [step["kind"] for step in fused["trace"]["steps"]]

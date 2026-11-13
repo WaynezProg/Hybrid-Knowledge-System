@@ -22,7 +22,8 @@ routing:
 
 retrieval:
   # Fuse BM25 keyword ranking with embedding similarity inside the vector route.
-  hybrid_search: true
+  # fused | route | off
+  hybrid_search: "fused"
   hybrid_max_chunks: 20000
 
 writeback:

@@ -280,7 +280,7 @@ uv run hks-api --host 127.0.0.1 --port 8766
 | `HKS_LLM_NETWORK_OPT_IN` | — | 設為 `1` 才允許非 fake provider |
 | `HKS_LLM_PROVIDER_OPENAI_API_KEY` | — | OpenAI API key |
 | `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Legacy auto write-back fallback；有 `ConfidenceAssessment` 時以 route-specific `auto_threshold` 為準，且仍需 `writeback_eligible=true` |
-| `HKS_HYBRID_SEARCH` | `1` | vector route 是否融合 BM25 keyword 檢索；`0` 只用 dense |
+| `HKS_HYBRID_SEARCH` | `fused` | Keyword 檢索模式：`fused` 把 BM25 併入 vector route；`route` 讓 keyword 命中自成 `lexical` route（opt-in）；`off` 只用 dense |
 | `HKS_HYBRID_MAX_CHUNKS` | `20000` | chunk 數超過此值時略過 keyword 檢索（query 時即時計算，無落地索引） |
 | `HKS_WORKSPACE_REGISTRY` | user config path | Workspace registry JSON 路徑 |
 

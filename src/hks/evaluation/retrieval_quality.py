@@ -10,7 +10,7 @@ from typing import Any, cast
 from hks.core.schema import Route
 from hks.core.text_models import simple_tokenize
 
-_VALID_ROUTES = {"wiki", "graph", "vector", "page_tree"}
+_VALID_ROUTES = {"wiki", "graph", "vector", "page_tree", "lexical"}
 _VALID_FIELDS = {
     "id",
     "question",

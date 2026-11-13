@@ -25,6 +25,8 @@ def candidate_evidence(candidate: Candidate) -> list[dict[str, object]]:
         return graph_candidate_evidence(candidate)
     if candidate.source_route == "page_tree":
         return page_tree_candidate_evidence(candidate)
+    if candidate.source_route == "lexical":
+        return [{**item, "route": "lexical"} for item in vector_candidate_evidence(candidate)]
     return vector_candidate_evidence(candidate)
 
 
