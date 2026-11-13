@@ -13,10 +13,11 @@ _ASCII_TERM_RE = re.compile(r"[a-z0-9]{2,}")
 _CJK_RUN_RE = re.compile(r"[一-鿿]{2,}")
 # Letters, then a number: "ERR-4012", "CVE-2031-7781", "vid236". In a question only "-",
 # "_" or nothing may join the two ("top 10 risks" names no code); content may also use a
-# space, so "Budget 135" answers a question about "Budget-135".
+# space (or several, or a tab, but not a line break), so "Budget 135" answers a question
+# about "Budget-135".
 _COMPOUND = r"(?<![a-z0-9])([a-z]{2,})%s(\d+(?:[-_]\d+)*)(?![a-z0-9])"
 _QUESTION_COMPOUND_RE = re.compile(_COMPOUND % "[-_]?")
-_CONTENT_COMPOUND_RE = re.compile(_COMPOUND % "[-_ ]?")
+_CONTENT_COMPOUND_RE = re.compile(_COMPOUND % "(?:[-_]|[ \\t\u00a0\u3000]+)?")
 
 
 def lexical_tokens(text: str) -> list[str]:
@@ -66,6 +67,14 @@ def identifier_terms(text: str) -> set[str]:
     return found
 
 
+def _codes_in(text: str) -> set[str]:
+    return {_compound(match) for match in _CONTENT_COMPOUND_RE.finditer(text.lower())}
+
+
+def _holds_code(wanted: str, present: set[str]) -> bool:
+    return any(code == wanted or code.startswith(f"{wanted}-") for code in present)
+
+
 def holds_identifiers(required: set[str], text: str) -> bool:
     """Whether ``text`` mentions every identifier. A compound code is also found when the
     text writes it with a space ("Budget 135") or carries it further ("RFC-0193-2")."""
@@ -77,11 +86,8 @@ def holds_identifiers(required: set[str], text: str) -> bool:
     compounds = required - plain
     if not compounds:
         return True
-    present = {_compound(match) for match in _CONTENT_COMPOUND_RE.finditer(text.lower())}
-    return all(
-        any(code == wanted or code.startswith(f"{wanted}-") for code in present)
-        for wanted in compounds
-    )
+    present = _codes_in(text)
+    return all(_holds_code(wanted, present) for wanted in compounds)
 
 
 def _code_spellings(query: str) -> list[tuple[str, list[str]]]:
@@ -94,8 +100,19 @@ def _code_spellings(query: str) -> list[tuple[str, list[str]]]:
     return spellings
 
 
-def bm25_rank(query: str, documents: Sequence[str], *, top_k: int) -> list[tuple[int, float]]:
-    """``(document index, score)`` of the best matches, best first; no match, no entry."""
+def bm25_rank(
+    query: str,
+    documents: Sequence[str],
+    *,
+    top_k: int,
+    required: set[str] | None = None,
+) -> list[tuple[int, float]]:
+    """``(document index, score)`` of the best matches, best first; no match, no entry.
+
+    With ``required``, only documents that hold every one of those identifiers are ranked:
+    content that merely has the pieces of a code apart ("VID status 236") cannot take the
+    places of the content that names it.
+    """
     query_terms = set(lexical_tokens(query))
     # A code is looked up in both spellings: "VID236" also finds content that says "VID-236".
     for joined, pieces in _code_spellings(query):
@@ -125,33 +142,55 @@ def bm25_rank(query: str, documents: Sequence[str], *, top_k: int) -> list[tuple
         ((index, score) for index, score in enumerate(scores) if score > 0.0),
         key=lambda item: (-item[1], item[0]),
     )
-    return ranked[:top_k]
+    if not required:
+        return ranked[:top_k]
+    kept: list[tuple[int, float]] = []
+    for index, score in ranked:
+        if holds_identifiers(required, documents[index]):
+            kept.append((index, score))
+            if len(kept) == top_k:
+                break
+    return kept
 
 
 def query_coverage(query: str, document: str, documents: Sequence[str]) -> float:
     """Share (0..1) of the query's terms found in ``document``, each weighted by its rarity
-    in ``documents``. A term no document holds counts as the rarest."""
-    query_terms = set(lexical_tokens(query))
-    if not query_terms:
+    in ``documents``. A term no document holds counts as the rarest.
+
+    A compound code in the query is one term, whichever way it is spelled there or in the
+    content: it is found where the content names that code, and it is as rare as the
+    content naming it is. Its pieces ("vid", "236") are not looked up on their own, but
+    it weighs as much as that many terms, as it did when it was written apart.
+    """
+    lowered = query.lower()
+    # code -> how many terms it would be if written apart ("vid-236": 2)
+    codes: dict[str, int] = {}
+    for match in _QUESTION_COMPOUND_RE.finditer(lowered):
+        pieces = [match.group(1), *re.split(r"[-_]", match.group(2))]
+        codes[_compound(match)] = max(1, sum(len(piece) >= 2 for piece in pieces))
+    query_terms = set(lexical_tokens(_QUESTION_COMPOUND_RE.sub(" ", lowered)))
+    if not query_terms and not codes:
         return 0.0
     total = len(documents)
     document_sets = [set(lexical_tokens(text)) for text in documents]
-    known = set().union(*document_sets) if document_sets else set()
-    # The spelling of a code the corpus uses is the one that is weighed, so a question that
-    # writes "VID236" is not marked down for a term no content could hold. A code the
-    # corpus does not know keeps its own term and stays unmatched.
-    for joined, pieces in _code_spellings(query):
-        query_terms.update(pieces)
-        if joined in known:
-            query_terms.add(joined)
-        elif all(piece in known for piece in pieces):
-            query_terms.discard(joined)
     present = set(lexical_tokens(document))
     matched = weight = 0.0
+
+    def rarity(containing: int) -> float:
+        return math.log(1.0 + (total - containing + 0.5) / (containing + 0.5))
+
     for term in query_terms:
-        containing = sum(1 for terms in document_sets if term in terms)
-        idf = math.log(1.0 + (total - containing + 0.5) / (containing + 0.5))
+        idf = rarity(sum(1 for terms in document_sets if term in terms))
         weight += idf
         if term in present:
             matched += idf
+    if codes:
+        document_codes = [_codes_in(text) for text in documents]
+        here = _codes_in(document)
+        for code, terms in codes.items():
+            # It weighs as much as the terms it stands for, however it is spelled.
+            idf = terms * rarity(sum(1 for held in document_codes if _holds_code(code, held)))
+            weight += idf
+            if _holds_code(code, here):
+                matched += idf
     return matched / weight if weight else 0.0

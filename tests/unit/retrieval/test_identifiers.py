@@ -62,6 +62,10 @@ def test_holds_identifiers_needs_every_one_as_a_whole_term() -> None:
         ("vid236 的畫面", True),
         ("VID_236", True),
         ("VID 236", True),
+        ("VID  236", True),
+        ("VID\t236", True),
+        ("VID\u00a0236", True),
+        ("VID\n236", False),
         ("VID-236-2 是補拍", True),
         ("VID-2361", False),
         ("VID-23", False),
@@ -108,3 +112,25 @@ def test_an_unknown_code_is_not_covered_by_a_code_sharing_its_letters() -> None:
     known = query_coverage("ERR-4012", CORPUS[2], CORPUS)
     for unknown in ("ERR-9999", "ERR9999"):
         assert query_coverage(unknown, CORPUS[2], CORPUS) < 0.5 < known
+
+
+def test_a_joined_code_is_fully_covered_by_content_that_joins_it() -> None:
+    assert query_coverage("svc01", "svc01", ["svc01"]) == pytest.approx(1.0)
+    assert query_coverage("svc-01", "svc01 owner", ["svc01 owner", "x y"]) > 0.5
+
+
+def test_the_pieces_of_a_code_apart_do_not_cover_it() -> None:
+    apart = "ERR-4012 handles 9999 requests"
+
+    assert query_coverage("ERR9999", apart, [apart]) == 0.0
+    assert query_coverage("Lot7", "lot inventory", ["lot inventory"]) == 0.0
+
+
+def test_content_with_the_pieces_apart_does_not_crowd_out_the_code() -> None:
+    documents = ["VID236 " + "notes " * 100, *["VID status 236"] * 5]
+
+    unfiltered = bm25_rank("VID236", documents, top_k=5)
+    filtered = bm25_rank("VID236", documents, top_k=5, required=identifier_terms("VID236"))
+
+    assert 0 not in [index for index, _ in unfiltered], "the long document ranks below the five"
+    assert [index for index, _ in filtered] == [0]

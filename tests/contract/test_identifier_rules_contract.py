@@ -69,8 +69,7 @@ def test_an_unknown_code_is_reported_in_one_spelling(ask) -> None:
 def test_a_code_with_a_short_number_is_not_answered_by_its_bare_words(ask) -> None:
     payload = ask("Atlas-10 對應哪一個 risk")
 
-    assert "atlas.md" not in _sources(payload)
-    assert _sources(payload) <= {"sheet.md"}
+    assert _sources(payload) == {"sheet.md"}
     dropped = [detail["identifier_filtered"] for detail in _steps(payload, "merge")]
     dropped += [detail["candidates_dropped"] for detail in _steps(payload, "fallback")]
     assert sum(dropped) >= 1, "atlas.md mentions Atlas and 10 but not Atlas-10"
