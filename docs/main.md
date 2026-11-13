@@ -204,6 +204,7 @@ Source / route 語意對照：
   * `route`（預設）：embedding 沒帶出、但含有問句關鍵詞（名稱、ID、錯誤碼）的 chunk 以 `lexical` route 成為候選，trace 多一個 `lexical_lookup` step。vector route 已提名的 chunk 仍歸 vector；lexical 答案不具 auto write-back 資格
   * `fused`：BM25 排名與 dense 排名以 RRF 融合後取前 5 筆為 vector candidates，不產生新 route；`vector_lookup` trace detail 的 `retrieval_mode` 為 `hybrid`
   * `off`：只用 dense
+* Wiki 候選的 score 隨頁面與問句的吻合程度變動：`base ×（0.7 + 0.3 × relevance）`，base 為 1.0（router 選 wiki 為主要 route）或 0.65；relevance 是問句詞彙以 idf 加權後被頁面涵蓋的比例，記在 `wiki_lookup` step。relevance 低於 0.15 的頁面不成為候選，step 記 `hit: false`、`reason: low-relevance`。見 `specs/024-wiki-relevance-score/spec.md`
 * Rerank 前的 identifier 過濾：問句點名的 identifier（英數混合的詞，或三位以上且非年份的數字，如 `ERR-4012` 的 `4012`）必須出現在候選的完整 chunk / wiki page 中，否則該候選不採用；全部被濾掉時回 no-hit，trace 的 `fallback` step 記 `reason: identifier_not_found`。問「ERR-9999」不會以講 ERR-4012 的內容作答
 * chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`（預設 20000）時略過 keyword 檢索，並在 trace 記 `lexical_skipped`
 * session-memory temporal intent（`今天` / `昨天` / `today` / `yesterday` / `YYYY-MM-DD`）會優先使用 matching session daily source，避免 graph 測試資料搶答
