@@ -200,7 +200,7 @@ Source / route 語意對照：
 * page_tree 只把有 LLM-enriched summary 的 section node 作為候選；裸標題仍主要由 wiki / vector 覆蓋
 * vector route 內部是 hybrid：dense（embedding 相似度）與 BM25 keyword（對所有 chunk 即時計算，不落地索引）以 RRF 融合後取前 5 筆為 candidates。Embedding 沒排進前段、但含有問句關鍵詞（名稱、ID、錯誤碼）的 chunk 因此仍會成為候選
 * hybrid 只改變「哪些 chunk 進候選」；candidate score 仍是 similarity + lexical overlap bonus，route 名稱、final score gate 與 write-back threshold 不變
-* `vector_lookup` trace detail 新增 `retrieval_mode`（`hybrid` / `dense`）、`lexical_candidate_count`、`lexical_only_count`；`HKS_HYBRID_SEARCH=off` 關閉，`HKS_HYBRID_SEARCH=route` 改讓 keyword 命中自成 `lexical` route（opt-in，trace 多一個 `lexical_lookup` step；比較結果見 `specs/020-hybrid-lexical-retrieval/spec.md`），chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`（預設 20000）時自動退回 dense 並在 trace 記 `lexical_skipped`
+* `vector_lookup` trace detail 新增 `retrieval_mode`（`hybrid` / `dense`）、`lexical_candidate_count`、`lexical_only_count`；`HKS_HYBRID_SEARCH=off` 關閉，`HKS_HYBRID_SEARCH=route` 改讓 embedding 沒帶出的 keyword 命中自成 `lexical` route（opt-in，trace 多一個 `lexical_lookup` step；與 vector 重複的 chunk 仍歸 vector，lexical 答案不自動 write-back；比較結果見 `specs/020-hybrid-lexical-retrieval/spec.md`），chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`（預設 20000）時自動退回 dense 並在 trace 記 `lexical_skipped`
 * session-memory temporal intent（`今天` / `昨天` / `today` / `yesterday` / `YYYY-MM-DD`）會優先使用 matching session daily source，避免 graph 測試資料搶答
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
 
