@@ -34,6 +34,8 @@ _KNOWN_ENV_PATHS: dict[str, tuple[str, ...]] = {
         "openai",
         "max_batch_tokens",
     ),
+    "HKS_HYBRID_SEARCH": ("retrieval", "hybrid_search"),
+    "HKS_HYBRID_MAX_CHUNKS": ("retrieval", "hybrid_max_chunks"),
     "HKS_ROUTING_MODEL": ("routing", "model"),
     "HKS_ROUTING_RULES": ("routing", "rules_path"),
     "HKS_WRITEBACK_AUTO_THRESHOLD": ("writeback", "auto_threshold"),

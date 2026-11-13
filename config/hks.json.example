@@ -19,6 +19,10 @@
     "model": "simple",
     "rules_path": null
   },
+  "retrieval": {
+    "hybrid_search": true,
+    "hybrid_max_chunks": 20000
+  },
   "writeback": {
     "auto_threshold": 0.75
   },

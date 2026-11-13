@@ -20,6 +20,11 @@ routing:
   model: "simple"
   rules_path: null
 
+retrieval:
+  # Fuse BM25 keyword ranking with embedding similarity inside the vector route.
+  hybrid_search: true
+  hybrid_max_chunks: 20000
+
 writeback:
   auto_threshold: 0.75
 
