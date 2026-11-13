@@ -117,5 +117,5 @@ def test_a_question_about_an_identifier_nothing_mentions_is_a_no_hit(
     assert unknown["source"] == [] and unknown["confidence"] == 0.0
     fallback = [s for s in unknown["trace"]["steps"] if s["kind"] == "fallback"][-1]  # type: ignore[index]
     assert fallback["detail"]["reason"] == "identifier_not_found"
-    assert fallback["detail"]["identifiers"] == ["9999"]
+    assert fallback["detail"]["identifiers"] == ["err-9999"]
     assert "_hks_match_text" not in json.dumps(known) + json.dumps(unknown)
