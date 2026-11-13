@@ -5,7 +5,7 @@ from __future__ import annotations
 from hks.core.manifest import Manifest
 from hks.core.schema import TraceStep
 from hks.page_tree.store import TreeStore
-from hks.retrieval.bm25 import bm25_rank, holds_identifiers, identifier_terms, query_coverage
+from hks.retrieval.bm25 import bm25_rank, identifier_terms, query_coverage
 from hks.retrieval.models import Candidate
 from hks.retrievers.vector import (
     best_vector_passage,
@@ -51,22 +51,27 @@ def collect_lexical_candidates(
 
     corpus = vector_store.all_chunks()
     texts = [chunk.text for chunk in corpus]
-    matches = bm25_rank(question, texts, top_k=_CANDIDATE_LIMIT)
+    # A chunk that lacks an identifier the question names is about something else that
+    # merely shares a word ("INC-00001" against a note on INC-90217). Such chunks are left
+    # out before the best matches are taken, so they cannot crowd out the chunk that does
+    # name it.
+    required = identifier_terms(question)
+    unfiltered = bm25_rank(question, texts, top_k=_CANDIDATE_LIMIT)
+    matches = (
+        bm25_rank(question, texts, top_k=_CANDIDATE_LIMIT, required=required)
+        if required
+        else unfiltered
+    )
+    kept = {index for index, _ in matches}
+    missing_identifier = sum(1 for index, _ in unfiltered if index not in kept)
     tree_store = TreeStore(vector_store.paths)
     candidates: list[Candidate] = []
     nominated = {
         candidate.metadata.get("chunk_id"): candidate for candidate in vector_candidates or []
     }
     shared = 0
-    # A chunk that lacks an identifier the question names is about something else that
-    # merely shares a word ("INC-00001" against a note on INC-90217).
-    required = identifier_terms(question)
-    missing_identifier = 0
     for rank, (index, bm25_score) in enumerate(matches, start=1):
         chunk = corpus[index]
-        if not holds_identifiers(required, chunk.text):
-            missing_identifier += 1
-            continue
         already = nominated.get(chunk.chunk_id)
         if already is not None:
             already.metadata["lexical_rank"] = rank

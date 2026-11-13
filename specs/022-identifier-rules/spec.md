@@ -24,7 +24,9 @@
 | 3 | 候選內容中的複合編號另外接受空白分隔（`Budget 135`），也接受往下延伸的編號（問 `RFC-0193`，內容寫 `RFC-0193-2`）。問句中的空白分隔不算複合編號：「top 10 risks」問的是主題 |
 | 4 | **其他英數混合的詞**：結尾是數字，或含三個以上數字，才算 identifier（`v17r2`、`8c5487a`）。數字夾在字母中間的名稱不算（`session2memory`、`k8s`、`i18n`） |
 | 5 | **純數字**：維持三位以上且非年份 |
-| 6 | **Keyword 檢索**：BM25 排名與 coverage 對問句中的複合編號同時用兩種寫法的詞查（`vid236` 與 `vid`、`236`）。Coverage 只計語料實際使用的寫法；語料中完全沒有的編號維持原本的詞，仍然配不上 |
+| 6 | **Keyword 檢索的排名**：BM25 對問句中的複合編號同時用兩種寫法的詞查（`vid236` 與 `vid`、`236`）。Lexical route 取前幾名之前，先排除不含問句 identifier 的 chunk，避免只含零散片段的內容（「VID status 236」）擠掉真正寫出編號的 chunk |
+| 7 | **Coverage**：問句中的複合編號算一個單位，不論問句或內容怎麼寫；內容寫出該編號才算涵蓋，稀有度以寫出該編號的 chunk 數計算。它的權重等於拆開時的詞數（`vid-236` 為 2），與 020 的權重一致。零散的片段不算涵蓋 |
+| 8 | 內容中字母與數字之間的空白可以是多個空白、tab、不換行空白或全形空白，但不跨行 |
 
 ## 3. 契約變更
 
@@ -73,6 +75,19 @@
 | `VID-99999 的進度如何？` | no-hit，`identifiers: ["99999"]` | no-hit，`identifiers: ["vid-99999"]` |
 | `session2memory reconcile 步驟做了哪些事？` | `identifier_filtered: 5` | `identifier_filtered: 0` |
 | `VID236 的畫面是用來決定什麼？` | no-hit，`identifier_not_found` | no-hit，`final_score_below_threshold`（0.148 < 0.3），與 `VID-236 …` 相同 |
+
+### 4.1 Review 後的修正
+
+Codex review 指出初版的四個問題，都已修正並各有測試：
+
+| 問題 | 反例 | 修正 |
+|---|---|---|
+| 連寫編號的 coverage 被不存在的片段拉低 | `query_coverage("svc01", "svc01", ["svc01"])` 為 0.094 | 決策 7 |
+| 零散片段擠掉完整編號 | 問 `VID236`，一份長文件寫 `VID236`、五份寫「VID status 236」，前五名都不含編號 | 決策 6 |
+| 多個空白或 tab 不算吻合 | 問 `VID-236`，內容 `VID  236` | 決策 8 |
+| 未知編號的 coverage 為 1.0 | `query_coverage("ERR9999", "ERR-4012 handles 9999 requests", …)` | 決策 7 |
+
+修正後原評測（`simple`）每一格仍與變更前相同；預設 embedding model 與 OpenAI 的數字是修正前量的，修正後沒有重跑。
 
 ## 5. 已知限制
 
