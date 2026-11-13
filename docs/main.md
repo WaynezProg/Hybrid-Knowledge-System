@@ -46,6 +46,8 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
   * `hks-mcp`
   * `hks-api`（optional loopback facade）
 
+目前 runtime 的實際架構圖、ingest / query 流程圖與時序圖見 [architecture.md](architecture.md)（Mermaid，依程式繪製）。以下三張是概念示意，含未實作的項目。
+
 ![LLM Wiki 概念示意](LLM%20wiki.png)
 
 ![Graphify 流程](graphify.png)
