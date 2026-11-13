@@ -85,8 +85,9 @@ def test_a_name_with_a_digit_inside_it_is_not_required_of_the_answer(ask) -> Non
 
 @pytest.mark.contract
 def test_a_code_wrapped_in_a_sentence_is_answered_by_the_keyword_route(
-    cli_runner, tmp_path: Path
+    cli_runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    monkeypatch.setenv("HKS_HYBRID_SEARCH", "route")
     docs = tmp_path / "many"
     docs.mkdir()
     for index in range(30):
@@ -102,7 +103,10 @@ def test_a_code_wrapped_in_a_sentence_is_answered_by_the_keyword_route(
     )
     payload = validate(json.loads(result.stdout))
 
+    assert payload["source"] == ["lexical"] and payload["trace"]["route"] == "lexical"
     assert _sources(payload) == {"tickets.md"}
     assert _steps(payload, "fallback") == []
-    assert payload["confidence"] >= 0.3
+    [lookup] = _steps(payload, "lexical_lookup")
+    assert lookup["hit"] is True and lookup["source_relpath"] == "tickets.md"
+    assert 0.425 <= payload["confidence"] < 0.85, "the floor, not a bare-code match"
     assert "identifier_match" not in result.stdout

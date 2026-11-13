@@ -136,7 +136,13 @@ def build_corpus(target: Path, *, documents: int, seed: int) -> dict[str, str]:
         # A generator of its own, and only documents that hold no base fact.
         extra_rng = random.Random(seed + 1000)
         free = [index for index in range(documents) if index not in holders]
-        spots = extra_rng.sample(free, len(EXTRA_FACTS) + len(EXTRA_DISTRACTORS))
+        wanted = len(EXTRA_FACTS) + len(EXTRA_DISTRACTORS)
+        if len(free) < wanted:
+            raise SystemExit(
+                f"HKS_EVAL_EXTRA needs at least {len(FACTS) + wanted} documents "
+                f"(HKS_EVAL_DOCUMENTS={documents})"
+            )
+        spots = extra_rng.sample(free, wanted)
         for spot, (_, question, fact) in zip(spots, EXTRA_FACTS, strict=False):
             pages[spot][1].insert(3, fact)
             answers[question] = pages[spot][0]
