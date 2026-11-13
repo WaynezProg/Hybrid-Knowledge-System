@@ -1,11 +1,11 @@
-"""Keyword (BM25) candidates as a route of their own (``HKS_HYBRID_SEARCH=route``)."""
+"""Keyword (BM25) candidates as a route of their own (``HKS_HYBRID_SEARCH=route``, the default)."""
 
 from __future__ import annotations
 
 from hks.core.manifest import Manifest
 from hks.core.schema import TraceStep
 from hks.page_tree.store import TreeStore
-from hks.retrieval.bm25 import bm25_rank, query_coverage
+from hks.retrieval.bm25 import bm25_rank, lexical_tokens, query_coverage
 from hks.retrieval.models import Candidate
 from hks.retrievers.vector import (
     best_vector_passage,
@@ -25,9 +25,15 @@ def collect_lexical_candidates(
     *,
     vector_store: VectorStore,
     manifest: Manifest,
+    vector_candidates: list[Candidate] | None = None,
 ) -> tuple[list[Candidate], list[TraceStep]]:
     """Chunks ranked by BM25. The score is the share of the question's terms, weighted by
-    rarity, that the chunk holds: comparable across questions, unlike a raw BM25 score."""
+    rarity, that the chunk holds: comparable across questions, unlike a raw BM25 score.
+
+    A chunk the vector route already nominated is not nominated a second time: that
+    candidate keeps its route and its score, and only notes that the keywords agree. The
+    lexical route therefore answers only with chunks the embedding did not bring up.
+    """
     if hybrid_search_mode() != "route":
         return [], []
     if vector_store.count() > hybrid_max_chunks():
@@ -43,11 +49,30 @@ def collect_lexical_candidates(
     matches = bm25_rank(question, texts, top_k=_CANDIDATE_LIMIT)
     tree_store = TreeStore(vector_store.paths)
     candidates: list[Candidate] = []
+    nominated = {
+        candidate.metadata.get("chunk_id"): candidate for candidate in vector_candidates or []
+    }
+    shared = 0
+    # Terms with a digit are identifiers, versions or amounts. A chunk that lacks one of
+    # them is about something else that merely shares a word ("INC-00001" against a note
+    # on INC-90217), however well the rest matches.
+    required = {term for term in lexical_tokens(question) if any(c.isdigit() for c in term)}
+    missing_identifier = 0
     for rank, (index, bm25_score) in enumerate(matches, start=1):
         chunk = corpus[index]
+        if required and not required <= set(lexical_tokens(chunk.text)):
+            missing_identifier += 1
+            continue
+        already = nominated.get(chunk.chunk_id)
+        if already is not None:
+            already.metadata["lexical_rank"] = rank
+            already.metadata["bm25_score"] = round(bm25_score, 4)
+            shared += 1
+            continue
         passage = best_vector_passage(question, chunk.text)
         score = round(_MAX_SCORE * query_coverage(question, chunk.text, texts), 4)
         metadata: dict[str, object] = dict(chunk.metadata)
+        metadata["chunk_id"] = chunk.chunk_id
         metadata["lexical_overlap"] = vector_hit_lexical_score(question, chunk)
         metadata["lexical_rank"] = rank
         metadata["bm25_score"] = round(bm25_score, 4)
@@ -61,7 +86,13 @@ def collect_lexical_candidates(
             Candidate(text=passage, source_route="lexical", score=score, metadata=metadata)
         )
 
-    detail: dict[str, object] = {"hit": bool(candidates), "candidate_count": len(candidates)}
+    detail: dict[str, object] = {
+        "hit": bool(candidates),
+        "candidate_count": len(candidates),
+        "shared_with_vector": shared,
+    }
+    if missing_identifier:
+        detail["skipped_missing_identifier"] = missing_identifier
     if candidates:
         top = candidates[0]
         detail["final_score"] = top.score

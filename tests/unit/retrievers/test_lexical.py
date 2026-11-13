@@ -44,7 +44,8 @@ TEXTS = [
 
 
 def test_mode_names(monkeypatch: pytest.MonkeyPatch) -> None:
-    for value, mode in (("", "fused"), ("1", "fused"), ("0", "off"), ("route", "route")):
+    modes = (("", "route"), ("route", "route"), ("fused", "fused"), ("1", "fused"), ("0", "off"))
+    for value, mode in modes:
         monkeypatch.setenv("HKS_HYBRID_SEARCH", value)
         assert hybrid_search_mode() == mode
 
@@ -98,9 +99,52 @@ def test_coverage_weights_rare_terms_more() -> None:
     assert query_coverage("", TEXTS[0], TEXTS) == 0.0
 
 
-def test_lexical_confidence_uses_the_vector_rules() -> None:
+def test_lexical_answers_are_never_written_back_on_their_own() -> None:
     evidence = [{"source_relpath": "1.md", "route": "lexical", "quote": "ticket ERR-4012"}]
     high = assess(route="lexical", raw_score=0.85, evidence=evidence)
-    low = assess(route="lexical", raw_score=0.5, evidence=evidence)
-    assert high.writeback_eligible and not low.writeback_eligible
-    assert "lexical" in low.reasons[0]
+    assert not high.writeback_eligible and high.calibrated_confidence == 0.85
+    assert "lexical" in high.reasons[0]
+
+
+def test_a_chunk_the_vector_route_nominated_stays_with_the_vector_route(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from hks.retrieval.models import Candidate
+
+    monkeypatch.setenv("HKS_HYBRID_SEARCH", "route")
+    texts = [*TEXTS, "ERR-4012 also appears in this second note"]
+    nominated = Candidate(
+        text=texts[1],
+        source_route="vector",
+        score=0.5,
+        metadata={"chunk_id": "c1", "source_relpath": "1.md"},
+    )
+
+    candidates, steps = collect_lexical_candidates(
+        "ERR-4012",
+        vector_store=_store(texts),
+        manifest=_manifest(),
+        vector_candidates=[nominated],
+    )
+
+    assert [c.metadata["chunk_id"] for c in candidates] == ["c3"], "only what vector missed"
+    assert nominated.source_route == "vector" and nominated.score == 0.5
+    assert nominated.metadata["lexical_rank"] in (1, 2) and "bm25_score" in nominated.metadata
+    assert steps[0].detail["shared_with_vector"] == 1
+
+
+def test_a_chunk_without_the_identifier_asked_about_is_not_an_answer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("HKS_HYBRID_SEARCH", "route")
+    texts = [*TEXTS, "incident INC-90217 was caused by an expired certificate"]
+
+    wrong, steps = collect_lexical_candidates(
+        "INC-00001", vector_store=_store(texts), manifest=_manifest()
+    )
+    right, _ = collect_lexical_candidates(
+        "INC-90217 怎麼修", vector_store=_store(texts), manifest=_manifest()
+    )
+
+    assert wrong == [] and steps[0].detail["skipped_missing_identifier"] == 1
+    assert [c.metadata["source_relpath"] for c in right] == ["3.md"]

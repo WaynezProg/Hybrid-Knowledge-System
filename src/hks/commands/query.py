@@ -38,7 +38,10 @@ from hks.writeback.writer import WritebackContext, commit
 
 _FINAL_SCORE_THRESHOLDS: dict[Route, float] = {
     "vector": 0.25,
-    "lexical": 0.4,
+    # Coverage of about a third of the question's rarity-weighted terms: an identifier
+    # asked about in a sentence ("ERR-4012 怎麼修") passes, a different identifier that only
+    # shares its prefix does not.
+    "lexical": 0.3,
 }
 _VECTOR_PRIMARY_FINAL_SCORE_THRESHOLD = 0.2
 _VECTOR_LEXICAL_FINAL_SCORE_THRESHOLD = 0.4
@@ -145,7 +148,10 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
     steps.extend(vector_steps)
 
     lexical_candidates, lexical_steps = collect_lexical_candidates(
-        question, vector_store=vector_store, manifest=manifest
+        question,
+        vector_store=vector_store,
+        manifest=manifest,
+        vector_candidates=vector_candidates,
     )
     all_candidates.extend(lexical_candidates)
     steps.extend(lexical_steps)

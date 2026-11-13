@@ -22,7 +22,13 @@ import sys
 import tempfile
 from pathlib import Path
 
-MODES = ("off", "fused", "route")
+ALL_MODES = ("off", "fused", "route")
+# HKS_EVAL_MODES=route,fused limits the run to some modes.
+MODES = tuple(
+    mode
+    for mode in os.environ.get("HKS_EVAL_MODES", ",".join(ALL_MODES)).split(",")
+    if mode in ALL_MODES
+)
 
 TOPICS = [
     ("billing", "invoice reconciliation and the monthly ledger close"),

@@ -2,7 +2,7 @@
 
 - 日期：2026-11-13
 - 狀態：已實作
-- 範圍：`ks query` 的 vector route 由 dense-only 改為 dense + BM25 keyword 融合。
+- 範圍：`ks query` 在 dense 檢索之外加入 BM25 keyword 檢索；預設以獨立的 `lexical` route 提供（`route` 模式），另保留併入 vector route 的 `fused` 模式。
 
 ## 1. 動機
 
@@ -12,17 +12,18 @@
 
 | # | 決策 |
 |---|---|
-| 1 | 預設模式（`fused`）不產生新 route。Keyword 命中仍以 `vector` route 回傳，final score gate、write-back threshold 都不變 |
+| 1 | 預設模式為 `route`：embedding 沒帶出的 keyword 命中以新的 `lexical` route 回傳；vector route 的排序、分數、final score gate、write-back threshold 都不變 |
 | 2 | BM25 在 query 時對 vector store 的所有 chunk 即時計算，不新增落地索引，既有 `KS_ROOT` 不需 re-ingest，ingest / lint / manifest 不受影響 |
 | 3 | Tokenization 沿用 `lexical_terms` 的單位：ASCII 詞（長度 ≥ 2）與 CJK bigram |
-| 4 | dense 排名（至多 50 筆）與 BM25 排名（前 20 筆）以 RRF（k=60）融合，取前 5 筆為 candidates |
+| 4 | `fused` 模式：dense 排名（至多 50 筆）與 BM25 排名（前 20 筆）以 RRF（k=60）融合，取前 5 筆為 vector candidates |
 | 5 | Candidate score 公式不變（similarity + lexical overlap bonus）。BM25-only 的 chunk 以其已存 embedding 計算與問句的 cosine similarity |
-| 6 | `HKS_HYBRID_SEARCH` 有三個值：`fused`（預設，亦接受 `1`）、`route`、`off`（亦接受 `0`）；chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`（預設 20000）自動退回 dense |
-| 7 | `route` 是 opt-in 的替代做法：keyword 命中自成 `lexical` route（第五路 candidate），score 為「問句詞彙以 idf 加權後被 chunk 涵蓋的比例 × 0.85」，final score gate 0.4，auto write-back 規則同 vector（0.65）。預設不啟用，理由見 §4 |
+| 6 | `HKS_HYBRID_SEARCH` 有三個值：`route`（預設）、`fused`（亦接受 `1`）、`off`（亦接受 `0`）；chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`（預設 20000）自動退回 dense |
+| 7 | `route`：keyword 命中自成 `lexical` route（第五路 candidate），score 為「問句詞彙以 idf 加權後被 chunk 涵蓋的比例 × 0.85」，final score gate 0.3，不具 auto write-back 資格。校準內容與是否改為預設見 §4.4、§4.5 |
 
 ## 3. 契約變更（additive）
 
-- `Route` enum 新增 `lexical`、trace kind 新增 `lexical_lookup`（僅 `route` 模式會出現）。
+- `Route` enum 新增 `lexical`、trace kind 新增 `lexical_lookup`（`route` 模式，即預設）。Response 的 `source` / `trace.route` / `evidence[].route` 因此可能出現 `lexical`。
+- `lexical_lookup` trace detail：`hit`、`candidate_count`、`shared_with_vector`、`skipped_missing_identifier`（僅有略過時）。
 - `vector_lookup` trace detail 新增：`retrieval_mode`（`hybrid` / `dense`）、`lexical_candidate_count`、`lexical_only_count`、`lexical_skipped`（僅略過時）。
 - vector candidate metadata 新增 `dense_rank`、`lexical_rank`、`bm25_score`（不出現在 response 的 `evidence[]`）。
 - 結構化設定新增 `retrieval.hybrid_search`、`retrieval.hybrid_max_chunks`。
@@ -33,40 +34,53 @@
 
 ### 4.1 預設 embedding model（`paraphrase-multilingual-MiniLM-L12-v2`）
 
-| 指標 | `off` | `fused` | `route` |
-|---|---|---|---|
-| identifier answer@1 | 17/30 | 24/30 | 23/30 |
-| identifier recall@5 | 22/30 | 30/30 | 30/30 |
-| keyword answer@1 | 6/15 | 10/15 | 12/15 |
-| keyword recall@5 | 5/15 | 13/15 | 15/15 |
-| paraphrase answer@1 | 4/15 | 3/15 | 4/15 |
-| paraphrase recall@5 | 4/15 | 3/15 | 4/15 |
-| no-answer 正確回 no-hit | 2/12 | 2/12 | 4/12 |
-| 有答案的問題合計 answer@1 | 27/60 | 37/60 | 39/60 |
+| 指標 | `off` | `fused` | `route`（校準前） | `route`（校準後） |
+|---|---|---|---|---|
+| identifier answer@1 | 17/30 | 24/30 | 23/30 | 23/30 |
+| identifier recall@5 | 22/30 | 30/30 | 30/30 | 30/30 |
+| keyword answer@1 | 6/15 | 10/15 | 12/15 | 12/15 |
+| keyword recall@5 | 5/15 | 13/15 | 15/15 | 15/15 |
+| paraphrase answer@1 | 4/15 | 3/15 | 4/15 | 4/15 |
+| paraphrase recall@5 | 4/15 | 3/15 | 4/15 | 4/15 |
+| no-answer 正確回 no-hit | 2/12 | 2/12 | 4/12 | 2/12 |
+| 有答案的問題合計 answer@1 | 27/60 | 37/60 | 39/60 | 39/60 |
 
 ### 4.2 `simple`（hash bag-of-words）embedding
 
-| 指標 | `off` | `fused` | `route` |
-|---|---|---|---|
-| identifier answer@1 | 19/30 | 24/30 | 22/30 |
-| identifier recall@5 | 22/30 | 30/30 | 30/30 |
-| keyword answer@1 | 10/15 | 12/15 | 12/15 |
-| keyword recall@5 | 9/15 | 11/15 | 12/15 |
-| paraphrase answer@1 | 0/15 | 0/15 | 0/15 |
-| no-answer 正確回 no-hit | 4/12 | 4/12 | 6/12 |
+| 指標 | `off` | `fused` | `route`（校準前） | `route`（校準後） |
+|---|---|---|---|---|
+| identifier answer@1 | 19/30 | 24/30 | 22/30 | 24/30 |
+| identifier recall@5 | 22/30 | 30/30 | 30/30 | 30/30 |
+| keyword answer@1 | 10/15 | 12/15 | 12/15 | 12/15 |
+| keyword recall@5 | 9/15 | 11/15 | 12/15 | 12/15 |
+| paraphrase answer@1 | 0/15 | 0/15 | 0/15 | 0/15 |
+| no-answer 正確回 no-hit | 4/12 | 4/12 | 6/12 | 4/12 |
 
 ### 4.3 Golden gate
 
-`tests/eval/test_golden_retrieval_quality.py`（固定用 `simple` embedding）：`off` 與 `fused` 3/3 通過；`route` 2 個 gate 失敗：`lexical` route 取代了原本預期的 `vector` route（`vector-clause-32`、`long-doc-alpha-seven-retention`），且 `vector-clause-32` 因 lexical score 達 auto write-back 門檻而成為 write-back false positive。
+`tests/eval/test_golden_retrieval_quality.py`（固定用 `simple` embedding）：
 
-### 4.4 結論
+- `off`、`fused`：3/3 通過。
+- `route` 校準前：1/3。`lexical` route 取代了原本預期的 `vector` route（`vector-clause-32`、`long-doc-alpha-seven-retention`），且 `vector-clause-32` 成為 write-back false positive。
+- `route` 校準後：3/3 通過。
+
+### 4.4 `route` 的校準
+
+1. **重複的 chunk 讓給 vector**：vector route 已提名的 chunk，lexical route 不再重複提名；該候選保留 `vector` route 與原本的分數，只在 metadata 記下 `lexical_rank` / `bm25_score`。lexical route 只以 embedding 沒帶出的 chunk 作答。這修掉了 golden gate 的 route 取代問題。
+2. **lexical route 不具 auto write-back 資格**（`auto_threshold` 999，與 wiki route 相同）：僅靠關鍵字命中的答案不自動寫回。這修掉了 write-back false positive。
+3. **編號必須吻合**：問句中帶數字的詞（編號、版本、金額）必須全部出現在 chunk 中才成為 lexical 候選，否則在 trace 記 `skipped_missing_identifier`。避免「INC-00001」以只共用前綴的「INC-90217」內容作答。
+4. **final score gate 0.4 → 0.3**：「ERR-4012 怎麼修」這類夾帶問句的編號查詢，問句詞不在語料中而拉低 coverage（約 0.38），原門檻會擋掉正確答案。
+
+校準前 `route` 在 no-answer 的 4/12、6/12 並不是判斷較準：當時 lexical 候選先勝出、再因分數低於 gate 而整題回 no-hit。校準後這些情況由 vector 候選作答，數字回到與 `fused` 相同。
+
+### 4.5 結論
 
 - 兩種 hybrid 都明顯優於只用 dense（預設 model 下 37/60、39/60 對 27/60），主要來自 identifier 與 keyword 類問題。
-- `fused` 與 `route` 的答對數差距（37 對 39）在這個樣本量下不足以分出高下：`route` 在 keyword 與 no-hit 略好，`fused` 在 identifier 略好。
-- `fused` 在 paraphrase 類比只用 dense 少答對 1 題（3 對 4）：BM25 排名把一個 dense 命中擠出前 5。這是 `fused` 的已知代價。
-- 預設維持 `fused`，理由不是答對率，而是 `route` 引入另一套尺度的 score，會改變跨 route 的勝出結果並造成 auto write-back 誤判（§4.3）。`route` 的 score 與 write-back 門檻校準後，可以重新評估是否改為預設。
+- 校準後的 `route` 通過全部 golden gate，答對數不低於 `fused`（預設 model 39 對 37，`simple` 36 對 36）。39 對 37 在這個樣本量下不足以稱為顯著。
+- `route` 不會動到 vector route 的排序，所以沒有 `fused` 在 paraphrase 類少答對 1 題的代價（BM25 排名把一個 dense 命中擠出前 5）。
+- 依上述結果，預設改為 `route`。這是對外行為變更：response 的 `source` / `trace.route` 會出現新的值 `lexical`，且這類答案不會自動 write-back。要維持舊行為可設 `HKS_HYBRID_SEARCH=fused`。
 
-這份比較的限制：語料與問題是合成的，每類只有 5–10 題 × 3 seed；無答案問題在三種模式下多數都答錯（最好 4/12），顯示 no-hit 判定本身偏弱，與 hybrid 無關。
+這份比較的限制：語料與問題是合成的，每類只有 5–10 題 × 3 seed。§4.4 的第 3、4 項是依這份評測集的失敗案例調整的，有對它過度擬合的風險，需要以真實語料驗證。無答案問題在所有模式下多數都答錯（最好 4/12），顯示 no-hit 判定本身偏弱，與 hybrid 無關。
 
 ## 5. 限制
 
@@ -76,5 +90,5 @@
 ## 6. 測試
 
 - `tests/unit/retrievers/test_vector.py`：BM25 排序、keyword-only 命中進候選、雙重命中排前、關閉與上限。
-- `tests/unit/retrievers/test_lexical.py`：模式切換、lexical route 的 score 與 evidence、上限、confidence。
+- `tests/unit/retrievers/test_lexical.py`：模式切換、lexical route 的 score 與 evidence、上限、write-back 資格、與 vector 重複的 chunk、編號必須吻合。
 - `tests/integration/test_query_hybrid.py`：`VectorStore.all_chunks` / `similarities` 對真實 Chroma collection 的行為；`route` 模式經 CLI 的 end-to-end 與 schema 驗證。
