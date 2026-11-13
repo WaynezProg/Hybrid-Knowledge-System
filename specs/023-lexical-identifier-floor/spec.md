@@ -85,7 +85,7 @@ Lexical 候選的 score 是「問句詞彙以 idf 加權後被 chunk 涵蓋的�
 | paraphrase（原題） | 4/15 → 4/15 | 4/15 → 4/15 |
 | no-answer（原題） | 9/12 → 9/12 | 7/12 → 7/12 |
 
-這一欄量的是 022 與 023 合起來的效果，沒有把兩者分開。
+這一欄量的是 022 與 023 合起來的效果，沒有把兩者分開。Review 修正（022 §4.1 與本 spec 的評測腳本修正）之後以同樣設定重跑，`fused` 與 `route` 的每一格都與上表相同。
 
 真實資料（session-memory `KS_ROOT` 複本，`simple` embedding，`--writeback=no`）：
 
