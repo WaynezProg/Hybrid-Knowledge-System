@@ -79,6 +79,7 @@ def collect_wiki_candidates(
                     "source_relpath": page.source_relpath,
                     "slug": page.slug,
                     "quote": quote,
+                    "_hks_match_text": f"{page.title}\n{page.summary}\n{page.body}",
                 },
             )
         )

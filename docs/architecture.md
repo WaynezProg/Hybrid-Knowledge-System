@@ -138,7 +138,10 @@ flowchart TD
     any -- "否" --> nohit(["no-hit"])
     any -- "是" --> special{"session memory intent<br/>是 workspace 狀態或日期區間？"}
     special -- "是，且合成成功" --> synth(["回傳合成結果<br/>不具 auto write-back 資格"])
-    special -- "否" --> rerank["rerank<br/>有 opt-in 與 key：LLM<br/>否則：跨 route RRF"]
+    special -- "否" --> idf["identifier 過濾<br/>問句點名的編號不在候選內容中<br/>則不採用該候選"]
+    idf --> left{"還有 candidate？"}
+    left -- "否" --> nohit
+    left -- "是" --> rerank["rerank<br/>有 opt-in 與 key：LLM<br/>否則：跨 route RRF"]
     rerank --> gate{"第一名通過該 route 的<br/>final score gate？"}
     gate -- "否" --> nohit
     gate -- "是" --> ev["由勝出 candidate 產生 evidence"]
@@ -177,6 +180,7 @@ sequenceDiagram
         S-->>T: 命中內容
         T-->>Q: candidates + lookup trace step
     end
+    Q->>Q: identifier 過濾（全部被濾掉則 no-hit）
     Q->>K: rerank_candidates
     alt LLM opt-in 且有 key
         K-->>Q: LLM 排序
@@ -215,7 +219,7 @@ flowchart TD
     dense1 --> big2{"chunk 數超過上限？"}
     big2 -- "是" --> none(["沒有 lexical candidate"])
     big2 -- "否" --> bm["BM25 前 5"]
-    bm --> idq{"問句中帶數字的詞<br/>全部出現在 chunk？"}
+    bm --> idq{"問句中的 identifier<br/>全部出現在 chunk？"}
     idq -- "否" --> drop["略過<br/>skipped_missing_identifier"]
     idq -- "是" --> dup{"vector 已提名同一 chunk？"}
     dup -- "是" --> note["仍歸 vector<br/>只在 metadata 記 lexical_rank"]
