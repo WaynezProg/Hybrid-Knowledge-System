@@ -18,6 +18,11 @@ from hks.storage.vector import VectorStore
 
 _CANDIDATE_LIMIT = 5
 _MAX_SCORE = 0.85
+# A chunk that holds every identifier the question names is about the thing asked for,
+# whatever words the question wraps around it ("VID-236 的畫面是用來決定什麼"). Those
+# words are often in no chunk at all, which alone would push coverage under the gate.
+# Half of the score comes from holding the identifiers, half from the usual coverage.
+_IDENTIFIER_SHARE = 0.5
 
 
 def collect_lexical_candidates(
@@ -74,7 +79,10 @@ def collect_lexical_candidates(
             shared += 1
             continue
         passage = best_vector_passage(question, chunk.text)
-        score = round(_MAX_SCORE * query_coverage(question, chunk.text, texts), 4)
+        coverage = query_coverage(question, chunk.text, texts)
+        if required:
+            coverage = _IDENTIFIER_SHARE + (1.0 - _IDENTIFIER_SHARE) * coverage
+        score = round(_MAX_SCORE * coverage, 4)
         metadata: dict[str, object] = dict(chunk.metadata)
         metadata["chunk_id"] = chunk.chunk_id
         metadata["_hks_match_text"] = chunk.text
@@ -82,6 +90,8 @@ def collect_lexical_candidates(
         metadata["lexical_rank"] = rank
         metadata["bm25_score"] = round(bm25_score, 4)
         metadata["final_score"] = score
+        if required:
+            metadata["identifier_match"] = True
         metadata.update(
             vector_section_context(
                 chosen_hit=chunk, manifest=manifest, tree_store=tree_store, passage_text=passage
