@@ -211,6 +211,7 @@ Source / route 語意對照：
 * `route` 模式下，vector 答案通過 final score gate 後還要有它與問句相關的證據：vector similarity 低於 0.30 且 query coverage（問句詞彙以 idf 加權後被該 chunk 涵蓋的比例）低於 0.05 時回 no-hit，`fallback` step 記 `reason: weak_evidence` 與兩個數值。Embedding 永遠會回傳最近的 chunk，這項檢查擋掉知識庫沒有相關內容時的那一個。見 `specs/026-vector-evidence-gate/spec.md`
 * chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`（預設 20000）時略過 keyword 檢索，並在 trace 記 `lexical_skipped`
 * session-memory temporal intent（`今天` / `昨天` / `today` / `yesterday` / `YYYY-MM-DD`）會優先使用 matching session daily source，避免 graph 測試資料搶答
+* session-memory 日期區間（`25~27`、`5/25-5/29`、`2026-05-25 到 2026-05-29`）會彙整區間內每一天的 session daily。只寫日數的區間若整段在今天之後，指上個月的同樣日數（6 月 1 日問 `25~27` 是 5 月 25 日到 27 日）；見 `specs/027-day-range-previous-month/spec.md`
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
 
 016 retrieval quality gate 位於 `tests/eval/test_golden_retrieval_quality.py`，使用 `simple` backends 離線執行 golden queries，量測 route accuracy、precision@1、evidence hit rate、answer contains、no-hit precision 與 writeback false-positive rate。
