@@ -69,6 +69,12 @@ def collect_lexical_candidates(
     nominated = {
         candidate.metadata.get("chunk_id"): candidate for candidate in vector_candidates or []
     }
+    # How much of the question each vector candidate's chunk holds, for the answer gate:
+    # an embedding always returns its nearest chunk, also when nothing is about the question.
+    for candidate in vector_candidates or []:
+        text = candidate.metadata.get("_hks_match_text")
+        if isinstance(text, str):
+            candidate.metadata["query_coverage"] = round(query_coverage(question, text, texts), 4)
     shared = 0
     for rank, (index, bm25_score) in enumerate(matches, start=1):
         chunk = corpus[index]
