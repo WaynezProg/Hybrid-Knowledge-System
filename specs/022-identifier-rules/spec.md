@@ -87,7 +87,7 @@ Codex review 指出初版的四個問題，都已修正並各有測試：
 | 多個空白或 tab 不算吻合 | 問 `VID-236`，內容 `VID  236` | 決策 8 |
 | 未知編號的 coverage 為 1.0 | `query_coverage("ERR9999", "ERR-4012 handles 9999 requests", …)` | 決策 7 |
 
-修正後原評測（`simple`）每一格仍與變更前相同；預設 embedding model 與 OpenAI 的數字是修正前量的，修正後沒有重跑。
+修正後原評測（`simple`）每一格仍與變更前相同。預設 embedding model 在 021–024 都合併後的 main 上重跑原評測，三種模式的每一格都與上表「→」右側相同。OpenAI 的重跑見 `specs/023-lexical-identifier-floor/spec.md` §4.2。
 
 ## 5. 已知限制
 

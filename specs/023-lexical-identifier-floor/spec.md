@@ -87,6 +87,22 @@ Lexical 候選的 score 是「問句詞彙以 idf 加權後被 chunk 涵蓋的�
 
 這一欄量的是 022 與 023 合起來的效果，沒有把兩者分開。Review 修正（022 §4.1 與本 spec 的評測腳本修正）之後以同樣設定重跑，`fused` 與 `route` 的每一格都與上表相同。
 
+預設 embedding model（`paraphrase-multilingual-MiniLM-L12-v2`），同一份擴充題組，022 + 023（含 review 修正），answer@1；沒有量變更前的數字：
+
+| 類別 | `off` | `fused` | `route` |
+|---|---|---|---|
+| code-in-sentence | 8/12 | 12/12 | 12/12 |
+| code-spelling | 9/12 | 12/12 | 12/12 |
+| short-code | 6/9 | 9/9 | 9/9 |
+| name-with-digit | 3/9 | 9/9 | 3/9 |
+| no-answer-code | 12/12 | 12/12 | 12/12 |
+| identifier（原題） | 21/30 | 30/30 | 30/30 |
+| keyword（原題） | 6/15 | 10/15 | 12/15 |
+| paraphrase（原題） | 4/15 | 3/15 | 4/15 |
+| no-answer（原題） | 7/12 | 7/12 | 7/12 |
+
+name-with-digit 在 `route` 模式只有 3/9：正確文件在候選中（recall@5 為 9/9），但沒有排到第一；`fused` 與 OpenAI embedding 下為 9/9。原題的數字與 022 的表不同（例如 no-answer 7/12 對 8/12），是因為擴充題組在語料中多放了文件，兩者不能直接比較。
+
 真實資料（session-memory `KS_ROOT` 複本，`simple` embedding，`--writeback=no`）：
 
 | 問句 | 022 | 023 |
