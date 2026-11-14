@@ -101,16 +101,24 @@ def _from_slash_match(match: Match[str], *, today: date) -> ParsedDateRange | No
 
 
 def _from_day_tilde_match(match: Match[str], *, today: date) -> ParsedDateRange | None:
-    start = _safe_date(
-        today.year,
-        today.month,
-        int(match.group("d1")),
-    )
-    end = _safe_date(
-        today.year,
-        today.month,
-        int(match.group("d2")),
-    )
+    day_start = int(match.group("d1"))
+    day_end = int(match.group("d2"))
+    start = _safe_date(today.year, today.month, day_start)
+    end = _safe_date(today.year, today.month, day_end)
     if start is None or end is None:
         return None
+    # 純日數區間（無月份）指最近一次的「過去」那段；若整段仍落在未來，
+    # 回退到上一個月（必要時跨年）。
+    if min(start, end) > today:
+        year, month = _previous_month(today.year, today.month)
+        start = _safe_date(year, month, day_start)
+        end = _safe_date(year, month, day_end)
+        if start is None or end is None:
+            return None
     return _normalize_range(start, end)
+
+
+def _previous_month(year: int, month: int) -> tuple[int, int]:
+    if month == 1:
+        return year - 1, 12
+    return year, month - 1

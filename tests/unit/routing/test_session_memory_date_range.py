@@ -31,6 +31,56 @@ def test_parse_session_memory_date_range_formats(
     assert parsed.date_end == expected_end
 
 
+def test_parse_day_tilde_rolls_back_to_previous_month_when_future() -> None:
+    parsed = parse_session_memory_date_range(
+        "25~27 之間 project 做了哪些",
+        today=date(2026, 6, 1),
+    )
+    assert parsed is not None
+    assert parsed.date_start == "2026-05-25"
+    assert parsed.date_end == "2026-05-27"
+
+
+def test_parse_day_tilde_future_range_rolls_back_across_year() -> None:
+    parsed = parse_session_memory_date_range(
+        "25~27 做了什麼",
+        today=date(2026, 1, 5),
+    )
+    assert parsed is not None
+    assert parsed.date_start == "2025-12-25"
+    assert parsed.date_end == "2025-12-27"
+
+
+def test_parse_day_tilde_keeps_current_month_once_the_range_has_started() -> None:
+    parsed = parse_session_memory_date_range(
+        "25~27 做了什麼",
+        today=date(2026, 5, 26),
+    )
+    assert parsed is not None
+    assert parsed.date_start == "2026-05-25"
+    assert parsed.date_end == "2026-05-27"
+
+
+def test_parse_day_tilde_is_not_a_range_when_previous_month_lacks_the_day() -> None:
+    assert (
+        parse_session_memory_date_range(
+            "30~31 做了什麼",
+            today=date(2026, 3, 5),
+        )
+        is None
+    )
+
+
+def test_parse_slash_range_in_the_future_is_left_as_written() -> None:
+    parsed = parse_session_memory_date_range(
+        "5/25-5/29 做了什麼",
+        today=date(2026, 3, 1),
+    )
+    assert parsed is not None
+    assert parsed.date_start == "2026-05-25"
+    assert parsed.date_end == "2026-05-29"
+
+
 def test_parse_swaps_inverted_range() -> None:
     parsed = parse_session_memory_date_range(
         "27~25 做了什麼",

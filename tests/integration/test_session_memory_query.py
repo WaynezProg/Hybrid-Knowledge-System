@@ -295,13 +295,15 @@ def test_workspace_query_without_status_keyword_still_filters(
 def test_session_memory_date_range_query_synthesizes_three_days(
     cli_runner,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     docs = tmp_path / "docs"
     daily_dir = docs / "daily"
     daily_dir.mkdir(parents=True)
 
-    # "25~27" without a month means the current month, so the fixtures follow it.
-    month = date.today().strftime("%Y-%m")
+    # today 在下面固定為 2026-06-01：沒寫月份的「25~27」整段落在未來，
+    # 會回退到上個月，所以 fixtures 放在 2026-05。
+    month = "2026-05"
     fixtures = {
         f"{month}-25": "project-alpha step one done",
         f"{month}-26": "project-alpha step two done",
@@ -326,6 +328,15 @@ def test_session_memory_date_range_query_synthesizes_three_days(
 
     ingest = cli_runner.invoke(app, ["ingest", str(docs)])
     assert ingest.exit_code == 0, ingest.stdout
+
+    # 凍結 today，避免 bare-day「25~27」隨真實月份漂移；2026-06-01 會回退到 5 月，
+    # 對齊上面的 fixtures 並 E2E 驗證 day-tilde 回退邏輯。
+    class _FixedDate(date):
+        @classmethod
+        def today(cls) -> date:
+            return date(2026, 6, 1)
+
+    monkeypatch.setattr("hks.routing.session_memory.date", _FixedDate)
 
     result = cli_runner.invoke(
         app,
