@@ -219,11 +219,13 @@ Source / route 語意對照：
 
 * 預設模式：`no`
 * `--writeback=auto`：顯式 opt-in；`writeback_eligible=true` 且 route-specific `auto_threshold` 通過時自動回寫 wiki
-* `--writeback=no` → 禁用
+* `--writeback=no` → 禁用；不寫 `wiki/log.md`，trace 最後仍有 `writeback` step（`status: declined`，沒有答案時為 `skip-no-source`）
 * `--writeback=yes` → 強制回寫，trace 標示 `forced=true`，並寫入 coordination `events.jsonl`
 * `--writeback=ask` → 舊互動模式，相容保留
 
 `wiki` route 預設不具 auto write-back eligibility；需使用 explicit `--writeback=yes` 才會把既有 wiki 回答再沉澱成新頁面。自動 write-back page 會帶 `## Related`，連回本次答案涉及的既有 wiki pages。
+
+`--writeback=ask` 被拒絕與 `--writeback=auto` 被跳過（`auto-skipped-ineligible`、`auto-skipped-low-confidence`）仍會在 `wiki/log.md` 追加一筆 `writeback` 紀錄。`--writeback=no` 的查詢仍不是完全唯讀：開啟 vector store 時 Chroma 會改動 `vector/db/` 下的檔案（見 `specs/021-writeback-no-skips-log/spec.md`）。
 
 019 已有 review queue 設計與 plan，但尚未實作。現在不要把 `ks writeback list|approve|reject` 或 `$KS_ROOT/writeback/queue/` 當成可用 runtime contract。
 
