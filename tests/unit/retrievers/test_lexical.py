@@ -148,3 +148,23 @@ def test_a_chunk_without_the_identifier_asked_about_is_not_an_answer(
 
     assert wrong == [] and steps[0].detail["skipped_missing_identifier"] == 1
     assert [c.metadata["source_relpath"] for c in right] == ["3.md"]
+
+
+def test_a_code_inside_a_sentence_still_clears_the_gate(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("HKS_HYBRID_SEARCH", "route")
+    texts = [*TEXTS, "逐句 delta 稿第 3 段的 A／B 版依 VID-236 畫面選"]
+    store = _store(texts)
+
+    wrapped, _ = collect_lexical_candidates(
+        "請問 VID-236 那支後來到底是怎麼處理的呢", vector_store=store, manifest=_manifest()
+    )
+    bare, _ = collect_lexical_candidates("VID-236", vector_store=store, manifest=_manifest())
+    plain, _ = collect_lexical_candidates(
+        "請問那支後來到底是怎麼處理的呢 畫面", vector_store=store, manifest=_manifest()
+    )
+
+    assert [c.metadata["source_relpath"] for c in wrapped] == ["3.md"]
+    assert 0.425 <= wrapped[0].score < bare[0].score == 0.85, "half for the code, rest by coverage"
+    assert wrapped[0].metadata["identifier_match"] is True
+    assert all(c.score < 0.3 for c in plain), "no code in the question: coverage alone"
+    assert all("identifier_match" not in c.metadata for c in plain)
