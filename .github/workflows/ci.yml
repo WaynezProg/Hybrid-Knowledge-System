@@ -77,3 +77,37 @@ jobs:
 
       - name: Offline office ingest smoke
         run: uv run pytest tests/integration/test_office_pipeline.py -q
+
+  wheel-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          cache-suffix: wheel-install
+
+      - name: Build the wheel
+        run: uv build --wheel
+
+      - name: Install it outside the checkout
+        run: |
+          uv venv "$RUNNER_TEMP/venv"
+          uv pip install --python "$RUNNER_TEMP/venv/bin/python" dist/*.whl
+
+      - name: Ingest, query and lint with the installed command
+        env:
+          HKS_EMBEDDING_MODEL: simple
+        run: |
+          cp -R examples/quickstart "$RUNNER_TEMP/docs"
+          cd "$RUNNER_TEMP"
+          export KS_ROOT="$RUNNER_TEMP/ks"
+          venv/bin/ks ingest docs
+          venv/bin/ks query "ERR-4012 怎麼修" --writeback=no | grep -q '"lexical"\|"vector"'
+          venv/bin/ks lint
+

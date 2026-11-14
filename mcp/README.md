@@ -68,7 +68,7 @@ Start the loopback HTTP facade:
 cd "$(git rev-parse --show-toplevel)"
 export HKS_API_TOKEN='replace-with-local-token'
 # Required only when HTTP clients call /ingest.
-export HKS_API_INGEST_ROOTS='fixtures=/Users/me/hks/tests/fixtures'
+export HKS_API_INGEST_ROOTS="fixtures=$PWD/tests/fixtures"
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
@@ -137,6 +137,7 @@ Run lint:
 ```bash
 curl -sS http://127.0.0.1:8766/lint \
   -H 'Host: 127.0.0.1' \
+  -H "Authorization: Bearer $HKS_API_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"strict":true,"ks_root":null}' | jq .
 ```

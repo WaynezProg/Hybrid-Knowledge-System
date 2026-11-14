@@ -1,0 +1,2 @@
+include config/routing_rules.yaml
+recursive-include specs/*/contracts *

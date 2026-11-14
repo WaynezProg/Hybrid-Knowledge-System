@@ -16,12 +16,13 @@ from typing import Any
 
 from jsonschema import Draft202012Validator
 
+from hks.core.resources import resource_root
+
 SCHEMA_RELPATH = "specs/004-phase3-image-ingest/contracts/ingest-summary-detail.schema.json"
 
 
 def _repo_root() -> Path:
-    # src/hks/core/ingest_contract.py -> repo root is parents[3]
-    return Path(__file__).resolve().parents[3]
+    return resource_root()
 
 
 @lru_cache(maxsize=1)

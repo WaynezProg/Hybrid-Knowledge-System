@@ -6,43 +6,73 @@
 
 CLI-first 的知識系統：把文件 ingest 成結構化 wiki / graph / vector，用 fused retrieval 回答問題。不是常駐服務，每次跑完就結束。
 
+## 需求
+
+| 需要 | 用途 | 說明 |
+|---|---|---|
+| [uv](https://docs.astral.sh/uv/) | 安裝與執行 | 會自動下載 Python 3.12，不必自己裝 |
+| Python 3.12 | 只有用 pip 而不用 uv 時 | 3.13 以上會被 `requires-python` 拒絕 |
+| 約 1 GB 磁碟空間 | 套件（含 torch） | |
+| `tesseract` 與 `eng`、`chi_tra` 語言包（選用） | 只有 ingest 圖片（png／jpg）時 | macOS：`brew install tesseract tesseract-lang`；Ubuntu：`sudo apt-get install -y tesseract-ocr tesseract-ocr-eng tesseract-ocr-chi-tra` |
+| 預設 embedding model（選用） | 不設 `HKS_EMBEDDING_MODEL` 時 | 第一次使用會下載約 450 MB |
+| OpenAI API key（選用） | `openai:text-embedding-3-small`、LLM reranker | |
+
+pdf、docx、xlsx、pptx 不需要 LibreOffice 或 poppler。範例用到的 `jq` 只是排版用。
+
 ## 安裝
+
+當成指令安裝（套件名是 `hks`，指令是 `ks`、`hks-mcp`、`hks-api`）：
+
+```bash
+uv tool install git+https://github.com/WaynezProg/Hybrid-Knowledge-System
+ks --help
+```
+
+從 checkout 執行（開發、跑測試）：
 
 ```bash
 git clone https://github.com/WaynezProg/Hybrid-Knowledge-System.git
 cd Hybrid-Knowledge-System
-
-# 系統工具（macOS）
-brew install tesseract tesseract-lang jq
-
-# Python runtime（mise 管理）+ 套件（uv 管理）
-mise install
 uv sync
-
-# 測試用 fixtures
-make fixtures
+uv run ks --help
 ```
 
-> 只做文字 / Office ingest 可以先不裝 `tesseract`，遇到圖片 ingest 再補。
+以下範例以 checkout 為準（`uv run ks …`）；用安裝好的指令時去掉 `uv run`。離線重建環境（套件已在 uv cache）：`uv sync --offline`。
 
 ## Quick Start
 
-```bash
-# 1. 建立 runtime 目錄，設定環境
-export KS_ROOT="$PWD/.hks-runs/demo/ks"
-export HKS_EMBEDDING_MODEL=simple          # demo / CI 用；正式移除改用預設模型
+不需要 API key，也不需要 `tesseract`：
 
-# 2. Ingest 文件
-uv run ks ingest tests/fixtures/valid
+```bash
+# 1. runtime 輸出目錄（不要和來源文件放在一起），以及試用的 embedding
+export KS_ROOT="$PWD/.hks-runs/demo/ks"
+export HKS_EMBEDDING_MODEL=simple
+
+# 2. Ingest 範例文件
+uv run ks ingest examples/quickstart
 
 # 3. 查詢
-uv run ks query "這批文件的重點是什麼" --writeback=no | jq .
+uv run ks query "Atlas 有哪些風險？" --writeback=no | jq '{answer, source, confidence, evidence}'
+uv run ks query "ERR-4012 怎麼修" --writeback=no | jq '{answer, source, confidence}'
 
-# 4. 瀏覽已 ingest 的 source
-uv run ks source list | jq .
+# 4. 看已 ingest 的 source，並檢查知識庫是否一致
+uv run ks source list | jq '[.trace.steps[0].detail.sources[].relpath]'
+uv run ks lint | jq -r .answer
 ```
 
-`HKS_EMBEDDING_MODEL=simple` 適合 demo 與 CI。正式使用移除此設定，改用預設 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`，或設 `HKS_EMBEDDING_MODEL=openai:text-embedding-3-small` 使用 OpenAI API。
+怎麼讀輸出：
+
+- stdout 一律是 JSON；出錯時 stderr 另有一行說明。
+- `ks query`：`answer` 是命中的原文片段（不是 LLM 生成的回答），`source` 是作答的 route（`wiki`／`graph`／`vector`／`lexical`／`page_tree`），`evidence[]` 是出處。沒有命中時 `source` 為 `[]`、exit code 仍是 0。
+- `ks ingest`、`ks lint`、`ks source`：摘要在 `answer`，明細在 `trace.steps[0].detail`。
+
+換成正式的 embedding：
+
+- 本機 model：不設 `HKS_EMBEDDING_MODEL`，使用預設的 `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`。
+- OpenAI：`HKS_EMBEDDING_MODEL=openai:text-embedding-3-small` 加上 `HKS_OPENAI_API_KEY`。
+- **一個 `KS_ROOT` 只用一種 embedding model。** 換 model 要換一個新的 `KS_ROOT` 重新 ingest；沿用舊的不會報錯，但 vector 查詢會查不到。
+- 設定檔：`cp config/hks.yaml.example config/hks.yaml`，只在 repo 根目錄執行時會被讀到；`uv run python -m hks.core.config --shell` 可以確認實際生效的設定。細節見 `docs/configuration.md`。
+- Keyword 檢索的模式：`HKS_HYBRID_SEARCH=route|fused|off`（預設 `route`）。
 
 ## 使用方式
 
@@ -202,9 +232,15 @@ uv run ks query "Project Atlas 風險？" --writeback=no
 # 2. MCP stdio（支援 MCP 的 agent client 啟動）
 uv run hks-mcp --transport stdio
 
-# 3. HTTP（不支援 MCP 的工具）
+# 3. HTTP（不支援 MCP 的工具）；除了 /catalog/* 以外的 endpoint 都要 token，全部是 POST
+export HKS_API_TOKEN='replace-with-local-token'
 uv run hks-api --host 127.0.0.1 --port 8766
+curl -sS http://127.0.0.1:8766/query \
+  -H "Authorization: Bearer $HKS_API_TOKEN" -H 'content-type: application/json' \
+  -d '{"question":"Project Atlas 風險？","writeback":"no","ks_root":null}'
 ```
+
+MCP client 的設定檔（`mcp/config/stdio.mcp.json`）裡的 `cwd` 與 `KS_ROOT` 要改成絕對路徑。
 
 <details>
 <summary>MCP tools 清單</summary>
