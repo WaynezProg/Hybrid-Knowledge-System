@@ -10,6 +10,7 @@ from typing import Any, Literal
 
 import jsonschema
 
+from hks.core.resources import resource_root
 from hks.errors import ExitCode
 
 type Route = Literal["wiki", "graph", "vector", "page_tree", "lexical"]
@@ -100,7 +101,7 @@ def contract_schema_path() -> Path:
     """Locate the canonical contract file inside the repository."""
 
     return (
-        Path(__file__).resolve().parents[3]
+        resource_root()
         / "specs"
         / "005-phase3-lint-impl"
         / "contracts"

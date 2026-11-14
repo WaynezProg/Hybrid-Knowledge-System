@@ -10,13 +10,15 @@ from typing import Any, cast
 import jsonschema
 from ruamel.yaml import YAML
 
+from hks.core.resources import resource_root
+
 
 def specs_dir() -> Path:
-    return Path(__file__).resolve().parents[3] / "specs" / "006-mcp-api-adapter"
+    return resource_root() / "specs" / "006-mcp-api-adapter"
 
 
 def feature_specs_dir(feature: str) -> Path:
-    return Path(__file__).resolve().parents[3] / "specs" / feature
+    return resource_root() / "specs" / feature
 
 
 def contract_path(name: str) -> Path:

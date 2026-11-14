@@ -9,10 +9,12 @@ from typing import Any
 
 import jsonschema
 
+from hks.core.resources import resource_root
+
 
 def lint_detail_schema_path() -> Path:
     return (
-        Path(__file__).resolve().parents[3]
+        resource_root()
         / "specs"
         / "005-phase3-lint-impl"
         / "contracts"

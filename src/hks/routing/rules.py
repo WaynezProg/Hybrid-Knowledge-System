@@ -10,6 +10,7 @@ from ruamel.yaml import YAML
 
 from hks.core.config import config_value
 from hks.core.paths import resolve_ks_root
+from hks.core.resources import resource_root
 from hks.core.schema import Route
 from hks.errors import ExitCode, KSError
 
@@ -32,7 +33,7 @@ class RoutingRuleSet:
 
 
 def default_rules_path() -> Path:
-    return Path(__file__).resolve().parents[3] / "config" / "routing_rules.yaml"
+    return resource_root() / "config" / "routing_rules.yaml"
 
 
 def resolve_rules_path(ks_root: Path | str | None = None) -> Path:

@@ -8,7 +8,7 @@ Example JSON request bodies live in `examples/`.
 
 ```bash
 export HKS_API_TOKEN='replace-with-local-token'
-export HKS_API_INGEST_ROOTS='fixtures=/Users/me/hks/tests/fixtures'
+export HKS_API_INGEST_ROOTS="fixtures=$PWD/tests/fixtures"
 uv run hks-api --host 127.0.0.1 --port 8766
 ```
 
@@ -43,6 +43,7 @@ curl -sS http://127.0.0.1:8766/watch/scan \
 ```bash
 curl -sS http://127.0.0.1:8766/lint \
   -H 'Host: 127.0.0.1' \
+  -H "Authorization: Bearer $HKS_API_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"strict":false,"fix":"none","ks_root":null}'
 ```
