@@ -46,6 +46,12 @@ _FINAL_SCORE_THRESHOLDS: dict[Route, float] = {
 }
 _VECTOR_PRIMARY_FINAL_SCORE_THRESHOLD = 0.2
 _VECTOR_LEXICAL_FINAL_SCORE_THRESHOLD = 0.4
+# A vector answer needs some evidence that it is about the question: either the embedding
+# is reasonably sure, or the passage holds some of the question's rarer words. With neither
+# it is only the nearest chunk of a knowledge base that has nothing on the subject.
+# See specs/026-vector-evidence-gate/spec.md for how the two numbers were chosen.
+_WEAK_SIMILARITY = 0.30
+_WEAK_COVERAGE = 0.05
 
 
 def _build_no_hit_response(route: Route, steps: list[TraceStep]) -> QueryResponse:
@@ -69,6 +75,26 @@ def _final_score_threshold(
         if isinstance(lexical_overlap, int) and lexical_overlap > 0:
             return _VECTOR_LEXICAL_FINAL_SCORE_THRESHOLD
     return _FINAL_SCORE_THRESHOLDS.get(candidate.source_route, 0.0)
+
+
+def _weak_evidence(candidate: Candidate, question: str) -> dict[str, float] | None:
+    """The similarity and coverage of a vector answer that has too little of either.
+    ``None`` when the answer may stand, or when coverage was not measured (keyword
+    retrieval is off or was skipped, or the question has no word to look for), in which
+    case nothing is taken away."""
+    if candidate.source_route != "vector":
+        return None
+    if identifier_terms(question):
+        # It got here past the identifier filter, so it names what was asked for: that is
+        # evidence, however many other words the question wraps around the identifier.
+        return None
+    similarity = candidate.metadata.get("vector_similarity")
+    coverage = candidate.metadata.get("query_coverage")
+    if not isinstance(similarity, int | float) or not isinstance(coverage, int | float):
+        return None
+    if similarity < _WEAK_SIMILARITY and coverage < _WEAK_COVERAGE:
+        return {"vector_similarity": round(float(similarity), 4), "query_coverage": float(coverage)}
+    return None
 
 
 def _passes_final_score_gate(
@@ -144,9 +170,7 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
     all_candidates.extend(wiki_candidates)
     steps.extend(wiki_steps)
 
-    graph_candidates, graph_steps = collect_graph_candidates(
-        question, graph_store=graph_store
-    )
+    graph_candidates, graph_steps = collect_graph_candidates(question, graph_store=graph_store)
     all_candidates.extend(graph_candidates)
     steps.extend(graph_steps)
 
@@ -355,6 +379,32 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
         return _maybe_writeback(
             question=question,
             response=response,
+            writeback=writeback,
+            wiki_store=wiki_store,
+        )
+
+    # Only an answer that passed the score gate is looked at again, so the reason an
+    # answer was already refused for stays the same.
+    weak = _weak_evidence(winner, question)
+    if weak is not None:
+        steps.append(
+            TraceStep(
+                kind="fallback",
+                detail={
+                    "status": "no-hit",
+                    "reason": "weak_evidence",
+                    "route": winner.source_route,
+                    **weak,
+                    "thresholds": {
+                        "vector_similarity": _WEAK_SIMILARITY,
+                        "query_coverage": _WEAK_COVERAGE,
+                    },
+                },
+            )
+        )
+        return _maybe_writeback(
+            question=question,
+            response=_build_no_hit_response(decision.route, steps),
             writeback=writeback,
             wiki_store=wiki_store,
         )

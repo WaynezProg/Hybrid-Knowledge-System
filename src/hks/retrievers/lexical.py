@@ -5,7 +5,7 @@ from __future__ import annotations
 from hks.core.manifest import Manifest
 from hks.core.schema import TraceStep
 from hks.page_tree.store import TreeStore
-from hks.retrieval.bm25 import bm25_rank, identifier_terms, query_coverage
+from hks.retrieval.bm25 import CoverageScorer, bm25_rank, identifier_terms
 from hks.retrieval.models import Candidate
 from hks.retrievers.vector import (
     best_vector_passage,
@@ -69,6 +69,16 @@ def collect_lexical_candidates(
     nominated = {
         candidate.metadata.get("chunk_id"): candidate for candidate in vector_candidates or []
     }
+    # The corpus is read once for every coverage asked for below.
+    scorer = CoverageScorer(question, texts)
+    # How much of the question each vector candidate's chunk holds, for the answer gate:
+    # an embedding always returns its nearest chunk, also when nothing is about the question.
+    # A question with nothing to look for is left unmeasured, and the gate then stands aside.
+    if scorer.measurable:
+        for candidate in vector_candidates or []:
+            text = candidate.metadata.get("_hks_match_text")
+            if isinstance(text, str):
+                candidate.metadata["query_coverage"] = round(scorer.score(text), 4)
     shared = 0
     for rank, (index, bm25_score) in enumerate(matches, start=1):
         chunk = corpus[index]
@@ -79,7 +89,7 @@ def collect_lexical_candidates(
             shared += 1
             continue
         passage = best_vector_passage(question, chunk.text)
-        coverage = query_coverage(question, chunk.text, texts)
+        coverage = scorer.score(chunk.text)
         if required:
             coverage = _IDENTIFIER_SHARE + (1.0 - _IDENTIFIER_SHARE) * coverage
         score = round(_MAX_SCORE * coverage, 4)
