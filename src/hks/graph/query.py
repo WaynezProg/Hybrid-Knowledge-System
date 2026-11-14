@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from hks.graph.store import GraphEdge, GraphPayload, GraphStore, RelationType
 
 _TOKEN_RE = re.compile(r"[a-z0-9]{2,}|[\u4e00-\u9fff]{1,2}", re.IGNORECASE)
+# ``_score_nodes`` adds 3.0 when a label or alias appears in the question as written.
+_NAMED_IN_FULL = 3.0
+_PARTIAL_NAME_CONFIDENCE = 0.8
 
 
 @dataclass(slots=True)
@@ -34,15 +37,25 @@ def answer_query(question: str, graph_store: GraphStore | None = None) -> GraphQ
     if not edge_scores:
         return None
 
-    ranked = sorted(edge_scores.items(), key=lambda item: item[1], reverse=True)
-    ranked_edges = [payload.edges[edge_id] for edge_id, score in ranked if score > 0]
-    if desired_relations:
-        desired_edges = [edge for edge in ranked_edges if edge.relation in desired_relations]
-        if desired_edges:
-            ranked_edges = desired_edges
-    top_edges = ranked_edges[:3]
-    if not top_edges:
+    # An edge answers the question only if it is of an asked relation and the question
+    # names one of its ends; the relation word alone matches every edge of that kind.
+    named = {
+        edge_id: max(
+            node_scores.get(payload.edges[edge_id].source, 0.0),
+            node_scores.get(payload.edges[edge_id].target, 0.0),
+        )
+        for edge_id in edge_scores
+        if payload.edges[edge_id].relation in desired_relations
+    }
+    best_named = max(named.values(), default=0.0)
+    if best_named <= 0:
         return None
+    ranked = sorted(
+        (edge_id for edge_id, score in named.items() if score >= best_named / 2),
+        key=lambda edge_id: edge_scores[edge_id],
+        reverse=True,
+    )
+    top_edges = [payload.edges[edge_id] for edge_id in ranked[:3]]
 
     answer = _render_answer(question, payload, top_edges)
     relpaths = sorted({edge.source_relpath for edge in top_edges})
@@ -50,6 +63,9 @@ def answer_query(question: str, graph_store: GraphStore | None = None) -> GraphQ
     relations = sorted({edge.relation for edge in top_edges})
     top_score = max(edge_scores[edge.id] for edge in top_edges)
     confidence = min(0.99, 0.55 + (min(top_score, 6) * 0.06) + ((len(top_edges) - 1) * 0.05))
+    if best_named < _NAMED_IN_FULL:
+        # Only some words of a label are in the question, not the label itself.
+        confidence = min(confidence, _PARTIAL_NAME_CONFIDENCE)
     return GraphQueryResult(
         answer=answer,
         confidence=round(confidence, 4),
