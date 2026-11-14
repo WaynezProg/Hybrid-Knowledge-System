@@ -99,6 +99,46 @@ def test_an_answer_refused_by_the_score_gate_keeps_that_reason(ask) -> None:
     assert fallback["reason"] == "final_score_below_threshold"
 
 
+@pytest.mark.contract
+def test_a_question_with_nothing_to_look_for_is_left_to_the_score_gate(ask) -> None:
+    """One CJK character makes no term: a coverage of 0 would say nothing."""
+    payload = ask("錢", similarity=0.27)
+
+    assert payload["source"] == ["vector"] and _fallback(payload) == []
+    lookup = [s["detail"] for s in payload["trace"]["steps"] if s["kind"] == "vector_lookup"]
+    assert lookup and "query_coverage" not in lookup[0]
+
+
+@pytest.mark.contract
+def test_an_identifier_the_passage_holds_is_evidence_however_long_the_question(
+    cli_runner, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "delta.md").write_text(
+        "# Delta\n\n逐句 delta 稿第 3 段的 A／B 版依 VID-236 畫面選。\n", encoding="utf-8"
+    )
+    (docs / "other.md").write_text("# Other\n\n本週沒有其他事項。\n", encoding="utf-8")
+    assert cli_runner.invoke(app, ["ingest", str(docs)]).exit_code == 0
+    real = query_module.collect_vector_candidates
+
+    def low_similarity(question: str, **arguments: Any):  # type: ignore[no-untyped-def]
+        candidates, steps = real(question, **arguments)
+        for candidate in candidates:
+            candidate.metadata["vector_similarity"] = 0.27
+        return candidates, steps
+
+    monkeypatch.setattr(query_module, "collect_vector_candidates", low_similarity)
+
+    result = cli_runner.invoke(
+        app, ["query", "請問 VID-236 那支後來到底是怎麼處理的呢", "--writeback=no"]
+    )
+    payload = validate(json.loads(result.stdout))
+
+    assert {item["source_relpath"] for item in payload["evidence"]} == {"delta.md"}
+    assert _fallback(payload) == []
+
+
 def test_without_a_measured_coverage_nothing_is_taken_away() -> None:
     """Keyword retrieval off or skipped: the candidate carries no coverage."""
     unmeasured = Candidate(
@@ -110,11 +150,35 @@ def test_without_a_measured_coverage_nothing_is_taken_away() -> None:
         score=0.27,
         metadata={"vector_similarity": 0.27, "query_coverage": 0.0},
     )
+    covered = Candidate(
+        text="x",
+        source_route="vector",
+        score=0.27,
+        metadata={"vector_similarity": 0.27, "query_coverage": 0.05},
+    )
     wiki = Candidate(text="x", source_route="wiki", score=0.27, metadata=dict(measured.metadata))
+    weak = query_module._weak_evidence
 
-    assert query_module._weak_evidence(unmeasured) is None
-    assert query_module._weak_evidence(wiki) is None
-    assert query_module._weak_evidence(measured) == {
-        "vector_similarity": 0.27,
-        "query_coverage": 0.0,
-    }
+    assert weak(unmeasured, "what is this") is None
+    assert weak(wiki, "what is this") is None
+    assert weak(covered, "what is this") is None, "at the threshold the answer stands"
+    assert weak(measured, "what about VID-236") is None, "it holds the identifier asked for"
+    assert weak(measured, "what is this") == {"vector_similarity": 0.27, "query_coverage": 0.0}
+
+
+def test_one_scorer_gives_the_coverage_of_every_document() -> None:
+    from hks.retrieval.bm25 import CoverageScorer, query_coverage
+
+    corpus = [
+        "Ticket ERR-4012 was resolved by rotating the gateway token.",
+        "供應商交期延遲兩週，風險上升。",
+        "The monthly ledger close moved to the third working day.",
+    ]
+    for question in ("ERR4012 gateway", "供應商 風險", "ledger close day", "nothing here"):
+        scorer = CoverageScorer(question, corpus)
+        assert scorer.measurable
+        assert [scorer.score(text) for text in corpus] == pytest.approx(
+            [query_coverage(question, text, corpus) for text in corpus]
+        )
+    assert not CoverageScorer("錢", corpus).measurable
+    assert not CoverageScorer("", corpus).measurable and CoverageScorer("", corpus).score("x") == 0

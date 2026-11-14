@@ -28,6 +28,9 @@ Query coverage 是問句詞彙以 idf 加權後被該 chunk 涵蓋的比例（02
 | 3 | 先過 final score gate 再做這項檢查，原本就被 gate 擋下的答案 `reason` 不變 |
 | 4 | Coverage 由 lexical retriever 在讀出全部 chunk 時順便算出，記在 vector 候選的 metadata（`query_coverage`）。沒有量到 coverage 的情況（`HKS_HYBRID_SEARCH=fused`／`off`，或 chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`）不做這項檢查，行為與之前相同 |
 | 5 | 只檢查 vector route 的答案；wiki、graph、lexical、page_tree 各有自己的判定 |
+| 6 | 問句點名了 identifier 時不做這項檢查：候選已經通過 identifier 過濾，內容確實含有被問的編號，這本身就是證據（長問句會把 coverage 稀釋到門檻以下） |
+| 7 | 問句沒有可比對的詞（單一個中文字、只有標點）時不量 coverage，也就不做這項檢查 |
+| 8 | Coverage 改由 `CoverageScorer` 計算：每題只讀一次全部 chunk，再逐一給分。Lexical route 自己的候選也改用它 |
 
 0.30 與 0.05 取在 §1 兩群之間：誤答的相似度最高 0.25、coverage 最高 0.009；被保留的正確答案中，coverage 低於 0.05 的相似度最低 0.39，相似度低於 0.30 的 coverage 最低 0.236。
 
@@ -61,7 +64,25 @@ OpenAI 逐題比對：126 題中 8 題改變，全部是原本答錯的題目改
 
 預設 embedding model（`paraphrase-multilingual-MiniLM-L12-v2`）沒有重跑評測。依 020 §4.6，它的誤答相似度約 0.33–0.35，高於 0.30，這項檢查對它預期沒有作用。
 
+### 4.1 Review 後的修正
+
+Codex review 指出四個問題：
+
+| 問題 | 反例 | 處理 |
+|---|---|---|
+| 沒有可比對的詞被當成沒有證據 | 問「錢」，唯一的 chunk 是「錢的預算是十萬元，已核准。」（similarity 0.26）被拒 | 決策 7 |
+| 已命中 identifier 仍因問句太長被拒 | 問「請問 VID-236 那支後來到底是怎麼處理的呢」，coverage 0.03 | 決策 6 |
+| 每個 vector 候選都重新斷詞一次全部 chunk | 20,000 個 chunk 時 lexical retriever 由 0.28 秒變成 1.43 秒 | 決策 8 |
+| 第一名被拒之後不看其他候選 | 第二名的 page_tree 候選是正確答案 | 沒有改，見 §5 |
+
+決策 8 的實測（20,000 個 chunk、每個 108 個詞）：原本算 5 個候選的 coverage 要 4.63 秒，現在算 10 個只要 0.92 秒，所以 lexical route 本身也比變更前快。新舊算法在 2,676 組隨機輸入上的差異不超過浮點誤差。
+
+修正後重跑擴充題組，`simple` 與 OpenAI 的每一格都與上表相同。
+
 ## 5. 已知限制
+
+- 第一名的 vector 候選被拒時直接回 no-hit，不改用排名在後的候選；這與既有 final score gate 的做法一致。改成往下找可能救回正確答案，也可能讓一個更弱的誤中候選（例如只共用一個詞的 wiki 頁）作答，沒有量測過哪一種比較多，所以沒有改。
+- 問句與內容語言不同時 coverage 必然是 0，只剩相似度可以依靠。評測中這類正確答案的相似度最低 0.39，高於 0.30；但若某個 model 對跨語言的正確答案只給 0.25–0.30，它會被拒。
 
 - 相似度高的誤答擋不住：`量子電腦採購計畫` 對上只寫「電腦資料整理」的短 chunk，similarity 0.47，高於任何合理的門檻。短 chunk 與短問句共用一個詞就會有這種相似度。這類情況仍需要 LLM reranker 或 answerability 判斷。
 - 0.30 是相似度的絕對值，各 embedding model 的分布不同。這裡依 `openai:text-embedding-3-small` 訂定；換 model 時應以 §1 的方式重新量測。

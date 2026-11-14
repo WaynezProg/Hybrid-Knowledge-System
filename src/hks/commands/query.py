@@ -77,11 +77,16 @@ def _final_score_threshold(
     return _FINAL_SCORE_THRESHOLDS.get(candidate.source_route, 0.0)
 
 
-def _weak_evidence(candidate: Candidate) -> dict[str, float] | None:
+def _weak_evidence(candidate: Candidate, question: str) -> dict[str, float] | None:
     """The similarity and coverage of a vector answer that has too little of either.
     ``None`` when the answer may stand, or when coverage was not measured (keyword
-    retrieval is off or was skipped), in which case nothing is taken away."""
+    retrieval is off or was skipped, or the question has no word to look for), in which
+    case nothing is taken away."""
     if candidate.source_route != "vector":
+        return None
+    if identifier_terms(question):
+        # It got here past the identifier filter, so it names what was asked for: that is
+        # evidence, however many other words the question wraps around the identifier.
         return None
     similarity = candidate.metadata.get("vector_similarity")
     coverage = candidate.metadata.get("query_coverage")
@@ -380,7 +385,7 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
 
     # Only an answer that passed the score gate is looked at again, so the reason an
     # answer was already refused for stays the same.
-    weak = _weak_evidence(winner)
+    weak = _weak_evidence(winner, question)
     if weak is not None:
         steps.append(
             TraceStep(

@@ -153,6 +153,57 @@ def bm25_rank(
     return kept
 
 
+class CoverageScorer:
+    """``query_coverage`` for many documents of one corpus. The corpus is read once, when
+    the scorer is made; scoring a document then only reads that document."""
+
+    def __init__(self, query: str, documents: Sequence[str]) -> None:
+        lowered = query.lower()
+        # code -> how many terms it would be if written apart ("vid-236": 2)
+        codes: dict[str, int] = {}
+        for match in _QUESTION_COMPOUND_RE.finditer(lowered):
+            pieces = [match.group(1), *re.split(r"[-_]", match.group(2))]
+            codes[_compound(match)] = max(1, sum(len(piece) >= 2 for piece in pieces))
+        terms = set(lexical_tokens(_QUESTION_COMPOUND_RE.sub(" ", lowered)))
+        total = len(documents)
+        term_count = dict.fromkeys(terms, 0)
+        code_count = dict.fromkeys(codes, 0)
+        for text in documents:
+            held = set(lexical_tokens(text))
+            for term in terms:
+                if term in held:
+                    term_count[term] += 1
+            if codes:
+                named = _codes_in(text)
+                for code in codes:
+                    if _holds_code(code, named):
+                        code_count[code] += 1
+
+        def rarity(containing: int) -> float:
+            return math.log(1.0 + (total - containing + 0.5) / (containing + 0.5))
+
+        self._terms = {term: rarity(count) for term, count in term_count.items()}
+        # A code weighs as much as the terms it stands for, however it is spelled.
+        self._codes = {code: codes[code] * rarity(count) for code, count in code_count.items()}
+        self._weight = sum(self._terms.values()) + sum(self._codes.values())
+
+    @property
+    def measurable(self) -> bool:
+        """False when the query has nothing to look for (one CJK character, punctuation):
+        a coverage of 0 would then say nothing about the document."""
+        return bool(self._terms or self._codes)
+
+    def score(self, document: str) -> float:
+        if not self._weight:
+            return 0.0
+        present = set(lexical_tokens(document))
+        matched = sum(idf for term, idf in self._terms.items() if term in present)
+        if self._codes:
+            here = _codes_in(document)
+            matched += sum(idf for code, idf in self._codes.items() if _holds_code(code, here))
+        return matched / self._weight
+
+
 def query_coverage(query: str, document: str, documents: Sequence[str]) -> float:
     """Share (0..1) of the query's terms found in ``document``, each weighted by its rarity
     in ``documents``. A term no document holds counts as the rarest.
@@ -162,35 +213,4 @@ def query_coverage(query: str, document: str, documents: Sequence[str]) -> float
     content naming it is. Its pieces ("vid", "236") are not looked up on their own, but
     it weighs as much as that many terms, as it did when it was written apart.
     """
-    lowered = query.lower()
-    # code -> how many terms it would be if written apart ("vid-236": 2)
-    codes: dict[str, int] = {}
-    for match in _QUESTION_COMPOUND_RE.finditer(lowered):
-        pieces = [match.group(1), *re.split(r"[-_]", match.group(2))]
-        codes[_compound(match)] = max(1, sum(len(piece) >= 2 for piece in pieces))
-    query_terms = set(lexical_tokens(_QUESTION_COMPOUND_RE.sub(" ", lowered)))
-    if not query_terms and not codes:
-        return 0.0
-    total = len(documents)
-    document_sets = [set(lexical_tokens(text)) for text in documents]
-    present = set(lexical_tokens(document))
-    matched = weight = 0.0
-
-    def rarity(containing: int) -> float:
-        return math.log(1.0 + (total - containing + 0.5) / (containing + 0.5))
-
-    for term in query_terms:
-        idf = rarity(sum(1 for terms in document_sets if term in terms))
-        weight += idf
-        if term in present:
-            matched += idf
-    if codes:
-        document_codes = [_codes_in(text) for text in documents]
-        here = _codes_in(document)
-        for code, terms in codes.items():
-            # It weighs as much as the terms it stands for, however it is spelled.
-            idf = terms * rarity(sum(1 for held in document_codes if _holds_code(code, held)))
-            weight += idf
-            if _holds_code(code, here):
-                matched += idf
-    return matched / weight if weight else 0.0
+    return CoverageScorer(query, documents).score(document)
