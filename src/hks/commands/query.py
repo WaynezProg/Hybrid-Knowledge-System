@@ -435,7 +435,10 @@ def _maybe_writeback(
             ) from exc
         return response
 
-    if decision.status in {
+    # ``--writeback=no`` asks for nothing to be written: the query leaves no entry in
+    # wiki/log.md, only the writeback step in the trace. A declined ``ask`` and a skipped
+    # ``auto`` are still logged.
+    if writeback != "no" and decision.status in {
         "declined",
         "auto-skipped-ineligible",
         "auto-skipped-low-confidence",

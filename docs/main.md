@@ -205,7 +205,7 @@ Source / route 語意對照：
   * `fused`：BM25 排名與 dense 排名以 RRF 融合後取前 5 筆為 vector candidates，不產生新 route；`vector_lookup` trace detail 的 `retrieval_mode` 為 `hybrid`
   * `off`：只用 dense
 * Wiki 候選的 score 隨頁面與問句的吻合程度變動：`base ×（0.7 + 0.3 × relevance）`，base 為 1.0（router 選 wiki 為主要 route）或 0.65；relevance 是問句詞彙以 idf 加權後被頁面涵蓋的比例，記在 `wiki_lookup` step。relevance 為 0（問句沒有任何一個詞在頁面中）的頁面不成為候選，step 記 `hit: false`、`reason: low-relevance`；問句沒有可比對的詞時不計算 relevance。見 `specs/024-wiki-relevance-score/spec.md`
-* Rerank 前的 identifier 過濾：問句點名的 identifier（英數混合的詞，或三位以上且非年份的數字，如 `ERR-4012` 的 `4012`）必須出現在候選的完整 chunk / wiki page 中，否則該候選不採用；全部被濾掉時回 no-hit，trace 的 `fallback` step 記 `reason: identifier_not_found`。問「ERR-9999」不會以講 ERR-4012 的內容作答
+* Rerank 前的 identifier 過濾：問句點名的 identifier（複合編號如 `ERR-4012`、`Atlas-10`、`vid236`，有無 `-`／`_` 視為相同並以 `err-4012` 的寫法表示；結尾是數字或含三個以上數字的英數混合詞如 `v17r2`；三位以上且非年份的數字。`session2memory` 這類數字夾在字母中間的名稱不算。規則見 `specs/022-identifier-rules/spec.md`）必須出現在候選的完整 chunk / wiki page 中，否則該候選不採用；全部被濾掉時回 no-hit，trace 的 `fallback` step 記 `reason: identifier_not_found`。問「ERR-9999」不會以講 ERR-4012 的內容作答
 * chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`（預設 20000）時略過 keyword 檢索，並在 trace 記 `lexical_skipped`
 * session-memory temporal intent（`今天` / `昨天` / `today` / `yesterday` / `YYYY-MM-DD`）會優先使用 matching session daily source，避免 graph 測試資料搶答
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
@@ -220,11 +220,13 @@ Source / route 語意對照：
 
 * 預設模式：`no`
 * `--writeback=auto`：顯式 opt-in；`writeback_eligible=true` 且 route-specific `auto_threshold` 通過時自動回寫 wiki
-* `--writeback=no` → 禁用
+* `--writeback=no` → 禁用；不寫 `wiki/log.md`，trace 最後仍有 `writeback` step（`status: declined`，沒有答案時為 `skip-no-source`）
 * `--writeback=yes` → 強制回寫，trace 標示 `forced=true`，並寫入 coordination `events.jsonl`
 * `--writeback=ask` → 舊互動模式，相容保留
 
 `wiki` route 預設不具 auto write-back eligibility；需使用 explicit `--writeback=yes` 才會把既有 wiki 回答再沉澱成新頁面。自動 write-back page 會帶 `## Related`，連回本次答案涉及的既有 wiki pages。
+
+`--writeback=ask` 被拒絕與 `--writeback=auto` 被跳過（`auto-skipped-ineligible`、`auto-skipped-low-confidence`）仍會在 `wiki/log.md` 追加一筆 `writeback` 紀錄。`--writeback=no` 的查詢仍不是完全唯讀：開啟 vector store 時 Chroma 會改動 `vector/db/` 下的檔案（見 `specs/021-writeback-no-skips-log/spec.md`）。
 
 019 已有 review queue 設計與 plan，但尚未實作。現在不要把 `ks writeback list|approve|reject` 或 `$KS_ROOT/writeback/queue/` 當成可用 runtime contract。
 
