@@ -71,11 +71,31 @@ Codex review 指出初版（relevance < 0.15 即排除、以子字串去掉意�
 
 修正後沒有重新量測 3000 頁的耗時；每次查詢仍會對全部頁面斷詞一次，沒有做跨查詢的快取。
 
+### 4.2 OpenAI embedding 的知識庫
+
+`.hks-runs/openai/ks` 的複本（`openai:text-embedding-3-small`，24 個 wiki 頁；vector collection 只有 144 個 daily chunk，wiki 頁的來源文件不在其中），14 個問題，`--writeback=no`，變更前 → 後：
+
+| 問題 | 變更前 | 變更後 |
+|---|---|---|
+| 頁面主題吻合的 6 題（`Project Atlas 目前的狀態是什麼？`、`project borealis 摘要`、`Risk Register 列了哪些風險？`、`Clause 3.2 規定什麼？`、`Spec Alpha 的目標是什麼？`、`meeting notes 的重點`） | `wiki`，1.0 或 0.65，正確頁面 | 同一頁；confidence 0.49–1.0 |
+| `誰是 Mobile Gateway 的 owner？` | `wiki` 1.0，`atlas-dependency`（內含 Owner Iris） | `graph` 0.99，列出關係但答案開頭沒有 owner（wiki 0.87，relevance 0.574） |
+| `plain text export format 怎麼設定？`（知識庫中沒有） | `wiki` 0.65，`plain` 頁 | 同一頁，0.48（relevance 0.112） |
+| `What is the vacation policy for contractors?`（知識庫中沒有） | `wiki` 0.65，`Field Visit` 頁 | 同一頁，0.47（relevance 0.089） |
+| `Atlas-10 的風險是什麼？` | `wiki` 1.0，`atlas-dependency`（不含 Atlas-10） | 同一頁，0.71（relevance 0.044） |
+| 其餘 4 題（`graph`、`vector` 作答或 no-hit） | — | 相同 |
+
+觀察：
+
+- 正確頁面沒有被擋掉，作答的 route 只有一題改變。
+- 那一題是退步：wiki 的分數不再固定為 1.0 之後，低於 graph 固定的 0.99，原本較直接的 wiki 答案輸給 graph。
+- 知識庫中沒有答案的兩題仍以誤中的頁面作答，只是 confidence 降低；vector 最高相似度 0.37 與 0.20，沒有更好的候選。
+- 這份知識庫上正確頁面的 relevance 最低為 0.19，誤中頁面最高為 0.11。只有 5 個資料點，沒有據此提高門檻。
+
 ## 5. 已知限制
 
 - 頁面搜尋本身仍是子字串比對，這次只在搜尋之後擋掉誤中的頁面；搜尋若因此選錯頁，正確的頁面不會被補上。
 - 換句話說的問句與頁面用詞不同時 relevance 偏低，score 會落在底分附近，可能輸給分數較高的 vector 候選。
 - 只吻合少數詞的誤中頁面（relevance 大於 0）仍是候選，靠分數與其他 route 比較；其他 route 沒有更好的候選時仍會以它作答。
 - 0.7 是依一份真實知識庫與既有測試訂的，沒有在其他語料上調過。
-- 沒有在 OpenAI embedding 的 `KS_ROOT` 上驗證。
+- wiki 分數低於 graph 固定的 0.99 時，原本由 wiki 作答的問題會改由 graph 作答（§4.2 有一例退步）。
 - 空內容的頁面（`No candidates.`）來自上游 export，這次沒有在 ingest 時排除。
