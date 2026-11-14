@@ -33,7 +33,10 @@ def test_query_summary_uses_wiki(cli_runner, ingested_runtime) -> None:
     payload = json.loads(result.stdout)
     assert payload["trace"]["route"] == "wiki"
     assert payload["source"] == ["wiki"]
-    assert payload["confidence"] == 1.0
+    # 024: the wiki score follows how much of the question the page holds.
+    lookup = next(s["detail"] for s in payload["trace"]["steps"] if s["kind"] == "wiki_lookup")
+    assert 0.0 < lookup["relevance"] < 1.0
+    assert payload["confidence"] == pytest.approx(0.7 + 0.3 * lookup["relevance"], abs=1e-3)
 
 
 @pytest.mark.integration
