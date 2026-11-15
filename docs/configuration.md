@@ -28,6 +28,23 @@ process env > config/hks.env > config/hks.yaml 或 config/hks.json > default
 
 `config/hks.env` 只建議用在需要 shell-style override 時；一般設定請用 YAML。
 
+CLI、MCP 與 HTTP 共用同一個 loader。`HKS_CONFIG_FILE` / `HKS_CONFIG_ENV` 可明確指定
+檔案；未指定時，先使用專案 `config/`，找不到本機設定才使用
+`${XDG_CONFIG_HOME:-~/.config}/hks/` 中的 `hks.env`、`hks.yaml` 或 `hks.json`。
+專案設定和 user 設定不會逐欄混合；明確指定但不存在的設定也不會退回 user 設定。
+
+若希望已安裝的 `ks` 從任意目錄使用現有 repo 的設定，可將 user 設定連至同一份檔案：
+
+```bash
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/hks"
+ln -s "$PWD/config/hks.yaml" "${XDG_CONFIG_HOME:-$HOME/.config}/hks/hks.yaml"
+# 如果使用 hks.env，也同樣連結它；已存在的 user 設定應先比對並備份。
+```
+
+symlink 內 `${HKS_REPO_ROOT}` 依目標設定檔所在 repo 展開。user 設定為獨立檔案時，
+`runtime.ks_root` 與 `runtime.workspace_registry` 請填絕對路徑。
+process env 與 MCP 設定中的明確覆寫仍有最高優先權。
+
 ## 最小 OpenAI 設定
 
 `config/hks.yaml` 至少填這幾段：
@@ -48,7 +65,10 @@ embedding:
     max_batch_tokens: 250000
 ```
 
-OpenAI embedding 會建立新的 vector DB。不要把已用 `simple` 或 sentence-transformers 建好的 `$KS_ROOT/vector/db` 直接改成 OpenAI 查，會發生 embedding dimension mismatch。
+各 embedding backend 使用不同的 vector collection。從 `simple` 切換 OpenAI 時，
+先備份整個 `$KS_ROOT`，再用新設定對原 source 重新 `ks ingest <source-root>`，
+讓 manifest 與 collection 一起更新；不能只改 model 後直接查詢。
+以 `ks lint --strict` 與實際查詢驗收，未被 manifest 引用的舊 chunks 應先封存再清理。
 
 ## 常用可調值
 

@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, timedelta
 
-from hks.routing.session_memory_dates import parse_session_memory_date_range
+from hks.routing.session_memory_dates import parse_session_memory_date_range, without_date_range
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,6 +17,7 @@ class SessionMemoryIntent:
     date_end: str | None = None
     workspace: str | None = None
     is_status_query: bool = False
+    topic: str | None = None
 
     def to_detail(self) -> dict[str, object]:
         detail: dict[str, object] = {
@@ -29,6 +30,8 @@ class SessionMemoryIntent:
             detail["workspace"] = self.workspace
         if self.is_status_query:
             detail["is_status_query"] = True
+        if self.topic:
+            detail["topic"] = self.topic
         return detail
 
 
@@ -45,17 +48,57 @@ _KEBAB_SLUG_RE = re.compile(r"\b(?P<slug>[a-z][a-z0-9]*(?:-[a-z0-9]+)+)\b")
 
 _SINGLE_WORD_WS_RE = re.compile(r"\b(?P<word>[a-z][a-z0-9]+)\b")
 
-_SINGLE_WORD_WS_EXCLUDED = frozenset({
-    "a", "about", "an", "are", "current", "for", "in", "is", "last", "latest",
-    "me", "now", "of", "on", "please", "progress", "run", "show", "status", "tell",
-    "the", "was", "were", "what", "when", "where", "which", "who", "workspace",
-})
+_SINGLE_WORD_WS_EXCLUDED = frozenset(
+    {
+        "a",
+        "about",
+        "an",
+        "are",
+        "current",
+        "for",
+        "in",
+        "is",
+        "last",
+        "latest",
+        "me",
+        "now",
+        "of",
+        "on",
+        "please",
+        "progress",
+        "run",
+        "show",
+        "status",
+        "tell",
+        "the",
+        "was",
+        "were",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "workspace",
+    }
+)
 
-_STATUS_KEYWORDS = frozenset({
-    "最後處理到哪", "處理到哪", "進度", "狀態", "目前狀態",
-    "做到哪", "跑到哪", "完成了嗎", "做完了嗎",
-    "status", "progress", "latest", "last run",
-})
+_STATUS_KEYWORDS = frozenset(
+    {
+        "最後處理到哪",
+        "處理到哪",
+        "進度",
+        "狀態",
+        "目前狀態",
+        "做到哪",
+        "跑到哪",
+        "完成了嗎",
+        "做完了嗎",
+        "status",
+        "progress",
+        "latest",
+        "last run",
+    }
+)
 
 _STATUS_KEYWORDS_RE = re.compile(
     "|".join(re.escape(kw) for kw in sorted(_STATUS_KEYWORDS, key=len, reverse=True)),
@@ -68,6 +111,14 @@ def analyze_session_memory_intent(
     *,
     today: date | None = None,
 ) -> SessionMemoryIntent | None:
+    current_date = today or date.today()
+    intent = _analyze_session_memory_intent(question, today=current_date)
+    if intent is None or not (intent.date or intent.date_start or intent.date_prefix):
+        return intent
+    return replace(intent, topic=_date_query_topic(question, intent, today=current_date))
+
+
+def _analyze_session_memory_intent(question: str, *, today: date) -> SessionMemoryIntent | None:
     lowered = question.lower()
     current_date = today or date.today()
 
@@ -117,6 +168,71 @@ def analyze_session_memory_intent(
     return None
 
 
+def _date_query_topic(question: str, intent: SessionMemoryIntent, *, today: date) -> str | None:
+    """Keep the subject of a dated question separate from workspace metadata.
+
+    A session about a project may have been opened from another workspace (e.g.
+    Agent_code). Do not guess a workspace for single-word subjects of summary queries.
+    """
+    text = _FULL_DATE_RE.sub(" ", without_date_range(question, today=today)).lower()
+    text = _WORKSPACE_ID_EXPLICIT_RE.sub(" ", text)
+    if intent.workspace:
+        text = re.sub(rf"(?<![a-z0-9]){re.escape(intent.workspace.lower())}(?![a-z0-9])", " ", text)
+    phrases = (
+        "最後處理到哪",
+        "目前狀態",
+        "做了哪些修改",
+        "做了哪些更新",
+        "做了哪些事情",
+        "做了什麼",
+        "有什麼進展",
+        "有哪些進展",
+        "影響什麼",
+        "處理到哪",
+        "做到哪",
+        "跑到哪",
+        "完成了嗎",
+        "做完了嗎",
+        "工作紀錄",
+        "工作記錄",
+        "工作日誌",
+        "幫我",
+        "哪些修改",
+        "哪些更新",
+        "請問",
+        "整理",
+        "列出",
+        "昨天",
+        "昨日",
+        "今天",
+        "今日",
+        "之間",
+        "摘要",
+        "總結",
+        "概述",
+        "重點",
+        "進度",
+        "狀態",
+        "做了哪些",
+        "做了",
+        "什麼",
+    )
+    for phrase in phrases:
+        text = text.replace(phrase, " ")
+    # Whole words keep names such as SummaryStore intact.
+    text = re.sub(
+        r"\b(?:vibe\s+coding|session\s+memory|coding\s+sessions?|last\s+run|"
+        r"what|which|did|was|were|is|are|has|have|the|a|an|i|we|you|"
+        r"changed|changes|change|done|do|happened|yesterday|today|on|in|for|of|to|about|"
+        r"please|show|list|summarize|summary|overview|status|progress|latest|current)\b",
+        " ",
+        text,
+    )
+    text = re.sub(r"[?？,，:：。!！;；]", " ", text)
+    text = " ".join(text.split()).strip(" 的於在")
+    return text or None
+
+
 def _extract_workspace(question: str) -> str | None:
     explicit = _WORKSPACE_ID_EXPLICIT_RE.search(question)
     if explicit is not None:
@@ -139,8 +255,7 @@ def _extract_single_word_workspace(question: str) -> str | None:
     if not candidates:
         return None
     keyword_spans = [
-        (match.start(), match.end())
-        for match in _STATUS_KEYWORDS_RE.finditer(question)
+        (match.start(), match.end()) for match in _STATUS_KEYWORDS_RE.finditer(question)
     ]
     if not keyword_spans:
         return max((word for word, _, _ in candidates), key=len)
