@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from hks.core.lock import file_lock
 from hks.core.manifest import atomic_write, load_manifest, utc_now_iso
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.errors import ExitCode, KSError
@@ -62,7 +63,14 @@ def synthesize(request: WikiSynthesisRequest) -> WikiSynthesisResult:
 
 def _apply(request: WikiSynthesisRequest, paths: RuntimePaths) -> WikiSynthesisResult:
     assert request.candidate_artifact_id is not None
-    with blocking_file_lock(paths.root / "llm" / ".wiki-synthesis.lock"):
+    # Lock order: synthesis artifact lock first, then the shared runtime write
+    # lock (`paths.lock`) that ingest / writeback / lint fix also hold, so the
+    # stale check and the wiki page + index writes cannot interleave with them.
+    # Ingest / writeback never take the synthesis lock, so this cannot deadlock.
+    with (
+        blocking_file_lock(paths.root / "llm" / ".wiki-synthesis.lock"),
+        file_lock(paths.lock),
+    ):
         artifact_id, candidate, _, artifact_file = load_candidate_artifact(
             request.candidate_artifact_id,
             paths,

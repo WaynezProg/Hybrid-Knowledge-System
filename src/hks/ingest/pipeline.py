@@ -608,18 +608,18 @@ def ingest(
                     manifest.entries.pop(relpath, None)
                 if page_slug is not None:
                     if page_backup_path is not None and page_backup is not None:
-                        page_backup_path.write_text(page_backup, encoding="utf-8")
+                        atomic_write(page_backup_path, page_backup)
                         wiki_store.rebuild_index()
                     else:
                         wiki_store.delete_pages([page_slug])
                 if raw_backup is not None:
                     raw_target.parent.mkdir(parents=True, exist_ok=True)
-                    raw_target.write_bytes(raw_backup)
+                    atomic_write(raw_target, raw_backup)
                 elif raw_target.exists():
                     raw_target.unlink()
                 if graph_backup is not None:
                     graph_store.graph_path.parent.mkdir(parents=True, exist_ok=True)
-                    graph_store.graph_path.write_text(graph_backup, encoding="utf-8")
+                    atomic_write(graph_store.graph_path, graph_backup)
                 elif graph_store.graph_path.exists():
                     graph_store.graph_path.unlink()
                 raise
