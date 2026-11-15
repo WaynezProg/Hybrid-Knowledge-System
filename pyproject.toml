@@ -13,7 +13,7 @@ dependencies = [
   "httpx",
   "jsonschema",
   "markdown-it-py",
-  "mcp>=1.27.0",
+  "mcp>=1.27.0,<2",
   "openpyxl>=3.1,<4",
   "pillow",
   "pymupdf>=1.27.2.3,<2",
