@@ -15,7 +15,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * 012：完成（source catalog / workspace selection）
 * 013：完成（PageIndex / page_tree ingest、pageindex show/enrich、page_tree retrieval）
 * 014-017：完成（runtime isolation / HTTP safety、write-back confidence gate、retrieval quality gate、query refactor）
-* 019：設計通過，待 implementation（write-back review queue；目前 runtime 尚未改成 queue）
+* 019：完成（write-back review queue：`ks query` 只入隊，`ks writeback approve` 才寫 wiki）
 * Agent integration：MCP/HTTP **agent profile** 已實作（session2memory-only ingest、per-project workspace）；見 `docs/superpowers/specs/2026-05-31-hks-agent-integration-design.md`
 
 ---
@@ -61,7 +61,7 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 目前 runtime 已完成可執行的本地知識系統與 derived Graphify pipeline：
 
 * 已完成：來源 ingest 後同步更新 `wiki / graph / vector / page_tree / manifest`；修改來源後重跑 `ks ingest` 可依 hash / parser fingerprint 更新資料庫。
-* 已完成：query 會同時收集 wiki、graph、vector、page_tree candidates，再以 LLM rerank 或 RRF 排序；auto write-back 需同時通過 calibrated confidence 與 route-specific evidence eligibility。
+* 已完成：query 會同時收集 wiki、graph、vector、page_tree candidates，再以 LLM rerank 或 RRF 排序；auto write-back（入 review queue）需同時通過 route-specific confidence 門檻與 evidence eligibility。
 * 已完成：008 可對已 ingest source 產生 schema-validated LLM classification / summary / fact / entity / relation candidates，並可 explicit store 到 `$KS_ROOT/llm/extractions/`。
 * 已完成：009 可從 008 stored artifact 產生 wiki synthesis candidate，preview / store 預設不改 authoritative layers，只有 caller-explicit `apply` 會寫入 `wiki/` page、index 與 log。
 * 已完成：010 可從既有 wiki / graph / 008 / 009 lineage 產生 derived Graphify artifacts、community clustering、static HTML 與 audit report。
@@ -69,10 +69,10 @@ HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。
 * 已完成：012 提供 read-only source catalog 與 named workspace registry，讓使用者或 agent 可以查看已 ingest sources、選擇 `KS_ROOT`，並對指定 workspace query。
 * 已完成：013 提供 `$KS_ROOT/page_trees/*.json` PageIndex-style hierarchy、`ks pageindex show/enrich`，並讓 query 把 page_tree summaries 納入 fused retrieval。
 * 已完成：014-017 收斂 runtime isolation、HTTP safety、route-specific write-back confidence gate、離線 retrieval quality gate 與 query module 分層。
-* 待實作：019 write-back review queue。現行 `ks query --writeback=auto|yes` 仍會依既有 gate 直接寫入 wiki，不是 enqueue。
+* 已完成：019 write-back review queue。`ks query --writeback=auto|yes|ask` 只把答案送進 `$KS_ROOT/writeback/queue/`，`ks writeback approve <id>` 是唯一寫入 wiki 的路徑。
 * 尚未完成：常駐 daemon / OS filesystem watcher。
 
-換句話說，HKS 現在是 agent 可調用的 local knowledge runtime；LLM-assisted extraction、wiki synthesis、Graphify、watch、source catalog 與 PageIndex 已由 008-013 交付，剩餘產品願景主要是常駐 daemon / OS watcher、write-back review queue 與更高階操作體驗。
+換句話說，HKS 現在是 agent 可調用的 local knowledge runtime；LLM-assisted extraction、wiki synthesis、Graphify、watch、source catalog 與 PageIndex 已由 008-013 交付，剩餘產品願景主要是常駐 daemon / OS watcher 與更高階操作體驗。
 
 ---
 
@@ -103,7 +103,6 @@ stdout 契約統一：
   "source": ["wiki", "graph", "vector", "page_tree"],
   "confidence": 0.0,
   "retrieval_score": 0.0,
-  "calibrated_confidence": 0.0,
   "writeback_eligible": false,
   "trace": {
     "route": "wiki|graph|vector|page_tree",
@@ -152,7 +151,7 @@ Source / route 語意對照：
 | `ks pageindex show` | `wiki` | `["wiki"]` 或 `[]` | 讀取已 ingest source 的 page_tree；找不到 tree 時 `source=[]` |
 | `ks pageindex enrich --mode preview\|store` | `wiki` | `["wiki"]` | 對既有 page_tree 做 optional LLM enrichment；store 只覆寫 page_tree artifact |
 
-`ks query` 成功命中時會輸出 `retrieval_score`、`calibrated_confidence`、`writeback_eligible`；`confidence` 目前取自 `calibrated_confidence` 以維持 backward compatibility，`retrieval_score` 保留未 clamp 的 raw score。命中時也可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector / page_tree evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
+`ks query` 成功命中時會輸出 `retrieval_score`、`writeback_eligible`；`confidence` 是 `retrieval_score` clamp 至 `[0,1]`，`retrieval_score` 保留未 clamp 的 raw score，`writeback_eligible` 表示 `--writeback=auto` 是否會把答案送進 review queue。019 移除了 `calibrated_confidence`（breaking；它與 `confidence` 同值）。命中時也可輸出 optional `evidence[]`。每筆 evidence 必須至少包含 `source_relpath`、`route`、`quote`；vector / page_tree evidence 會在可追溯時附 `section_path` 與 `page_range`。Evidence 只描述最後被選為答案的 candidate，不把未勝出的 fused retrieval candidates 混入 cited source。
 
 ---
 
@@ -220,19 +219,36 @@ Source / route 語意對照：
 
 ## 6. Write-back
 
-### 目前行為
+### 目前行為（019 review queue）
+
+`ks query` 永不直接寫 wiki page；`--writeback` 只決定要不要把答案送審，`ks writeback approve` 是唯一進 wiki 的路徑。
 
 * 預設模式：`no`
-* `--writeback=auto`：顯式 opt-in；`writeback_eligible=true` 且 route-specific `auto_threshold` 通過時自動回寫 wiki
-* `--writeback=no` → 禁用；不寫 `wiki/log.md`，trace 最後仍有 `writeback` step（`status: declined`，沒有答案時為 `skip-no-source`）
-* `--writeback=yes` → 強制回寫，trace 標示 `forced=true`，並寫入 coordination `events.jsonl`
-* `--writeback=ask` → 舊互動模式，相容保留
+* `--writeback=no` → 不入隊、不寫 `wiki/log.md`，trace 最後仍有 `writeback` step（`status: declined`，沒有答案時為 `skip-no-source`）
+* `--writeback=auto` → 顯式 opt-in；`writeback_eligible=true`（route-specific 門檻 + evidence 指向真實來源，`<writeback>` 不算）才入隊，否則 trace `auto-skipped-ineligible`
+* `--writeback=yes` → 有命中就送審，不看 eligibility（approve 仍受 evidence hard gate 限制）
+* `--writeback=ask` → TTY 詢問，同意後等同 `yes`；non-TTY 為 `skip-non-tty`
+* 沒有答案（含被 final score gate、026 vector evidence gate 擋下的答案）一律 `skip-no-source`，任何模式都不入隊
 
-`wiki` route 預設不具 auto write-back eligibility；需使用 explicit `--writeback=yes` 才會把既有 wiki 回答再沉澱成新頁面。自動 write-back page 會帶 `## Related`，連回本次答案涉及的既有 wiki pages。
+入隊結果寫在 trace `writeback` step 的 `detail`：`{"status": "enqueued", "id": "<id>", "path": "writeback/queue/<id>.json"}`；同內容重複為 `enqueued-deduped`，已 approve 過為 `already-promoted`。`wiki` 與 `lexical` route 不具 auto eligibility，需 `--writeback=yes` 才送審。
 
-`--writeback=ask` 被拒絕與 `--writeback=auto` 被跳過（`auto-skipped-ineligible`、`auto-skipped-low-confidence`）仍會在 `wiki/log.md` 追加一筆 `writeback` 紀錄。`--writeback=no` 的查詢仍不是完全唯讀：開啟 vector store 時 Chroma 會改動 `vector/db/` 下的檔案（見 `specs/021-writeback-no-skips-log/spec.md`）。
+`wiki/log.md`：新建 queue item 記一筆 `writeback | enqueued`，approve 記一筆 `writeback | approved`。`--writeback=ask` 被拒絕（`declined`）與 `--writeback=auto` 被跳過（`auto-skipped-ineligible`）仍各記一筆（021）；dedup / already-promoted 不記。`--writeback=no` 的查詢仍不是完全唯讀：開啟 vector store 時 Chroma 會改動 `vector/db/` 下的檔案（見 `specs/021-writeback-no-skips-log/spec.md`）。
 
-019 已有 review queue 設計與 plan，但尚未實作。現在不要把 `ks writeback list|approve|reject` 或 `$KS_ROOT/writeback/queue/` 當成可用 runtime contract。
+### Review queue
+
+```text
+$KS_ROOT/writeback/
+  queue/<id>.json      # pending
+  archive/<id>.json    # approved / rejected（audit，不刪）
+  .locks/<id>.lock     # per-item lock
+```
+
+* `id` = `(question, answer, route, normalized evidence)` 的 content hash；item 另含 `source`、`retrieval_score`、`writeback_eligible`、`reasons`、`created_at`、`status`，archive 再加 `decided_at` 與（approved 時）`slug`。
+* `ks writeback list | show <id> | approve <id> | reject <id>`，皆可帶 `-w <workspace>` / `--registry-path` / `--ks-root`；queue 跟著使用中的 KS root，所以 `ks query -w <ws> --writeback=yes` 入的是該 workspace 的 KB。
+* `approve` 寫 evidence-backed page：`origin=writeback`、`source` = 首筆有效 evidence 的真實來源、frontmatter `writeback_query`、body = answer + `## 來源依據`（逐筆 `- <source_relpath> — "<quote>"`）+ `## Related`。Evidence 必須有 `source_relpath` 與 `quote`、不是 `<writeback>`、且來源仍在 manifest 與 `raw_sources/`，否則 `WRITEBACK_EVIDENCE_REQUIRED`（exit 65），item 留在 queue 等待 reject。
+* Slug 撞 `ingest` 頁 → `CONFLICT`（exit 65）；撞 `writeback` / `llm_wiki` 頁 → 覆寫。不存在或已決議的 id → `NOINPUT`（exit 66）。
+* 併發：item 檔一律 `atomic_write`；enqueue / approve / reject 先取該 item 的 blocking lock，同一筆被兩個 reviewer 同時決議時只有一個成功，另一個得到「已決議」。`approve` 寫 wiki 時再取共用的 runtime write lock（`$KS_ROOT/.lock`，與 ingest / lint fix / wiki synthesis apply 相同）；對方持鎖時回 `LOCKED`，item 留在 queue，可重試。
+* Queue 管理 v1 僅 CLI。`hks-api` / `hks-mcp` 的 `/query`、`hks_query`、`hks_workspace_query` 帶 `writeback=auto|yes` 時同樣只入隊，沒有 queue endpoint。
 
 ---
 
@@ -483,7 +499,7 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 * [x] 015 confidence write-back gate
 * [x] 016 retrieval quality gate
 * [x] 017 query refactor
-* [ ] 019 write-back review queue
+* [x] 019 write-back review queue
 
 ---
 

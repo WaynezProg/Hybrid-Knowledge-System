@@ -11,6 +11,18 @@ uv run ks query "<question>" --writeback=no
 uv run ks lint --strict
 ```
 
+## Write-back Review Queue
+
+`ks query --writeback=auto|yes` 只入隊；`approve` 才寫 wiki。四個子指令都可帶 `-w <workspace>`。
+
+```bash
+uv run ks query "<question>" --writeback=yes
+uv run ks writeback list
+uv run ks writeback show <id>
+uv run ks writeback approve <id>
+uv run ks writeback reject <id>
+```
+
 ## Catalog And Workspace
 
 ```bash

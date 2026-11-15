@@ -26,7 +26,7 @@ description: Operate the Hybrid Knowledge System through its main `ks` CLI. Use 
 - 從目前 clone 的 repo root 操作；不要寫死任何使用者本機絕對路徑。
 - 使用 `uv run ...`；不要自行安裝 Python / Node runtime。
 - 實驗一律顯式設定 `KS_ROOT`。
-- 查詢預設用 `--writeback=no`，除非使用者要寫回 wiki。
+- 查詢預設用 `--writeback=no`。`--writeback=auto|yes` 不會直接寫 wiki，只把答案送進 review queue；要進 wiki 必須由人 `ks writeback approve <id>`（`ks writeback list|show|reject` 檢視 / 退回）。
 - smoke test 用 `HKS_EMBEDDING_MODEL=simple`。
 - OpenAI embedding 用 `config/hks.yaml` 設 `embedding.model=openai:text-embedding-3-small` 與 `embedding.openai.api_key`。
 - 修改 code、contract 或 agent-facing docs 後，至少跑 `ks --help`、`ruff`、`mypy`；行為變更要跑 pytest。

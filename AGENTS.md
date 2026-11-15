@@ -63,7 +63,7 @@ raw_sources (immutable) -> ingestion -> wiki + graph + vector + page_trees + man
 
 - **Ingestion 是寫入時整理**：parse -> normalize -> extract -> update，同步更新 `raw_sources`、`wiki`、`graph`、`vector`、`manifest`。
 - **Query 走 fused retrieval**：同時從 wiki / graph / vector / lexical / page_tree 收集 candidates，以 LLM reranker 排序（無 API key 時 fallback RRF）；response 含 `evidence[]` 溯源。
-- **Write-back 預設 no**：agent / automation 省略 `--writeback` 不會產生頁面；只有顯式 `--writeback=auto` 且通過 route-specific eligibility 才自動寫回 wiki，`--writeback=yes` 是強制寫回。019 review queue 尚未實作，不能把它當成現行行為。
+- **Write-back 預設 no**：agent / automation 省略 `--writeback` 不會產生頁面；`ks query` 永不直接寫 wiki：顯式 `--writeback=auto` 且通過 route-specific eligibility 才入 review queue，`--writeback=yes` 是有命中即送審；`ks writeback approve <id>` 是唯一寫入 wiki 的路徑（019）。
 - **Lint 已不是 stub**：`ks lint` 檢查跨層一致性；`--strict` 控制 exit code；`--fix=apply` 只執行 allowlist 修復。
 - **MCP / HTTP adapter 已是正式介面**：`hks-mcp` 與 `hks-api` 不再是非目標。
 
@@ -102,7 +102,7 @@ Phase 1-3 已完成；現在的重點是避免回歸，不是阻止已完成能�
 | `011-continuous-watch` | archived | `ks watch scan/run/status` bounded refresh |
 | `012-source-catalog` | archived | `ks source` 唯讀 catalog + `ks workspace` 註冊/查詢多 `KS_ROOT` |
 | `013-pageindex-integration` | archived | ingest 產生 `$KS_ROOT/page_trees/*.json`；`ks pageindex show/enrich`；page_tree retrieval evidence |
-| `019-writeback-review-queue` | active design | 待實作；現行 write-back 仍是 query 直寫 wiki |
+| `019-writeback-review-queue` | implemented | query write-back 改為 review queue；`ks writeback list\|show\|approve\|reject`；移除 `calibrated_confidence` |
 
 不要把現有 graph、auto write-back、lint、MCP/API、coordination、LLM extraction、wiki synthesis、graphify、watch、pageindex、workspace registry 當成越界刪除。修改這些行為時，請更新對應 docs、contract tests 與 runtime tests。
 
@@ -140,7 +140,7 @@ Phase 1-3 已完成；現在的重點是避免回歸，不是阻止已完成能�
 - 011 operational artifacts under `$KS_ROOT/watch/{plans,runs,latest.json,events.jsonl,config.json}`; no new authoritative layer
 - 012 read-only source catalog over `manifest.json`; workspace registry persisted through `HKS_WORKSPACE_REGISTRY` / XDG config, not inside `KS_ROOT`
 - 013 page tree artifacts under `$KS_ROOT/page_trees/*.json`; rule-based at ingest, optional LLM enrichment through `ks pageindex enrich`
-- 019 write-back review queue is design/plan only; current runtime still emits `calibrated_confidence` and direct write-back pages
+- 019 write-back review queue is implemented: query enqueues to `$KS_ROOT/writeback/queue/`, only `ks writeback approve` writes wiki pages, and `calibrated_confidence` is gone from the response
 
 ## Recent Changes
 - Fused retrieval: query 同時從 wiki / graph / vector / page_tree 收集 candidates，LLM reranker 排序（RRF fallback）；response 新增 `evidence[]` 溯源

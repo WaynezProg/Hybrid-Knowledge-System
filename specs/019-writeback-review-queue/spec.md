@@ -1,12 +1,12 @@
 # 019-writeback-review-queue — Write-back Review Queue 設計
 
 - 日期：2026-05-22
-- 狀態：設計通過，待 implementation
+- 狀態：已實作（2026-11-15，於當時的 main 上重新實作；見 §8 實作備註）
 - 範圍：HKS write-back 從「query answer 直寫 wiki」改為「review queue → approve → evidence-backed wiki page」；併入 `confidence` 欄位群清理。
 
 ## 1. 動機
 
-現況 `ks query --writeback=auto|yes` 會把「query 當 title、answer 當 body」直接寫成 wiki page（`origin=writeback`、`source_relpath=<writeback>`）。對 agent memory 而言這有兩個問題：
+019 改造前，`ks query --writeback=auto|yes` 會把「query 當 title、answer 當 body」直接寫成 wiki page（`origin=writeback`、`source_relpath=<writeback>`）。對 agent memory 而言這有兩個問題：
 
 1. 一次錯答會沉澱成可被下次 retrieval 取用的知識；`--writeback=yes` 更是無 confidence floor 的強制寫入。
 2. 寫進去的是 `(query, answer)` 低保真配對，`source_relpath=<writeback>` 不可溯源，不是 evidence-backed memory object。
@@ -142,3 +142,20 @@ archive item 在 queue item 基礎上加：`status`（`approved`/`rejected`）�
 - approve 前編輯 answer —— v1 只有 approve/reject，要改答案請 reject 後重跑 query。
 - 真 confidence 校準 —— 目前 golden cases 僅 13 筆，資料量不足以 fit 校準曲線；`confidence` 維持 clamp。
 - golden cases 案例數擴充 —— 屬 Sub-project B，019 merge 後進行。
+
+## 8. 實作備註（2026-11-15）
+
+設計定案後 main 又前進了 90 多個 commit，以下幾點以 main 較新的行為為準，與上文不同：
+
+| 項目 | 上文 | 實作 | 依據 |
+|---|---|---|---|
+| auto 被跳過的 trace status | `skipped-ineligible` | `auto-skipped-ineligible` | 021 的契約測試；§3.4 所列舊 status 中只有這一個仍會發出 |
+| auto 被跳過 / `ask` 被拒絕是否寫 `wiki/log.md` | 不寫 | 寫（`auto-skipped-ineligible` / `declined`）；`--writeback=no` 完全不寫 | 021 決策 3、4 |
+| per-item lock helper（§4.1） | `hks/wiki_synthesis/store.py` 的 `blocking_file_lock` | `hks.core.lock.blocking_file_lock` | 供 queue 使用的共用 helper |
+| approve 寫 wiki 的鎖 | 未規定 | per-item lock → `paths.lock`（`file_lock`，被占用時回 `LOCKED`，item 留在 queue） | PR #26：wiki 寫入與 ingest / lint fix / synthesis apply 共用同一把鎖 |
+| queue 管理指令的範圍 | 預設 KS root | 另接受 `-w/--workspace`、`--registry-path`、`--ks-root` | PR #32 workspace-scoped 指令 |
+| approve 的 evidence hard gate | 有效 `source_relpath` + `quote` | 另要求來源仍在 manifest 且 `raw_sources/` 檔案存在 | 5 月分支 review 修正（18148be） |
+| 不存在的 id 與已決議的 id | 同為 NOINPUT | 同為 NOINPUT（exit 66），已決議的訊息為「已決議（approved\|rejected）」 | §5「報已決議」 |
+| `retrieval_score` schema | — | 005 schema 取消 `[0,1]` 上下限（raw score）；`confidence` 仍限 `[0,1]` | tasks T002 |
+
+沒有答案的查詢（包含被 026 vector evidence gate 判為 `weak_evidence` 的答案）`source=[]`，任何 `--writeback` 模式都不入隊。
