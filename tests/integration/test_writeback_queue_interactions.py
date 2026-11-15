@@ -420,3 +420,170 @@ def test_lint_and_reingest_are_unaffected_by_the_queue_directory(
     slug = _payload(approved)["trace"]["steps"][0]["detail"]["slug"]
     assert (small_kb / "wiki" / "pages" / f"{slug}.md").is_file()
     assert runtime_paths().root == small_kb
+
+
+# --- approve 之後：同一問句不再入隊、writeback 頁不會自我衍生 ----------------------------
+
+
+def _ask(cli_runner: CliRunner, question: str, flag: str = "yes") -> dict[str, Any]:
+    result = cli_runner.invoke(app, ["query", question, f"--writeback={flag}"])
+    assert result.exit_code == 0, result.stdout
+    return _payload(result)
+
+
+@pytest.mark.integration
+def test_requery_after_approve_reports_already_promoted_and_enqueues_nothing(
+    cli_runner: CliRunner, small_kb: Path
+) -> None:
+    question = "Ledger summary"
+    first = _ask(cli_runner, question)
+    assert first["source"] == ["wiki"]
+    item_id = str(_writeback_step(first)["id"])
+    approved = cli_runner.invoke(app, ["writeback", "approve", item_id])
+    assert approved.exit_code == 0, approved.stdout
+    slug = _payload(approved)["trace"]["steps"][0]["detail"]["slug"]
+    log_before = (small_kb / "wiki" / "log.md").read_bytes()
+
+    payload = _ask(cli_runner, question)
+
+    # 答案現在來自剛寫入的 writeback 頁：文字不同、id 也不同，但不是新知識。
+    assert payload["source"] == ["wiki"]
+    assert payload["answer"] != first["answer"]
+    assert _writeback_step(payload) == {
+        "status": "already-promoted",
+        "slug": slug,
+        "path": f"pages/{slug}.md",
+        "source_relpath": "ledger.md",
+    }
+    assert _queue_files(small_kb) == []
+    assert len(_archive_files(small_kb)) == 1
+    assert (small_kb / "wiki" / "log.md").read_bytes() == log_before
+
+    # --writeback=no 仍只回 declined，不做這項檢查。
+    assert _writeback_step(_ask(cli_runner, question, "no")) == {"status": "declined"}
+
+
+@pytest.mark.integration
+def test_requery_with_the_same_answer_is_still_deduped_by_id(
+    cli_runner: CliRunner, small_kb: Path, pending_item: str
+) -> None:
+    assert cli_runner.invoke(app, ["writeback", "approve", pending_item]).exit_code == 0
+
+    payload = _ask(cli_runner, "ledger close")
+
+    assert payload["source"] == ["vector"]
+    step = _writeback_step(payload)
+    assert step["status"] == "already-promoted" and step["id"] == pending_item
+    assert _queue_files(small_kb) == []
+
+
+@pytest.mark.integration
+def test_another_question_answered_by_a_writeback_page_is_not_enqueued(
+    small_kb: Path, pending_item: str
+) -> None:
+    from hks.core.schema import QueryResponse, Trace
+    from hks.storage.wiki import WikiStore
+
+    writeback_command.run_approve(pending_item)
+    store = WikiStore(runtime_paths())
+    [page] = [page for page in store.list_pages() if page.origin == "writeback"]
+    response = QueryResponse(
+        answer=f"{page.title}: {page.summary}",
+        source=["wiki"],
+        confidence=0.9,
+        trace=Trace(route="wiki", steps=[]),
+        evidence=[
+            {"source_relpath": page.source_relpath, "route": "wiki", "quote": page.summary}
+        ],
+        retrieval_score=0.9,
+        writeback_eligible=False,
+    )
+
+    result = query_module._maybe_enqueue(
+        question="when does the ledger close move",
+        response=response,
+        writeback="yes",
+        wiki_store=store,
+    )
+
+    assert _writeback_step(result.to_dict()) == {
+        "status": "skipped-derived-answer",
+        "slug": page.slug,
+        "path": f"pages/{page.slug}.md",
+        "source_relpath": "ledger.md",
+    }
+    assert _queue_files(small_kb) == []
+
+
+# --- source 被移除時，引用它的 writeback 頁一起移除 -------------------------------------
+
+
+def _approve(cli_runner: CliRunner, question: str) -> str:
+    step = _writeback_step(_ask(cli_runner, question))
+    assert step["status"] == "enqueued", step
+    approved = cli_runner.invoke(app, ["writeback", "approve", str(step["id"])])
+    assert approved.exit_code == 0, approved.stdout
+    return str(_payload(approved)["trace"]["steps"][0]["detail"]["slug"])
+
+
+@pytest.mark.integration
+def test_prune_removes_the_writeback_pages_of_a_removed_source_only(
+    cli_runner: CliRunner, small_kb: Path, tmp_path: Path
+) -> None:
+    ledger_slug = _approve(cli_runner, "ledger close")
+    storage_slug = _approve(cli_runner, "cold archive retrieval")
+    pages = small_kb / "wiki" / "pages"
+    assert 'source: "ledger.md"' in (pages / f"{ledger_slug}.md").read_text(encoding="utf-8")
+    assert 'source: "storage.md"' in (pages / f"{storage_slug}.md").read_text(encoding="utf-8")
+
+    (tmp_path / "docs" / "ledger.md").unlink()
+    pruned = cli_runner.invoke(app, ["ingest", str(tmp_path / "docs"), "--prune"])
+
+    assert pruned.exit_code == 0, pruned.stdout
+    detail = _payload(pruned)["trace"]["steps"][0]["detail"]
+    assert detail["pruned"] == ["ledger.md"]
+    assert detail["pruned_writeback_pages"] == [f"pages/{ledger_slug}.md"]
+    assert not (pages / f"{ledger_slug}.md").exists()
+    assert (pages / f"{storage_slug}.md").is_file()
+    index = (small_kb / "wiki" / "index.md").read_text(encoding="utf-8")
+    assert f"(pages/{ledger_slug}.md)" not in index
+    assert f"(pages/{storage_slug}.md)" in index
+
+    # 被移除的來源不再被回答；audit 用的 archive 紀錄保留。
+    after = _ask(cli_runner, "ledger close", "no")
+    assert all(item["source_relpath"] != "ledger.md" for item in after.get("evidence", []))
+    assert len(_archive_files(small_kb)) == 2
+    linted = cli_runner.invoke(app, ["lint"])
+    assert _payload(linted)["trace"]["steps"][0]["detail"]["findings"] == []
+
+
+@pytest.mark.integration
+def test_ingest_without_prune_reports_no_writeback_pages_removed(
+    cli_runner: CliRunner, small_kb: Path, tmp_path: Path
+) -> None:
+    slug = _approve(cli_runner, "ledger close")
+
+    again = cli_runner.invoke(app, ["ingest", str(tmp_path / "docs")])
+
+    detail = _payload(again)["trace"]["steps"][0]["detail"]
+    assert detail["pruned"] == [] and detail["pruned_writeback_pages"] == []
+    assert (small_kb / "wiki" / "pages" / f"{slug}.md").is_file()
+
+
+@pytest.mark.integration
+def test_lint_reports_a_writeback_page_whose_source_is_no_longer_ingested(
+    cli_runner: CliRunner, small_kb: Path
+) -> None:
+    slug = _approve(cli_runner, "ledger close")
+    manifest_path = small_kb / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    entries = manifest["entries"]
+    removed = entries.pop("ledger.md")
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert removed
+
+    linted = cli_runner.invoke(app, ["lint"])
+
+    findings = _payload(linted)["trace"]["steps"][0]["detail"]["findings"]
+    mismatches = [item for item in findings if item["category"] == "wiki_source_mismatch"]
+    assert slug in {item["target"] for item in mismatches}

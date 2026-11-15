@@ -246,6 +246,10 @@ $KS_ROOT/writeback/
 * `id` = `(question, answer, route, normalized evidence)` 的 content hash；item 另含 `source`、`retrieval_score`、`writeback_eligible`、`reasons`、`created_at`、`status`，archive 再加 `decided_at` 與（approved 時）`slug`。
 * `ks writeback list | show <id> | approve <id> | reject <id>`，皆可帶 `-w <workspace>` / `--registry-path` / `--ks-root`；queue 跟著使用中的 KS root，所以 `ks query -w <ws> --writeback=yes` 入的是該 workspace 的 KB。
 * `approve` 寫 evidence-backed page：`origin=writeback`、`source` = 首筆有效 evidence 的真實來源、frontmatter `writeback_query`、body = answer + `## 來源依據`（逐筆 `- <source_relpath> — "<quote>"`）+ `## Related`。Evidence 必須有 `source_relpath` 與 `quote`、不是 `<writeback>`、且來源仍在 manifest 與 `raw_sources/`，否則 `WRITEBACK_EVIDENCE_REQUIRED`（exit 65），item 留在 queue 等待 reject。
+* 答案若是從既有的 writeback 頁讀出（wiki route、quote 為該頁摘要）就不入隊：同一問句為 `already-promoted`，其他問句為 `skipped-derived-answer`，`detail` 帶該頁 `slug` / `path`；這種 evidence 在 approve 時也不算數，避免 writeback 頁自我衍生。
+* Answer 行首的 Markdown heading 標記在寫入頁面時移除，頁面只有 `# <question>` 一個 H1。
+* 被 reject 的 item 重新入隊再決議時，先前的決議保留在 archive 紀錄的 `history`。
+* Source 被 `ks ingest --prune` 移除時，引用它的 writeback 頁一併刪除，列在 ingest summary 的 `pruned_writeback_pages`；`ks lint` 的 `wiki_source_mismatch` 也涵蓋 writeback 頁。
 * Slug 撞 `ingest` 頁 → `CONFLICT`（exit 65）；撞 `writeback` / `llm_wiki` 頁 → 覆寫。不存在或已決議的 id → `NOINPUT`（exit 66）。
 * 併發：item 檔一律 `atomic_write`；enqueue / approve / reject 先取該 item 的 blocking lock，同一筆被兩個 reviewer 同時決議時只有一個成功，另一個得到「已決議」。`approve` 寫 wiki 時再取共用的 runtime write lock（`$KS_ROOT/.lock`，與 ingest / lint fix / wiki synthesis apply 相同）；對方持鎖時回 `LOCKED`，item 留在 queue，可重試。
 * Queue 管理 v1 僅 CLI。`hks-api` / `hks-mcp` 的 `/query`、`hks_query`、`hks_workspace_query` 帶 `writeback=auto|yes` 時同樣只入隊，沒有 queue endpoint。

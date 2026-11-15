@@ -134,6 +134,7 @@ uv run ks writeback reject <id>          # archive without writing the wiki
 - The queue lives under the KS root in use: `writeback/queue/<id>.json` (pending) and `writeback/archive/<id>.json` (decided, kept for audit). All four subcommands accept `-w <workspace>` / `--registry-path` / `--ks-root`, matching where `ks query -w` enqueued.
 - `id` is a content hash of `(question, answer, route, evidence)`: repeating the same query keeps one item (trace `enqueued-deduped`); an already approved item is not enqueued again (`already-promoted`); a rejected one may be enqueued again.
 - `approve` writes an evidence-backed wiki page: `origin=writeback`, `source` pointing at the real source file, body with `## 來源依據` (quoted source passages) and `## Related`. It fails with `WRITEBACK_EVIDENCE_REQUIRED` when the evidence is empty, only `<writeback>`, or its source is no longer in the manifest — reject the item or re-run the query.
+- Asking an approved question again (now answered by that writeback page) does not enqueue it again — the trace reports `already-promoted`; when `ks ingest --prune` removes a source, the writeback pages citing it are removed too (`pruned_writeback_pages` in the ingest summary).
 - A slug owned by an `ingest` page returns `CONFLICT`; an existing `writeback` / `llm_wiki` page is overwritten.
 - Queue management is CLI-only in v1; `hks-api` / `hks-mcp` queries with `writeback=auto|yes` only enqueue.
 

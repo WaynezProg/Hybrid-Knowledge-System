@@ -159,3 +159,14 @@ archive item 在 queue item 基礎上加：`status`（`approved`/`rejected`）�
 | `retrieval_score` schema | — | 005 schema 取消 `[0,1]` 上下限（raw score）；`confidence` 仍限 `[0,1]` | tasks T002 |
 
 沒有答案的查詢（包含被 026 vector evidence gate 判為 `weak_evidence` 的答案）`source=[]`，任何 `--writeback` 模式都不入隊。
+
+Review 後補上的行為（上文未涵蓋）：
+
+| 項目 | 行為 |
+|---|---|
+| 答案來自 writeback 頁 | wiki route 的答案若是從 `origin=writeback` 的頁面讀出（evidence 的 quote 就是該頁摘要），不入隊。該頁的 `writeback_query` 與問句相同時 trace 為 `already-promoted`，否則為 `skipped-derived-answer`；兩者的 `detail` 都帶該頁的 `slug` / `path` / `source_relpath`，不寫 log。以 id 判斷的 `already-promoted`（§4.2）不變。`--writeback=no` 不做這項檢查；`auto` 在 wiki route 本來就是 `auto-skipped-ineligible`。 |
+| approve 的 evidence | 引用 writeback 頁摘要的 wiki evidence 不算有效 evidence。Item 只有這種 evidence 時 approve 回 `WRITEBACK_EVIDENCE_REQUIRED`；同時有真實來源段落時只採用後者。 |
+| 頁面內文 | answer 行首的 heading 標記（`#`…`######`、setext 的 `===` / `---` 底線）在寫入 body 與 `summary` 前移除，文字不變；頁面只有 `# <question>` 一個 H1。引文一律單行。 |
+| archive 紀錄 | 被 reject 的 item 重新入隊並再次決議時，新的 archive 紀錄取代 `archive/<id>.json`，先前的決議依序放在紀錄的 `history`（`status`、`decided_at`、`slug`、`created_at`）；沒有先前決議時不輸出 `history`。檔名仍只有 `<id>.json`。 |
+| source 被移除 | ingest 刪除某個 source 的 artifacts（`--prune`，或重新 ingest 後內容為空）時，一併刪除 `origin=writeback` 且 `source` 為該 relpath 的 wiki pages，並列在 `ingest_summary.detail.pruned_writeback_pages`（004 ingest detail schema 新增的 optional 欄位）。`ingest` / `llm_wiki` 頁不受影響；queue 與 archive 紀錄保留。 |
+| lint | 既有的 `wiki_source_mismatch`（頁面指向不在 manifest 的 source）原本只檢查 `origin=ingest`，現在也檢查 `origin=writeback`；019 之前寫入、`source` 為 `<writeback>` 的舊頁不檢查。 |

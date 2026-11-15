@@ -138,6 +138,7 @@ uv run ks writeback reject <id>          # 移到 archive，不寫 wiki
 - Queue 位於使用中的 KS root：`writeback/queue/<id>.json`（pending）、`writeback/archive/<id>.json`（已決議，保留作 audit）。四個子指令都接受 `-w <workspace>` / `--registry-path` / `--ks-root`，與 `ks query -w` 入隊的是同一個 KB。
 - `id` 是 `(question, answer, route, evidence)` 的 content hash：同內容重複查詢只會有一筆（trace `enqueued-deduped`）；已 approve 過的同一筆不再入隊（`already-promoted`）；reject 後可重新入隊。
 - `approve` 產出 evidence-backed wiki page：`origin=writeback`、`source` 指向真實來源檔、body 含 `## 來源依據`（來源段落引文）與 `## Related`。Evidence 為空、只有 `<writeback>`、或來源已不在 manifest 時 approve 失敗（`WRITEBACK_EVIDENCE_REQUIRED`），請改 reject 或重跑 query。
+- 已 approve 的問句再查一次（答案來自該 writeback 頁）不會再入隊，trace 為 `already-promoted`；source 被 `ks ingest --prune` 移除時，引用它的 writeback 頁一併刪除（ingest summary 的 `pruned_writeback_pages`）。
 - Slug 撞到 `ingest` 頁回 `CONFLICT`；撞到既有 `writeback` / `llm_wiki` 頁則覆寫。
 - Queue 管理 v1 只有 CLI；`hks-api` / `hks-mcp` 的 query 帶 `writeback=auto|yes` 時同樣只入隊。
 
