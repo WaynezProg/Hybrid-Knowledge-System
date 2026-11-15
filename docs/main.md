@@ -204,6 +204,7 @@ Source / route 語意對照：
   * `fused`：BM25 排名與 dense 排名以 RRF 融合後取前 5 筆為 vector candidates，不產生新 route；`vector_lookup` trace detail 的 `retrieval_mode` 為 `hybrid`
   * `off`：只用 dense
 * Wiki 候選的 score 隨頁面與問句的吻合程度變動：`base ×（0.7 + 0.3 × relevance）`，base 為 1.0（router 選 wiki 為主要 route）或 0.65；relevance 是問句詞彙以 idf 加權後被頁面涵蓋的比例，記在 `wiki_lookup` step。relevance 為 0（問句沒有任何一個詞在頁面中）的頁面不成為候選，step 記 `hit: false`、`reason: low-relevance`；問句沒有可比對的詞時不計算 relevance。見 `specs/024-wiki-relevance-score/spec.md`
+* 搜尋到的 wiki 頁面若只與問句共用疑問詞（`the`、`what`、「做了什麼」等），不成為候選，`wiki_lookup` 記 `reason: low-relevance`（spec 030）。以問句為標題的 write-back 頁最容易遇到這種情況。
 * Rerank 前的 identifier 過濾：問句點名的 identifier（複合編號如 `ERR-4012`、`Atlas-10`、`vid236`，有無 `-`／`_` 視為相同並以 `err-4012` 的寫法表示；結尾是數字或含三個以上數字的英數混合詞如 `v17r2`；三位以上且非年份的數字。`session2memory` 這類數字夾在字母中間的名稱不算。規則見 `specs/022-identifier-rules/spec.md`）必須出現在候選的完整 chunk / wiki page 中，否則該候選不採用；全部被濾掉時回 no-hit，trace 的 `fallback` step 記 `reason: identifier_not_found`。問「ERR-9999」不會以講 ERR-4012 的內容作答
 * 問句有 identifier 時，lexical 候選的 score 為 `0.85 ×（0.5 + 0.5 × coverage）`：編號夾帶在長問句中（「VID-236 的畫面是用來決定什麼」）不會因為其餘詞彙不在語料中而被 gate 擋掉。沒有 identifier 的問句維持 `0.85 × coverage`。見 `specs/023-lexical-identifier-floor/spec.md`
 * Graph 候選只以問句要的關係類型、且兩端至少一端被問句提到的 edge 作答；沒有這樣的 edge 時 graph route 不成為候選（`graph_lookup` 記 `hit: false`），不會以其他關係類型或無關的 edge 作答。只列出與最清楚被提到的實體同級的 edge；問句只與 label 共用一個詞時 confidence 上限 0.7，不具 auto write-back 資格。見 `specs/025-graph-answer-precision/spec.md`
