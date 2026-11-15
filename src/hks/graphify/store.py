@@ -165,7 +165,7 @@ def _write_latest(
     payload = {
         "schema_version": 1,
         "run_id": run_id,
-        "run_manifest_path": manifest_path.as_posix(),
+        "run_manifest_path": manifest_path.relative_to(paths.root).as_posix(),
         "updated_at": utc_now_iso(),
         "input_fingerprint": input_fingerprint,
     }

@@ -175,7 +175,7 @@ project/
     workspaces.json    ← workspace registry（自動建立）
 ```
 
-Registry 搜尋順序：`HKS_WORKSPACE_REGISTRY` env → `<cwd>/.hks-runs/workspaces.json` → `$XDG_CONFIG_HOME/hks/workspaces.json` → `~/.config/hks/workspaces.json`。
+Registry 搜尋順序：`HKS_WORKSPACE_REGISTRY` env／共用設定 → `<cwd>/.hks-runs/workspaces.json` → `$XDG_CONFIG_HOME/hks/workspaces.json` → `~/.config/hks/workspaces.json`。任意目錄共用 CLI／MCP 設定的方法見 [設定指南](docs/configuration.md#設定檔種類)。
 
 ```bash
 # 也可用環境變數手動管理

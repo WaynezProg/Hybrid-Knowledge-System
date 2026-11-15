@@ -6,6 +6,7 @@ import re
 import shlex
 
 from hks.core.schema import TraceStep
+from hks.retrieval.bm25 import holds_identifiers, identifier_terms, lexical_tokens
 from hks.retrieval.evidence import evidence_quote
 from hks.retrieval.models import Candidate
 from hks.routing.session_memory import (
@@ -54,7 +55,7 @@ def collect_session_memory_candidates(
             continue
         text = _answer_text(page)
         quote = evidence_quote(text)
-        candidates.append(
+        candidate = _narrow_candidate_for_topic(
             Candidate(
                 text=text,
                 source_route="wiki",
@@ -65,8 +66,11 @@ def collect_session_memory_candidates(
                     "quote": quote,
                     "session_memory_intent": True,
                 },
-            )
+            ),
+            intent.topic,
         )
+        if candidate is not None:
+            candidates.append(candidate)
 
     if candidates:
         candidates.sort(key=lambda candidate: str(candidate.metadata.get("source_relpath")))
@@ -107,6 +111,11 @@ def prefer_session_memory_candidates(
         for candidate in candidates
         if metadata_matches_session_intent(candidate.metadata, intent)
     ]
+    if intent.topic or intent.date or intent.date_start or intent.date_prefix:
+        narrowed = [_narrow_candidate_for_topic(candidate, intent.topic) for candidate in preferred]
+        preferred = [candidate for candidate in narrowed if candidate is not None]
+        # A dated subject is a constraint, including when no entry satisfies it.
+        return preferred, len(preferred)
     if not preferred:
         return candidates, 0
     return preferred, len(preferred)
@@ -124,14 +133,17 @@ def collect_workspace_vector_entries(
     for hit in hits:
         if not metadata_matches_session_intent(hit.metadata, intent):
             continue
-        candidates.append(
+        candidate = _narrow_candidate_for_topic(
             Candidate(
                 text=hit.text,
                 source_route="vector",
                 score=1.0,
                 metadata=dict(hit.metadata),
-            )
+            ),
+            intent.topic,
         )
+        if candidate is not None:
+            candidates.append(candidate)
     return candidates
 
 
@@ -230,7 +242,8 @@ def synthesize_workspace_status(
         return None
 
     matched = [
-        c for c in candidates
+        c
+        for c in candidates
         if workspace_id_matches(
             str(c.metadata.get("workspace_id") or ""),
             intent.workspace,
@@ -391,6 +404,27 @@ def _clean_entry_text(text: str) -> str:
     cleaned = _DATE_HEADING_RE.sub("", cleaned)
     cleaned = _LLM_BOILERPLATE_RE.sub("", cleaned)
     return cleaned.strip()
+
+
+def _narrow_candidate_for_topic(candidate: Candidate, topic: str | None) -> Candidate | None:
+    if not topic:
+        return candidate
+    identifiers = identifier_terms(topic)
+    terms = set(lexical_tokens(topic))
+    lines = []
+    for line in _clean_entry_text(candidate.text).splitlines():
+        if not line.strip() or not holds_identifiers(identifiers, line):
+            continue
+        present = set(lexical_tokens(line))
+        if (terms and terms <= present) or (not terms and topic.casefold() in line.casefold()):
+            lines.append(line)
+    if not lines:
+        return None
+    text = "\n".join(lines)
+    metadata = {**candidate.metadata, "quote": evidence_quote(text), "_hks_match_text": text}
+    return Candidate(
+        text=text, source_route=candidate.source_route, score=candidate.score, metadata=metadata
+    )
 
 
 def _answer_text(page: WikiPage) -> str:

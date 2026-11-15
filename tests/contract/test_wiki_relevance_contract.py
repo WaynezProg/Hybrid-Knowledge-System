@@ -57,6 +57,35 @@ def test_relevance_counts_whole_terms_and_ignores_answer_kind_words() -> None:
 
 
 @pytest.mark.contract
+def test_answer_kind_overlap_cannot_substitute_for_missing_subject() -> None:
+    unrelated = _page("architecture-summary", "Architecture summary", "Release checklist.")
+    assert wiki_page_relevance("Borealis summary", unrelated, [unrelated]) == 0.0
+    store: Any = _Store(unrelated)
+    candidates, steps = collect_wiki_candidates(
+        "Borealis summary", wiki_store=store, is_primary=True
+    )
+    assert candidates == []
+    assert steps[0].detail["reason"] == "low-relevance"
+
+
+@pytest.mark.contract
+def test_summary_title_does_not_hide_the_named_project(cli_runner, tmp_path: Path) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "architecture.md").write_text(
+        "# Architecture summary\n\nArchitecture summary: release checklist.\n"
+    )
+    (docs / "borealis.txt").write_text("Project Borealis rewrites checkout.\n")
+    assert cli_runner.invoke(app, ["ingest", str(docs)]).exit_code == 0
+    result = cli_runner.invoke(app, ["query", "Borealis summary", "--writeback=no"])
+    assert result.exit_code == 0, result.output
+    payload = validate(json.loads(result.output))
+    assert "Borealis" in payload["answer"]
+    assert "release checklist" not in payload["answer"]
+    assert payload["evidence"][0]["source_relpath"] == "borealis.txt"
+
+
+@pytest.mark.contract
 def test_answer_kind_words_follow_the_routing_rules_and_spare_names() -> None:
     atlas = PAGES[1]
     store = _page("store", "Store", "Generic storage notes.")

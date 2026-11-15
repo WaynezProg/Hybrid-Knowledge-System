@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import date
 
+import pytest
+
 from hks.routing.session_memory import (
     analyze_session_memory_intent,
     metadata_matches_session_intent,
@@ -26,6 +28,23 @@ def test_detects_explicit_session_memory_date() -> None:
     assert intent.date == "2026-05-22"
 
 
+@pytest.mark.parametrize(
+    "question,topic",
+    [
+        ("昨天 session2memory 做了哪些修改？", "session2memory"),
+        ("今天 索引做了哪些修改？", "索引"),
+        ("2026-11-14 SummaryStore 摘要", "summarystore"),
+        ("25~27 之間 project 做了哪些事情", "project"),
+        ("2026-11-14 workspace=agent-code session2memory 做了什麼", "session2memory"),
+        ("昨天 vibe coding 做了什麼", None),
+    ],
+)
+def test_date_query_retains_topic(question, topic) -> None:
+    intent = analyze_session_memory_intent(question, today=date(2026, 11, 15))
+    assert intent is not None
+    assert intent.topic == topic
+
+
 # --- Workspace intent detection ---
 
 
@@ -38,9 +57,7 @@ def test_detects_kebab_case_workspace_name() -> None:
 
 
 def test_detects_explicit_workspace_id() -> None:
-    intent = analyze_session_memory_intent(
-        "workspace_id=social-bank-check-d61a68f0 的進度"
-    )
+    intent = analyze_session_memory_intent("workspace_id=social-bank-check-d61a68f0 的進度")
 
     assert intent is not None
     assert intent.workspace == "social-bank-check-d61a68f0"

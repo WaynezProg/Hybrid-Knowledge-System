@@ -33,9 +33,10 @@ def test_query_summary_uses_wiki(cli_runner, ingested_runtime) -> None:
     payload = json.loads(result.stdout)
     assert payload["trace"]["route"] == "wiki"
     assert payload["source"] == ["wiki"]
-    # 024: the wiki score follows how much of the question the page holds.
+    # The selected page must match Atlas, not merely a different page's "summary" title.
+    assert "Atlas" in payload["answer"]
     lookup = next(s["detail"] for s in payload["trace"]["steps"] if s["kind"] == "wiki_lookup")
-    assert 0.0 < lookup["relevance"] < 1.0
+    assert lookup["relevance"] == 1.0
     assert payload["confidence"] == pytest.approx(0.7 + 0.3 * lookup["relevance"], abs=1e-3)
 
 

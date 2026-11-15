@@ -211,6 +211,7 @@ Source / route 語意對照：
 * `route` 模式下，vector 答案通過 final score gate 後還要有它與問句相關的證據：vector similarity 低於 0.30 且 query coverage（問句詞彙以 idf 加權後被該 chunk 涵蓋的比例）低於 0.05 時回 no-hit，`fallback` step 記 `reason: weak_evidence` 與兩個數值。Embedding 永遠會回傳最近的 chunk，這項檢查擋掉知識庫沒有相關內容時的那一個。見 `specs/026-vector-evidence-gate/spec.md`
 * chunk 數超過 `HKS_HYBRID_MAX_CHUNKS`（預設 20000）時略過 keyword 檢索，並在 trace 記 `lexical_skipped`
 * session-memory temporal intent（`今天` / `昨天` / `today` / `yesterday` / `YYYY-MM-DD`）會優先使用 matching session daily source，避免 graph 測試資料搶答
+* 在含 session-memory 的知識庫中，日期與主題同時指定時（例如 `2026-11-14 session2memory 做了哪些修改`），先移除日期與常見問句用語，再以剩餘主題詞篩選當日 entry；答案與 evidence quote 都只保留符合的 entry。無符合結果回 no-hit，不退回其他日期或無關內容。只問日期仍回當日概覽；一般文件庫的日期問題不套用 session 篩選。主題以詞彙比對，不做同義詞推論；trace intent 會包含辨識出的 `topic`
 * session-memory 日期區間（`25~27`、`5/25-5/29`、`2026-05-25 到 2026-05-29`）會彙整區間內每一天的 session daily。只寫日數的區間若整段在今天之後，指上個月的同樣日數（6 月 1 日問 `25~27` 是 5 月 25 日到 27 日）；見 `specs/027-day-range-previous-month/spec.md`
 * no hit → `source=[]`, `confidence=0.0`, exit code 仍為 `0`
 
@@ -413,6 +414,9 @@ MCP 暴露 `hks_wiki_synthesize`；HTTP facade 暴露 `/wiki/synthesize`。
 ---
 
 ## 12. Graphify
+
+`graphify/latest.json` 的新 `run_manifest_path` 以 `KS_ROOT` 為基準儲存相對路徑，
+搬移知識庫後仍可解析；lint 同時支援舊版絕對路徑。
 
 010 提供 `ks graphify build --mode preview|store`，產生 derived Graphify artifacts，而不是修改 authoritative `graph/graph.json`。
 
