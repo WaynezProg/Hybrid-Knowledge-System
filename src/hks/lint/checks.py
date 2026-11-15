@@ -125,7 +125,11 @@ def check_manifest_wiki_raw(snapshot: RuntimeSnapshot) -> list[Finding]:
 
     for record in sorted(snapshot.wiki_pages.values(), key=lambda item: item.file_slug):
         page = record.page
-        if page.origin != "ingest":
+        if page.origin == "llm_wiki":
+            continue
+        # A writeback page approved from the review queue cites a real source; one written
+        # before 019 carries the `<writeback>` placeholder and has no source to check.
+        if page.origin == "writeback" and page.source_relpath == "<writeback>":
             continue
         if page.source_relpath not in manifest_relpaths:
             findings.append(

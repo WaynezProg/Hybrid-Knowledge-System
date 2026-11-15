@@ -30,7 +30,7 @@
 
 ### 4.0 Current runtime boundary
 
-目前已完成的是 local-first HKS runtime，已包含 LLM-assisted wiki synthesis、derived Graphify artifacts、bounded watch/re-ingest workflow、source catalog / workspace selection、PageIndex / page_tree retrieval，以及 runtime safety / retrieval quality gate；常駐 daemon 與 write-back review queue 仍未完成。
+目前已完成的是 local-first HKS runtime，已包含 LLM-assisted wiki synthesis、derived Graphify artifacts、bounded watch/re-ingest workflow、source catalog / workspace selection、PageIndex / page_tree retrieval，以及 runtime safety / retrieval quality gate；常駐 daemon 仍未完成。
 
 * HKS 負責 ingest、wiki / graph / vector 同步、query routing、write-back、lint、coordination。
 * 外部 agent（Codex / Claude Code / OpenClaw 等）負責 LLM reasoning、任務拆解與是否呼叫 HKS。
@@ -39,7 +39,7 @@
 * 011 已提供 bounded `ks watch scan|run|status`；它不是常駐 daemon，scan / dry-run 不改 authoritative layers。
 * 012 已提供 `ks source` 與 `ks workspace`，讓使用者或 agent 可以查看已 ingest sources、管理多個 named `KS_ROOT`，並對指定 workspace query。
 * 013 已提供 PageIndex-style `page_trees/` artifact、`ks pageindex show/enrich`，並把 page_tree summaries 納入 fused retrieval。
-* 019 write-back review queue 已完成設計與 implementation plan，但尚未進 runtime；目前 `ks query --writeback=auto|yes` 仍是直接寫 wiki 的既有行為。
+* 019 write-back review queue 已實作：`ks query --writeback=auto|yes|ask` 只入 review queue，`ks writeback approve <id>` 才寫 wiki。
 
 ### 4.1 Ingest
 
@@ -63,11 +63,10 @@
 
 ### 4.3 Write-back
 
-* 預設 `--writeback=no`，agent / automation 省略參數不會寫頁
-* `--writeback=auto` 是顯式 opt-in；需通過 route-specific confidence / evidence eligibility
-* `--writeback=yes` 強制寫 wiki，並標記 forced trace / coordination event
-* 新頁面要帶 related cross-links
-* 019 會把 direct write-back 改成 review queue，但目前尚未實作
+* 預設 `--writeback=no`，agent / automation 省略參數不會入隊，也不寫 log
+* `ks query` 不直接寫 wiki；`--writeback=auto` 只在通過 route-specific confidence / evidence eligibility 時入 review queue，`--writeback=yes` 有命中即送審
+* `ks writeback list|show|approve|reject` 管理 queue；`approve` 是唯一寫入 wiki 的路徑，產出 evidence-backed page（真實 `source`、來源段落、related cross-links）
+* Queue 管理 v1 僅 CLI；API / MCP 的 query 只會入隊
 
 ### 4.4 Lint
 
@@ -205,4 +204,4 @@
 * [x] Source catalog / workspace selection
 * [x] PageIndex / page_tree integration
 * [x] Runtime isolation / HTTP safety、confidence write-back gate、retrieval quality gate、query refactor
-* [ ] Write-back review queue
+* [x] Write-back review queue

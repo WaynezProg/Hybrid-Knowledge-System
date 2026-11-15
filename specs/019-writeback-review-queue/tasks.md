@@ -9,10 +9,10 @@
 
 **Purpose**: Lock the public shape before runtime changes.
 
-- [ ] T001 Update `tests/contract/test_query_phase1_contract_preserved.py` to reject `calibrated_confidence` and accept raw `retrieval_score`
-- [ ] T002 Update `specs/005-phase3-lint-impl/contracts/query-response.schema.json` to remove `calibrated_confidence`, keep `writeback_eligible`, and allow raw `retrieval_score`
-- [ ] T003 Update `src/hks/core/schema.py` so `QueryResponse.to_dict()` never emits `calibrated_confidence`
-- [ ] T004 Run `uv run pytest tests/contract/test_query_phase1_contract_preserved.py tests/contract/test_json_schema.py -q`
+- [x] T001 Update `tests/contract/test_query_phase1_contract_preserved.py` to reject `calibrated_confidence` and accept raw `retrieval_score`
+- [x] T002 Update `specs/005-phase3-lint-impl/contracts/query-response.schema.json` to remove `calibrated_confidence`, keep `writeback_eligible`, and allow raw `retrieval_score`
+- [x] T003 Update `src/hks/core/schema.py` so `QueryResponse.to_dict()` never emits `calibrated_confidence`
+- [x] T004 Run `uv run pytest tests/contract/test_query_phase1_contract_preserved.py tests/contract/test_json_schema.py -q`
 
 **Checkpoint**: Contract tests fail before T002/T003 and pass after them.
 
@@ -20,12 +20,12 @@
 
 **Purpose**: Add deterministic review queue persistence without touching query behavior.
 
-- [ ] T005 Create `tests/unit/writeback/test_queue.py` with tests for deterministic id, evidence-sensitive id changes, enqueue created/deduped, approved archive already-promoted, rejected archive requeue, sorted list, load missing id, and archive missing id
-- [ ] T006 Create `src/hks/writeback/queue.py` with `WritebackQueueItem`, `EnqueueResult`, `build_item()`, `enqueue()`, `list_pending()`, `load()`, and `archive()`
-- [ ] T007 Use `sha256(json.dumps(..., sort_keys=True, separators=(",", ":")))[:24]` over question, answer, route, and normalized evidence for item ids
-- [ ] T008 Store pending items in `$KS_ROOT/writeback/queue/<id>.json` and decided items in `$KS_ROOT/writeback/archive/<id>.json`
-- [ ] T009 Wrap enqueue/archive in `blocking_file_lock($KS_ROOT/writeback/.locks/<id>.lock)` and use `atomic_write()` for JSON writes
-- [ ] T010 Run `uv run pytest tests/unit/writeback/test_queue.py -q`
+- [x] T005 Create `tests/unit/writeback/test_queue.py` with tests for deterministic id, evidence-sensitive id changes, enqueue created/deduped, approved archive already-promoted, rejected archive requeue, sorted list, load missing id, and archive missing id
+- [x] T006 Create `src/hks/writeback/queue.py` with `WritebackQueueItem`, `EnqueueResult`, `build_item()`, `enqueue()`, `list_pending()`, `load()`, and `archive()`
+- [x] T007 Use `sha256(json.dumps(..., sort_keys=True, separators=(",", ":")))[:24]` over question, answer, route, and normalized evidence for item ids
+- [x] T008 Store pending items in `$KS_ROOT/writeback/queue/<id>.json` and decided items in `$KS_ROOT/writeback/archive/<id>.json`
+- [x] T009 Wrap enqueue/archive in `blocking_file_lock($KS_ROOT/writeback/.locks/<id>.lock)` and use `atomic_write()` for JSON writes
+- [x] T010 Run `uv run pytest tests/unit/writeback/test_queue.py -q`
 
 **Checkpoint**: Queue can be tested independently of CLI and wiki writer.
 
@@ -33,12 +33,12 @@
 
 **Purpose**: Preserve auto safety while removing misleading calibrated naming.
 
-- [ ] T011 Update `tests/unit/retrieval/test_confidence.py` to assert `ConfidenceAssessment.confidence`
-- [ ] T012 Add confidence unit coverage for invalid `<writeback>` provenance
-- [ ] T013 Modify `src/hks/retrieval/confidence.py`: rename `calibrated_confidence` to `confidence`, keep internal `_AUTO_THRESHOLDS`, keep `auto_threshold` internal, and mark `<writeback>` evidence ineligible
-- [ ] T014 Update `tests/unit/writeback/test_gate.py` and `tests/unit/writeback/test_gate_assessment.py` for intent actions `enqueue`, `skip`, and `skip-non-tty`
-- [ ] T015 Modify `src/hks/writeback/gate.py` so `decide()` no longer evaluates confidence and never returns direct commit actions
-- [ ] T016 Run `uv run pytest tests/unit/retrieval/test_confidence.py tests/unit/writeback/test_gate.py tests/unit/writeback/test_gate_assessment.py -q`
+- [x] T011 Update `tests/unit/retrieval/test_confidence.py` to assert `ConfidenceAssessment.confidence`
+- [x] T012 Add confidence unit coverage for invalid `<writeback>` provenance
+- [x] T013 Modify `src/hks/retrieval/confidence.py`: rename `calibrated_confidence` to `confidence`, keep internal `_AUTO_THRESHOLDS`, keep `auto_threshold` internal, and mark `<writeback>` evidence ineligible
+- [x] T014 Update `tests/unit/writeback/test_gate.py` and `tests/unit/writeback/test_gate_assessment.py` for intent actions `enqueue`, `skip`, and `skip-non-tty`
+- [x] T015 Modify `src/hks/writeback/gate.py` so `decide()` no longer evaluates confidence and never returns direct commit actions
+- [x] T016 Run `uv run pytest tests/unit/retrieval/test_confidence.py tests/unit/writeback/test_gate.py tests/unit/writeback/test_gate_assessment.py -q`
 
 **Checkpoint**: `writeback_eligible` still represents auto eligibility; gate only expresses caller intent.
 
@@ -46,16 +46,16 @@
 
 **Purpose**: Stop query from writing wiki pages directly.
 
-- [ ] T017 Update `tests/integration/test_writeback.py::test_writeback_yes_overrides_non_tty` to expect queue item creation, trace status `enqueued`, no wiki page count increase, and no `forced_writeback` coordination event when `events.jsonl` exists
-- [ ] T018 Update auto ineligible integration test to expect trace status `skipped-ineligible` and zero queue files
-- [ ] T019 Update default/no/ask integration tests to assert no queue files and no wiki page count increase unless user confirms `ask`
-- [ ] T020 Add dedup integration test: same `ks query --writeback=yes` twice produces one queue file and second trace status `enqueued-deduped`
-- [ ] T021 Modify `src/hks/commands/query.py`: replace `_maybe_writeback()` with `_maybe_enqueue()`
-- [ ] T022 Remove `_record_forced_writeback_event()` and all calls to `commit()` from query flow
-- [ ] T023 In `_maybe_enqueue()`, build queue item from question, response, and assessment reasons; map queue statuses to trace statuses
-- [ ] T024 Append wiki `log.md` status `enqueued` only when queue result is `created`
-- [ ] T025 Add `enqueued`, `approved`, and `rejected` to `EventStatus` in `src/hks/storage/wiki.py`
-- [ ] T026 Run `uv run pytest tests/integration/test_writeback.py tests/unit/commands/test_writeback_context.py -q`
+- [x] T017 Update `tests/integration/test_writeback.py::test_writeback_yes_overrides_non_tty` to expect queue item creation, trace status `enqueued`, no wiki page count increase, and no `forced_writeback` coordination event when `events.jsonl` exists
+- [x] T018 Update auto ineligible integration test to expect trace status `skipped-ineligible` and zero queue files
+- [x] T019 Update default/no/ask integration tests to assert no queue files and no wiki page count increase unless user confirms `ask`
+- [x] T020 Add dedup integration test: same `ks query --writeback=yes` twice produces one queue file and second trace status `enqueued-deduped`
+- [x] T021 Modify `src/hks/commands/query.py`: replace `_maybe_writeback()` with `_maybe_enqueue()`
+- [x] T022 Remove `_record_forced_writeback_event()` and all calls to `commit()` from query flow
+- [x] T023 In `_maybe_enqueue()`, build queue item from question, response, and assessment reasons; map queue statuses to trace statuses
+- [x] T024 Append wiki `log.md` status `enqueued` only when queue result is `created`
+- [x] T025 Add `enqueued`, `approved`, and `rejected` to `EventStatus` in `src/hks/storage/wiki.py`
+- [x] T026 Run `uv run pytest tests/integration/test_writeback.py tests/unit/commands/test_writeback_context.py -q`
 
 **Checkpoint**: `ks query` can create queue files but cannot create wiki pages through writeback.
 
@@ -63,14 +63,14 @@
 
 **Purpose**: Make approval the only wiki mutation path for writeback.
 
-- [ ] T027 Replace `tests/unit/writeback/test_writer.py` direct `commit()` tests with `promote()` tests
-- [ ] T028 Add `promote()` happy-path test for `## 來源依據`, real source frontmatter, `origin=writeback`, `writeback_query`, approved log, and related links
-- [ ] T029 Add `promote()` hard-gate tests for empty evidence, missing `source_relpath`, missing `quote`, and `source_relpath="<writeback>"`
-- [ ] T030 Add slug conflict tests: `origin=ingest` raises `CONFLICT`; `origin=writeback` and `origin=llm_wiki` overwrite same slug
-- [ ] T031 Modify `src/hks/writeback/writer.py`: remove `commit()`, keep `WritebackContext`, add `valid_evidence_items()` and `promote()`
-- [ ] T032 In `promote()`, use first valid evidence item for page `source_relpath`; do not fallback to `<writeback>`
-- [ ] T033 In `promote()`, include answer body, `## 來源依據`, and existing related page links
-- [ ] T034 Run `uv run pytest tests/unit/writeback/test_writer.py -q`
+- [x] T027 Replace `tests/unit/writeback/test_writer.py` direct `commit()` tests with `promote()` tests
+- [x] T028 Add `promote()` happy-path test for `## 來源依據`, real source frontmatter, `origin=writeback`, `writeback_query`, approved log, and related links
+- [x] T029 Add `promote()` hard-gate tests for empty evidence, missing `source_relpath`, missing `quote`, and `source_relpath="<writeback>"`
+- [x] T030 Add slug conflict tests: `origin=ingest` raises `CONFLICT`; `origin=writeback` and `origin=llm_wiki` overwrite same slug
+- [x] T031 Modify `src/hks/writeback/writer.py`: remove `commit()`, keep `WritebackContext`, add `valid_evidence_items()` and `promote()`
+- [x] T032 In `promote()`, use first valid evidence item for page `source_relpath`; do not fallback to `<writeback>`
+- [x] T033 In `promote()`, include answer body, `## 來源依據`, and existing related page links
+- [x] T034 Run `uv run pytest tests/unit/writeback/test_writer.py -q`
 
 **Checkpoint**: Invalid queue items may exist for review, but cannot be approved into wiki.
 
@@ -78,12 +78,12 @@
 
 **Purpose**: Add reviewer-facing queue management.
 
-- [ ] T035 Create `tests/unit/commands/test_writeback_cli.py` for list/show/approve/reject JSON shape and missing-id errors
-- [ ] T036 Create `src/hks/commands/writeback.py` with `list_pending`, `show`, `approve`, and `reject` handlers returning `QueryResponse`
-- [ ] T037 Register `writeback_app` in `src/hks/cli.py`
-- [ ] T038 Add CLI subcommands `ks writeback list`, `ks writeback show <id>`, `ks writeback approve <id>`, and `ks writeback reject <id>`
-- [ ] T039 Update `tests/contract/test_exit_codes.py` for missing writeback id error payload and exit code `66`
-- [ ] T040 Run `uv run pytest tests/unit/commands/test_writeback_cli.py tests/contract/test_exit_codes.py -q`
+- [x] T035 Create `tests/unit/commands/test_writeback_cli.py` for list/show/approve/reject JSON shape and missing-id errors
+- [x] T036 Create `src/hks/commands/writeback.py` with `list_pending`, `show`, `approve`, and `reject` handlers returning `QueryResponse`
+- [x] T037 Register `writeback_app` in `src/hks/cli.py`
+- [x] T038 Add CLI subcommands `ks writeback list`, `ks writeback show <id>`, `ks writeback approve <id>`, and `ks writeback reject <id>`
+- [x] T039 Update `tests/contract/test_exit_codes.py` for missing writeback id error payload and exit code `66`
+- [x] T040 Run `uv run pytest tests/unit/commands/test_writeback_cli.py tests/contract/test_exit_codes.py -q`
 
 **Checkpoint**: Queue can be reviewed and decided entirely through CLI.
 
@@ -91,11 +91,11 @@
 
 **Purpose**: Prove query → queue → approve/reject behavior with real ingest fixture.
 
-- [ ] T041 Add integration test: `ks query --writeback=yes` creates queue item and `ks writeback approve <id>` writes evidence-backed page then moves item to archive
-- [ ] T042 Add integration test: `ks writeback reject <id>` moves item to archive and does not write wiki
-- [ ] T043 Add integration test: approving item with invalid evidence fails and leaves pending item available for reject
-- [ ] T044 Add integration test: approved item blocks identical re-enqueue with trace status `already-promoted`
-- [ ] T045 Run `uv run pytest tests/integration/test_writeback.py -q`
+- [x] T041 Add integration test: `ks query --writeback=yes` creates queue item and `ks writeback approve <id>` writes evidence-backed page then moves item to archive
+- [x] T042 Add integration test: `ks writeback reject <id>` moves item to archive and does not write wiki
+- [x] T043 Add integration test: approving item with invalid evidence fails and leaves pending item available for reject
+- [x] T044 Add integration test: approved item blocks identical re-enqueue with trace status `already-promoted`
+- [x] T045 Run `uv run pytest tests/integration/test_writeback.py -q`
 
 **Checkpoint**: 019's core user workflow works without adapter involvement.
 
@@ -103,14 +103,14 @@
 
 **Purpose**: Keep API/MCP and quality gates aligned with the new writeback model.
 
-- [ ] T046 Remove `calibrated_confidence` from `specs/006-mcp-api-adapter/contracts/http-api.openapi.yaml`
-- [ ] T047 Update contract tests under `tests/contract/test_http_api_contract.py` and `tests/contract/test_mcp_query_contract.py`
-- [ ] T048 Add HTTP adapter integration smoke: query with `writeback=yes` creates queue item and no wiki page
-- [ ] T049 Add MCP query integration smoke: query with `writeback=yes` creates queue item and no wiki page
-- [ ] T050 Modify `src/hks/evaluation/retrieval_quality.py`: rename `_auto_committed()` to `_auto_enqueued()` and detect `enqueued`, `enqueued-deduped`, `already-promoted`
-- [ ] T051 Update `tests/unit/evaluation/test_retrieval_quality.py` for auto enqueue false-positive semantics
-- [ ] T052 Update `tests/eval/test_golden_retrieval_quality.py` with isolated `writeback=auto` smoke for one ineligible case
-- [ ] T053 Run `uv run pytest tests/contract/test_http_api_contract.py tests/contract/test_mcp_query_contract.py tests/integration/test_http_adapter.py tests/integration/test_mcp_query.py tests/unit/evaluation/test_retrieval_quality.py tests/eval/test_golden_retrieval_quality.py -q`
+- [x] T046 Remove `calibrated_confidence` from `specs/006-mcp-api-adapter/contracts/http-api.openapi.yaml`
+- [x] T047 Update contract tests under `tests/contract/test_http_api_contract.py` and `tests/contract/test_mcp_query_contract.py`
+- [x] T048 Add HTTP adapter integration smoke: query with `writeback=yes` creates queue item and no wiki page
+- [x] T049 Add MCP query integration smoke: query with `writeback=yes` creates queue item and no wiki page
+- [x] T050 Modify `src/hks/evaluation/retrieval_quality.py`: rename `_auto_committed()` to `_auto_enqueued()` and detect `enqueued`, `enqueued-deduped`, `already-promoted`
+- [x] T051 Update `tests/unit/evaluation/test_retrieval_quality.py` for auto enqueue false-positive semantics
+- [x] T052 Update `tests/eval/test_golden_retrieval_quality.py` with isolated `writeback=auto` smoke for one ineligible case
+- [x] T053 Run `uv run pytest tests/contract/test_http_api_contract.py tests/contract/test_mcp_query_contract.py tests/integration/test_http_adapter.py tests/integration/test_mcp_query.py tests/unit/evaluation/test_retrieval_quality.py tests/eval/test_golden_retrieval_quality.py -q`
 
 **Checkpoint**: Query adapters inherit queue behavior; eval no longer talks about direct auto commit.
 
@@ -118,15 +118,15 @@
 
 **Purpose**: Align user-facing docs and run full verification.
 
-- [ ] T054 Update `README.md` writeback section with queue workflow and confidence fields
-- [ ] T055 Update `README.en.md` with the same behavior
-- [ ] T056 Update `docs/main.md` write-back contract and runtime layout
-- [ ] T057 Update `specs/019-writeback-review-queue/spec.md` post-implementation status after verification
-- [ ] T058 Run focused writeback tests: `uv run pytest tests/unit/writeback tests/unit/retrieval/test_confidence.py tests/unit/commands/test_writeback_context.py tests/unit/commands/test_writeback_cli.py tests/integration/test_writeback.py -q`
-- [ ] T059 Run adapter/contract/eval tests: `uv run pytest tests/contract/test_query_phase1_contract_preserved.py tests/contract/test_json_schema.py tests/contract/test_http_api_contract.py tests/contract/test_mcp_query_contract.py tests/integration/test_http_adapter.py tests/integration/test_mcp_query.py tests/unit/evaluation/test_retrieval_quality.py tests/eval/test_golden_retrieval_quality.py -q`
-- [ ] T060 Run `uv run ruff check .`
-- [ ] T061 Run `uv run mypy src/hks`
-- [ ] T062 Run `uv run pytest --tb=short -q`
+- [x] T054 Update `README.md` writeback section with queue workflow and confidence fields
+- [x] T055 Update `README.en.md` with the same behavior
+- [x] T056 Update `docs/main.md` write-back contract and runtime layout
+- [x] T057 Update `specs/019-writeback-review-queue/spec.md` post-implementation status after verification
+- [x] T058 Run focused writeback tests: `uv run pytest tests/unit/writeback tests/unit/retrieval/test_confidence.py tests/unit/commands/test_writeback_context.py tests/unit/commands/test_writeback_cli.py tests/integration/test_writeback.py -q`
+- [x] T059 Run adapter/contract/eval tests: `uv run pytest tests/contract/test_query_phase1_contract_preserved.py tests/contract/test_json_schema.py tests/contract/test_http_api_contract.py tests/contract/test_mcp_query_contract.py tests/integration/test_http_adapter.py tests/integration/test_mcp_query.py tests/unit/evaluation/test_retrieval_quality.py tests/eval/test_golden_retrieval_quality.py -q`
+- [x] T060 Run `uv run ruff check .`
+- [x] T061 Run `uv run mypy src/hks`
+- [x] T062 Run `uv run pytest --tb=short -q`
 
 **Checkpoint**: 019 is implementation-complete only after all gates pass.
 
@@ -145,3 +145,13 @@
 - T005 queue tests and T011 confidence tests can be written in parallel.
 - T027 writer tests and T035 command tests can be written in parallel after queue interfaces settle.
 - Docs T054-T056 can be drafted after CLI output shape stabilizes.
+
+## Implementation Notes (2026-11-15)
+
+019 在 2026-11-15 於當時的 `main`（含 PR #13、#21、#24、#26–#28、#30、#32）上重新實作；2026-05-22 的 `codex/019-writeback-review-queue` 分支未 merge，只作為新模組與測試的來源。與上列 task 文字不同之處：
+
+- T009：per-item lock 的 helper 是 `hks.core.lock.blocking_file_lock`（不是 `hks/wiki_synthesis/store.py` 的那一份）；`promote()` 寫 wiki 時另外取 `paths.lock`，與 ingest / lint fix / wiki synthesis apply 共用，沒有新增 wiki 專用的 mutation lock。
+- T014：`tests/unit/writeback/test_gate_assessment.py` 已刪除；`decide()` 不再吃 assessment，行為由 `test_gate.py` 覆蓋。
+- T018 / T052：依 021（main 上較新的決策），auto 被跳過時 trace status 維持 `auto-skipped-ineligible`（不是 `skipped-ineligible`），並仍在 `wiki/log.md` 記一筆；`ask` 被拒絕也仍記 `declined`。
+- T038：四個子指令多了 `-w/--workspace`、`--registry-path`、`--ks-root`（PR #32 的 workspace-scoped 指令）。
+- 新增 `tests/integration/test_writeback_queue_interactions.py`：`--writeback=no` 不寫 queue 也不寫 log、026 evidence gate 擋下的答案不入隊、併發 approve（thread / process）只寫一次 wiki、workspace-scoped enqueue、lint / re-ingest 不受 `writeback/` 目錄影響。

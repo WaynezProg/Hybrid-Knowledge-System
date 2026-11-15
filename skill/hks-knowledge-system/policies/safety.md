@@ -31,7 +31,7 @@ uv run ks watch scan --source-root <source-dir>
 ## Writes Authoritative Knowledge Layers
 
 - `ks ingest`
-- `ks query` when write-back is enabled and confidence passes threshold
+- `ks writeback approve <id>` (the only write-back path into the wiki; `ks query --writeback=auto|yes` only enqueues a review item under `writeback/queue/` and appends to `wiki/log.md`)
 - `ks wiki synthesize --mode apply`
 - `ks watch run --mode execute --profile ingest-only`
 

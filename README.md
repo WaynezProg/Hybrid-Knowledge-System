@@ -118,13 +118,29 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 
 > LLM reranker 僅在 `HKS_LLM_NETWORK_OPT_IN=1` 且 OpenAI key 齊備時啟用；啟用時會將 question 與候選 snippet（每筆截斷 200 字，含 wiki / graph / vector 命中內容）送至 hosted endpoint。未 opt-in 一律走 local RRF，不外送任何內容。
 
-Write-back 模式：
-- `no`（預設）：不回寫
-- `auto`：顯式 opt-in；`writeback_eligible=true` 且 route-specific `auto_threshold` 通過時自動寫回 wiki
-- `yes` / `no`：強制 / 禁止
-- `ask`：TTY 互動詢問
+Write-back 模式（`ks query` 永不直接寫 wiki，只把答案送進 review queue）：
+- `no`（預設）：不入隊，也不寫 `wiki/log.md`
+- `auto`：顯式 opt-in；只有 `writeback_eligible=true`（通過 route-specific 門檻且 evidence 指向真實來源）才入隊
+- `yes`：有命中就送審（不看 eligibility）；no-hit 不入隊
+- `ask`：TTY 互動詢問，同意後等同 `yes`；non-TTY 直接跳過
 
-> Agent / automation 可省略 `--writeback`；需要自動沉澱時才顯式帶 `--writeback=auto`。
+> Agent / automation 可省略 `--writeback`；需要沉澱時才顯式帶 `--writeback=auto`，再由人審核。
+
+### Write-back Review Queue
+
+```bash
+uv run ks writeback list                 # pending 項目
+uv run ks writeback show <id>            # 完整內容：answer、evidence、reasons
+uv run ks writeback approve <id>         # 唯一寫入 wiki 的路徑
+uv run ks writeback reject <id>          # 移到 archive，不寫 wiki
+```
+
+- Queue 位於使用中的 KS root：`writeback/queue/<id>.json`（pending）、`writeback/archive/<id>.json`（已決議，保留作 audit）。四個子指令都接受 `-w <workspace>` / `--registry-path` / `--ks-root`，與 `ks query -w` 入隊的是同一個 KB。
+- `id` 是 `(question, answer, route, evidence)` 的 content hash：同內容重複查詢只會有一筆（trace `enqueued-deduped`）；已 approve 過的同一筆不再入隊（`already-promoted`）；reject 後可重新入隊。
+- `approve` 產出 evidence-backed wiki page：`origin=writeback`、`source` 指向真實來源檔、body 含 `## 來源依據`（來源段落引文）與 `## Related`。Evidence 為空、只有 `<writeback>`、或來源已不在 manifest 時 approve 失敗（`WRITEBACK_EVIDENCE_REQUIRED`），請改 reject 或重跑 query。
+- 已 approve 的問句再查一次（答案來自該 writeback 頁）不會再入隊，trace 為 `already-promoted`；source 被 `ks ingest --prune` 移除時，引用它的 writeback 頁一併刪除（ingest summary 的 `pruned_writeback_pages`）。
+- Slug 撞到 `ingest` 頁回 `CONFLICT`；撞到既有 `writeback` / `llm_wiki` 頁則覆寫。
+- Queue 管理 v1 只有 CLI；`hks-api` / `hks-mcp` 的 query 帶 `writeback=auto|yes` 時同樣只入隊。
 
 ### Source Catalog & Workspace
 
@@ -281,7 +297,6 @@ MCP client 的設定檔（`mcp/config/stdio.mcp.json`）裡的 `cwd` 與 `KS_ROO
   "source": ["graph"],
   "confidence": 0.88,
   "retrieval_score": 0.88,
-  "calibrated_confidence": 0.88,
   "writeback_eligible": true,
   "evidence": [
     {"source_relpath": "atlas.txt", "route": "graph", "quote": "Atlas depends on Mobile Gateway..."}
@@ -300,9 +315,10 @@ MCP client 的設定檔（`mcp/config/stdio.mcp.json`）裡的 `cwd` 與 `KS_ROO
 }
 ```
 
-- `confidence`：query 命中時取自 `calibrated_confidence`；top-level shape 相容欄位
+- `confidence`：`retrieval_score` clamp 至 `[0,1]`
 - `retrieval_score`：raw retrieval score（未經 clamp）
-- `calibrated_confidence` + `writeback_eligible`：`auto` write-back 的實際 gate；`calibrated_confidence` 目前為 `retrieval_score` clamp 至 `[0,1]`
+- `writeback_eligible`：`--writeback=auto` 是否會把這個答案送進 review queue（route-specific 門檻 + evidence 指向真實來源）
+- **Breaking（019）**：`calibrated_confidence` 已移除（它與 `confidence` 同值）；請改讀 `confidence`
 - `evidence[]`：溯源資訊，含 `source_relpath`、`route`、`quote`
 - `trace.steps`：pipeline 每一步的記錄
 - 無命中時 `source=[]`，仍 exit `0`
@@ -330,7 +346,7 @@ MCP client 的設定檔（`mcp/config/stdio.mcp.json`）裡的 `cwd` 與 `KS_ROO
 | `HKS_LLM_PROVIDER` | `fake` | LLM provider；`openai` 需另設 API key |
 | `HKS_LLM_NETWORK_OPT_IN` | — | 設為 `1` 才允許非 fake provider |
 | `HKS_LLM_PROVIDER_OPENAI_API_KEY` | — | OpenAI API key |
-| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Legacy auto write-back fallback；有 `ConfidenceAssessment` 時以 route-specific `auto_threshold` 為準，且仍需 `writeback_eligible=true` |
+| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Legacy 設定，019 之後 query 不再讀取；`auto` 入隊以 route-specific 門檻與 `writeback_eligible=true` 為準 |
 | `HKS_HYBRID_SEARCH` | `route` | Keyword 檢索模式：`route` 讓 embedding 沒帶出的 keyword 命中自成 `lexical` route；`fused` 把 BM25 併入 vector route；`off` 只用 dense |
 | `HKS_HYBRID_MAX_CHUNKS` | `20000` | chunk 數超過此值時略過 keyword 檢索（query 時即時計算，無落地索引） |
 | `HKS_WORKSPACE_REGISTRY` | user config path | Workspace registry JSON 路徑 |
@@ -372,7 +388,7 @@ uv run mypy src/hks
 - [specs/011-continuous-watch/spec.md](./specs/011-continuous-watch/spec.md) — Watch / re-ingest
 - [specs/012-source-catalog/spec.md](./specs/012-source-catalog/spec.md) — Source catalog / workspace
 - [specs/013-pageindex-integration/spec.md](./specs/013-pageindex-integration/spec.md) — PageIndex / page_tree
-- [specs/019-writeback-review-queue/spec.md](./specs/019-writeback-review-queue/spec.md) — Write-back review queue 設計（待實作）
+- [specs/019-writeback-review-queue/spec.md](./specs/019-writeback-review-queue/spec.md) — Write-back review queue（已實作）
 - [specs/005-phase3-lint-impl/contracts/query-response.schema.json](./specs/005-phase3-lint-impl/contracts/query-response.schema.json) — Response contract
 - [specs/ARCHIVE.md](./specs/ARCHIVE.md) — Archive index
 

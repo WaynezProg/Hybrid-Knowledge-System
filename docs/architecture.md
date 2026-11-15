@@ -148,7 +148,7 @@ flowchart TD
     ev --> conf["confidence assess<br/>route 別門檻與 evidence 要求"]
     conf --> wbq{"--writeback"}
     wbq -- "no" --> out(["回傳 response"])
-    wbq -- "auto 且 eligible，或 yes" --> commit["寫回 wiki，記錄 log"]
+    wbq -- "auto 且 eligible，或 yes" --> commit["送入 review queue<br/>（ks writeback approve 才寫 wiki）"]
     commit --> out
     wbq -- "auto 但不 eligible" --> logskip["wiki log 記錄 skip 原因"]
     logskip --> out
@@ -189,10 +189,10 @@ sequenceDiagram
     end
     Q->>Q: final score gate（不過則 no-hit）
     Q->>C: assess(route, score, evidence)
-    C-->>Q: calibrated confidence、writeback_eligible
-    opt writeback 決定為 commit
-        Q->>W: commit
-        W->>S: 寫 wiki page 與 log
+    C-->>Q: confidence、writeback_eligible
+    opt writeback 決定為 enqueue
+        Q->>W: enqueue（writeback/queue/<id>.json）
+        W->>S: 只在 wiki/log.md 記 enqueued，不寫 wiki page
     end
     Q-->>E: QueryResponse
     E-->>A: JSON（answer · source · confidence · evidence · trace）

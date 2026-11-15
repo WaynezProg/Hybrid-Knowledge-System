@@ -139,23 +139,29 @@ def test_ingest_locked_runtime_returns_general(tmp_path: Path) -> None:
 
 @pytest.mark.contract
 def test_writeback_locked_runtime_returns_general(tmp_path: Path) -> None:
+    """019：寫 wiki 的是 `ks writeback approve`，所以與 ingest 共用 runtime lock 的是它。
+    `ks query --writeback=yes` 只入隊，不改 wiki page，持鎖期間仍可完成。"""
     ks_root = tmp_path / "ks"
     _seed_runtime(ks_root, tmp_path / "docs")
 
     with file_lock(runtime_paths(ks_root).lock):
-        result = _run_cli(
-            "query",
-            "summary Atlas",
-            "--writeback=yes",
-            ks_root=ks_root,
-        )
+        queried = _run_cli("query", "summary Atlas", "--writeback=yes", ks_root=ks_root)
+        assert queried.returncode == 0, queried.stderr
+        enqueue_step = _load_stdout_json(queried)["trace"]["steps"][-1]  # type: ignore[index]
+        assert enqueue_step["kind"] == "writeback"  # type: ignore[index]
+        assert enqueue_step["detail"]["status"] == "enqueued"  # type: ignore[index]
+        item_id = str(enqueue_step["detail"]["id"])  # type: ignore[index]
+
+        result = _run_cli("writeback", "approve", item_id, ks_root=ks_root)
 
     assert result.returncode == 1
-    assert result.stderr.splitlines()[0].startswith("[ks:query] error:")
+    assert result.stderr.splitlines()[0].startswith("[ks:writeback approve] error:")
     payload = _load_stdout_json(result)
-    writeback_step = payload["trace"]["steps"][-1]  # type: ignore[index]
-    assert writeback_step["kind"] == "writeback"  # type: ignore[index]
-    assert writeback_step["detail"]["status"] == "failed"  # type: ignore[index]
+    error_step = payload["trace"]["steps"][0]  # type: ignore[index]
+    assert error_step["kind"] == "error"  # type: ignore[index]
+    assert error_step["detail"]["code"] == "LOCKED"  # type: ignore[index]
+    assert (ks_root / "writeback" / "queue" / f"{item_id}.json").is_file()
+    assert not (ks_root / "writeback" / "archive" / f"{item_id}.json").exists()
 
 
 @pytest.mark.contract
@@ -349,6 +355,20 @@ def test_query_embedding_load_failure_returns_general(tmp_path: Path) -> None:
     assert result.returncode == 1
     assert result.stderr.splitlines()[0].startswith("[ks:query] error:")
     _load_stdout_json(result)
+
+
+@pytest.mark.contract
+@pytest.mark.parametrize("subcommand", ["show", "approve", "reject"])
+def test_writeback_missing_id_returns_noinput_with_valid_json(
+    tmp_path: Path,
+    subcommand: str,
+) -> None:
+    result = _run_cli("writeback", subcommand, "missing", ks_root=tmp_path / "ks")
+
+    assert result.returncode == 66
+    assert result.stderr.splitlines()[0].startswith(f"[ks:writeback {subcommand}] error:")
+    payload = _load_stdout_json(result)
+    assert payload["trace"]["steps"][0]["detail"] == {"code": "NOINPUT", "exit_code": 66}
 
 
 @pytest.mark.contract

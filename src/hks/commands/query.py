@@ -1,4 +1,4 @@
-"""CLI entry for retrieval and optional write-back."""
+"""CLI entry for retrieval and the optional write-back review queue enqueue."""
 
 from __future__ import annotations
 
@@ -33,9 +33,10 @@ from hks.routing.router import route as route_query
 from hks.routing.rules import load_rules
 from hks.routing.session_memory import analyze_session_memory_intent
 from hks.storage.vector import VectorStore
-from hks.storage.wiki import LogEntry, WikiStore
+from hks.storage.wiki import EventStatus, LogEntry, WikiPage, WikiStore
 from hks.writeback.gate import WritebackFlag, decide
-from hks.writeback.writer import WritebackContext, commit
+from hks.writeback.queue import WritebackQueueItem, build_item, enqueue
+from hks.writeback.writer import writeback_page_behind
 
 _FINAL_SCORE_THRESHOLDS: dict[Route, float] = {
     "vector": 0.25,
@@ -198,7 +199,7 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
 
     if not all_candidates:
         response = _build_no_hit_response(decision.route, steps)
-        return _maybe_writeback(
+        return _maybe_enqueue(
             question=question, response=response, writeback=writeback, wiki_store=wiki_store
         )
 
@@ -243,7 +244,7 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
             evidence = candidate_evidence(status_candidate)
             assessment = ConfidenceAssessment(
                 retrieval_score=status_candidate.score,
-                calibrated_confidence=status_candidate.score,
+                confidence=status_candidate.score,
                 writeback_eligible=False,
                 auto_threshold=999.0,
                 reasons=["workspace status synthesis is not auto-writeback eligible"],
@@ -251,14 +252,13 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
             response = QueryResponse(
                 answer=status_candidate.text,
                 source=[status_candidate.source_route],
-                confidence=assessment.calibrated_confidence,
+                confidence=assessment.confidence,
                 trace=Trace(route=status_candidate.source_route, steps=steps),
                 evidence=evidence,
                 retrieval_score=assessment.retrieval_score,
-                calibrated_confidence=assessment.calibrated_confidence,
                 writeback_eligible=assessment.writeback_eligible,
             )
-            return _maybe_writeback(
+            return _maybe_enqueue(
                 question=question,
                 response=response,
                 writeback=writeback,
@@ -291,7 +291,7 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
             evidence = candidate_evidence(range_summary)
             assessment = ConfidenceAssessment(
                 retrieval_score=range_summary.score,
-                calibrated_confidence=range_summary.score,
+                confidence=range_summary.score,
                 writeback_eligible=False,
                 auto_threshold=999.0,
                 reasons=["date range synthesis is not auto-writeback eligible"],
@@ -299,14 +299,13 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
             response = QueryResponse(
                 answer=range_summary.text,
                 source=[range_summary.source_route],
-                confidence=assessment.calibrated_confidence,
+                confidence=assessment.confidence,
                 trace=Trace(route=range_summary.source_route, steps=steps),
                 evidence=evidence,
                 retrieval_score=assessment.retrieval_score,
-                calibrated_confidence=assessment.calibrated_confidence,
                 writeback_eligible=assessment.writeback_eligible,
             )
-            return _maybe_writeback(
+            return _maybe_enqueue(
                 question=question,
                 response=response,
                 writeback=writeback,
@@ -337,7 +336,7 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
             )
         )
         response = _build_no_hit_response(decision.route, steps)
-        return _maybe_writeback(
+        return _maybe_enqueue(
             question=question, response=response, writeback=writeback, wiki_store=wiki_store
         )
 
@@ -376,7 +375,7 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
             )
         )
         response = _build_no_hit_response(decision.route, steps)
-        return _maybe_writeback(
+        return _maybe_enqueue(
             question=question,
             response=response,
             writeback=writeback,
@@ -402,7 +401,7 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
                 },
             )
         )
-        return _maybe_writeback(
+        return _maybe_enqueue(
             question=question,
             response=_build_no_hit_response(decision.route, steps),
             writeback=writeback,
@@ -421,14 +420,13 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
     response = QueryResponse(
         answer=winner.text,
         source=[winner.source_route],
-        confidence=assessment.calibrated_confidence,
+        confidence=assessment.confidence,
         trace=Trace(route=winner.source_route, steps=steps),
         evidence=evidence,
         retrieval_score=assessment.retrieval_score,
-        calibrated_confidence=assessment.calibrated_confidence,
         writeback_eligible=assessment.writeback_eligible,
     )
-    return _maybe_writeback(
+    return _maybe_enqueue(
         question=question,
         response=response,
         writeback=writeback,
@@ -437,7 +435,14 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
     )
 
 
-def _maybe_writeback(
+_ENQUEUE_TRACE_STATUS = {
+    "created": "enqueued",
+    "deduped": "enqueued-deduped",
+    "already-promoted": "already-promoted",
+}
+
+
+def _maybe_enqueue(
     *,
     question: str,
     response: QueryResponse,
@@ -445,111 +450,137 @@ def _maybe_writeback(
     wiki_store: WikiStore,
     assessment: ConfidenceAssessment | None = None,
 ) -> QueryResponse:
+    """Put the answer up for review when the caller asked for write-back.
+
+    A query never writes a wiki page: ``ks writeback approve`` is the only way in. An
+    answer that was refused (no candidate, the score gate, the vector evidence gate) has
+    no source and is never enqueued, whatever the flag.
+    """
     if not response.source:
         response.trace.steps.append(
             TraceStep(kind="writeback", detail={"status": "skip-no-source"})
         )
         return response
 
-    decision = decide(
-        cast(WritebackFlag, writeback),
-        assessment=assessment,
-        confidence=response.confidence,
-        is_tty=sys.stdout.isatty(),
-    )
-    if decision.action == "commit":
-        try:
-            context = _build_writeback_context(response, wiki_store)
-            response.trace.steps.extend(
-                commit(
-                    query=question,
-                    response=response,
-                    status=decision.status,
-                    context=context,
-                    wiki_store=wiki_store,
-                    forced=decision.forced,
-                )
-            )
-            if decision.forced:
-                _record_forced_writeback_event(question=question, response=response)
-        except Exception as exc:
-            response.trace.steps.append(
-                TraceStep(kind="writeback", detail={"status": "failed", "error": str(exc)})
-            )
-            raise KSError(
-                "write-back 失敗",
-                exit_code=ExitCode.GENERAL,
-                code="WRITEBACK_FAILED",
-                details=[str(exc)],
-                response=response,
-            ) from exc
+    if writeback == "auto" and response.writeback_eligible is not True:
+        # Kept in wiki/log.md (spec 021) so a skipped auto enqueue can be looked into later.
+        _append_writeback_log(wiki_store, question, response, "auto-skipped-ineligible")
+        response.trace.steps.append(
+            TraceStep(kind="writeback", detail={"status": "auto-skipped-ineligible"})
+        )
         return response
 
-    # ``--writeback=no`` asks for nothing to be written: the query leaves no entry in
-    # wiki/log.md, only the writeback step in the trace. A declined ``ask`` and a skipped
-    # ``auto`` are still logged.
-    if writeback != "no" and decision.status in {
-        "declined",
-        "auto-skipped-ineligible",
-        "auto-skipped-low-confidence",
-    }:
-        wiki_store.append_log(
-            LogEntry(
-                timestamp=utc_now_iso(),
-                event="writeback",
-                status=decision.status,
-                query=question,
-                route=response.trace.route,
-                source=response.source,
-                confidence=response.confidence,
-            )
+    if writeback != "no":
+        promoted = _answered_from_writeback_page(question, response, wiki_store)
+        if promoted is not None:
+            response.trace.steps.append(TraceStep(kind="writeback", detail=promoted))
+            return response
+
+    decision = decide(cast(WritebackFlag, writeback), is_tty=sys.stdout.isatty())
+    if decision.action != "enqueue":
+        # ``--writeback=no`` asks for nothing to be written: no queue item and no entry in
+        # wiki/log.md, only the writeback step in the trace. A declined ``ask`` is a
+        # decision somebody made, so it is still logged.
+        if writeback != "no" and decision.status == "declined":
+            _append_writeback_log(wiki_store, question, response, "declined")
+        response.trace.steps.append(
+            TraceStep(kind="writeback", detail={"status": decision.status})
         )
-    response.trace.steps.append(TraceStep(kind="writeback", detail={"status": decision.status}))
+        return response
+
+    try:
+        result = enqueue(
+            _build_queue_item(question=question, response=response, assessment=assessment),
+            paths=wiki_store.paths,
+        )
+        if result.status == "created":
+            _append_writeback_log(wiki_store, question, response, "enqueued")
+    except Exception as exc:
+        response.trace.steps.append(
+            TraceStep(kind="writeback", detail={"status": "failed", "error": str(exc)})
+        )
+        raise KSError(
+            "write-back enqueue 失敗",
+            exit_code=ExitCode.GENERAL,
+            code="WRITEBACK_FAILED",
+            details=[str(exc)],
+            response=response,
+        ) from exc
+    detail: dict[str, object] = {
+        "status": _ENQUEUE_TRACE_STATUS[result.status],
+        "id": result.id,
+    }
+    if result.path is not None:
+        detail["path"] = result.path.relative_to(wiki_store.paths.root).as_posix()
+    response.trace.steps.append(TraceStep(kind="writeback", detail=detail))
     return response
 
 
-def _record_forced_writeback_event(*, question: str, response: QueryResponse) -> None:
-    try:
-        from hks.coordination.store import CoordinationStore
+def _answered_from_writeback_page(
+    question: str,
+    response: QueryResponse,
+    wiki_store: WikiStore,
+) -> dict[str, object] | None:
+    """The trace detail for an answer that was read from a writeback page, else ``None``.
 
-        CoordinationStore(runtime_paths()).append_events(
-            [
-                {
-                    "type": "forced_writeback",
-                    "timestamp": utc_now_iso(),
-                    "query": question,
-                    "route": response.trace.route,
-                    "confidence": response.confidence,
-                    "calibrated_confidence": response.calibrated_confidence,
-                    "writeback_eligible": response.writeback_eligible,
-                }
-            ]
+    Such an answer is an earlier approved answer coming back, not new knowledge: asking the
+    same question again must not put it up for review a second time, and another question
+    answered by it must not be promoted into a page that only cites that page's summary.
+    """
+    if response.trace.route != "wiki":
+        return None
+    pages = wiki_store.list_pages()
+    behind = [writeback_page_behind(wiki_store, item, pages=pages) for item in response.evidence]
+    if not behind or any(page is None for page in behind):
+        return None
+    page = cast(WikiPage, behind[0])
+    same_question = page.metadata.get("writeback_query", "").strip() == question.strip()
+    return {
+        "status": "already-promoted" if same_question else "skipped-derived-answer",
+        "slug": page.slug,
+        "path": f"pages/{page.slug}.md",
+        "source_relpath": page.source_relpath,
+    }
+
+
+def _append_writeback_log(
+    wiki_store: WikiStore,
+    question: str,
+    response: QueryResponse,
+    status: EventStatus,
+) -> None:
+    wiki_store.append_log(
+        LogEntry(
+            timestamp=utc_now_iso(),
+            event="writeback",
+            status=status,
+            query=question,
+            route=response.trace.route,
+            source=response.source,
+            confidence=response.confidence,
         )
-    except Exception:
-        return
+    )
 
 
-def _build_writeback_context(response: QueryResponse, wiki_store: WikiStore) -> WritebackContext:
-    related_slugs: list[str] = []
-    relpaths: list[str] = []
-    for step in response.trace.steps:
-        if step.kind == "wiki_lookup" and step.detail.get("hit"):
-            if step.detail.get("slug"):
-                related_slugs.append(cast(str, step.detail["slug"]))
-            if isinstance(step.detail.get("source_relpath"), str):
-                relpaths.append(cast(str, step.detail["source_relpath"]))
-        if step.kind in ("vector_lookup", "lexical_lookup") and isinstance(
-            step.detail.get("source_relpath"), str
-        ):
-            relpaths.append(cast(str, step.detail["source_relpath"]))
-        if step.kind == "graph_lookup":
-            relpaths.extend(
-                cast(list[str], step.detail.get("relpaths", []))
-                if isinstance(step.detail.get("relpaths", []), list)
-                else []
-            )
-    for evidence_item in response.evidence:
-        if isinstance(evidence_item.get("source_relpath"), str):
-            relpaths.append(cast(str, evidence_item["source_relpath"]))
-    related_slugs.extend(page.slug for page in wiki_store.pages_for_source_relpaths(relpaths))
-    return WritebackContext(related_slugs=sorted(dict.fromkeys(related_slugs)))
+def _build_queue_item(
+    *,
+    question: str,
+    response: QueryResponse,
+    assessment: ConfidenceAssessment | None,
+) -> WritebackQueueItem:
+    return build_item(
+        question=question,
+        answer=response.answer,
+        route=response.trace.route,
+        source=response.source,
+        evidence=response.evidence,
+        retrieval_score=(
+            assessment.retrieval_score if assessment is not None else response.retrieval_score
+        ),
+        writeback_eligible=(
+            assessment.writeback_eligible
+            if assessment is not None
+            else bool(response.writeback_eligible)
+        ),
+        reasons=assessment.reasons if assessment is not None else [],
+    )

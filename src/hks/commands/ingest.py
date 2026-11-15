@@ -42,6 +42,7 @@ def _summary_to_response(summary: IngestSummary) -> QueryResponse:
         "skipped": [{"path": issue.path, "reason": issue.reason} for issue in summary.skipped],
         "failures": [{"path": issue.path, "reason": issue.reason} for issue in summary.failures],
         "pruned": summary.pruned,
+        "pruned_writeback_pages": summary.pruned_writeback_pages,
         "files": [_serialize_file(report) for report in summary.files],
     }
     validate_ingest_detail(detail)

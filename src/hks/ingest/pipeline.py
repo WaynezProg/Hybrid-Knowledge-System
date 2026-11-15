@@ -151,8 +151,16 @@ def delete_artifacts(
     wiki_pages: list[str],
     vector_ids: list[str],
     page_tree: str | None = None,
-) -> None:
-    wiki_store.delete_pages(wiki_pages)
+) -> list[str]:
+    """Remove everything derived from `relpath`. Returns the slugs of the writeback pages
+    removed with it: a page approved from the review queue cites this source as its
+    evidence, so it must not keep answering once the source is gone."""
+    writeback_slugs = sorted(
+        page.slug
+        for page in wiki_store.pages_for_source_relpaths([relpath])
+        if page.origin == "writeback" and page.slug not in wiki_pages
+    )
+    wiki_store.delete_pages([*wiki_pages, *writeback_slugs])
     if graph_store is not None:
         graph_store.delete_document(relpath)
     vector_store.delete(vector_ids)
@@ -161,6 +169,7 @@ def delete_artifacts(
     raw_source = wiki_store.paths.raw_sources / relpath
     if raw_source.exists():
         raw_source.unlink()
+    return writeback_slugs
 
 
 def relative_path(source_root: Path, file_path: Path) -> str:
@@ -437,7 +446,7 @@ def ingest(
 
             if not normalized_text.strip():
                 if existing:
-                    delete_artifacts(
+                    removed_writeback = delete_artifacts(
                         wiki_store=wiki_store,
                         graph_store=graph_store,
                         vector_store=vector_store,
@@ -445,6 +454,9 @@ def ingest(
                         wiki_pages=existing.derived.wiki_pages,
                         vector_ids=existing.derived.vector_ids,
                         page_tree=existing.derived.page_tree,
+                    )
+                    summary.pruned_writeback_pages.extend(
+                        f"pages/{slug}.md" for slug in removed_writeback
                     )
                     manifest.entries.pop(relpath, None)
                     save_manifest(manifest, paths.manifest)
@@ -683,7 +695,7 @@ def ingest(
             ]
             for relpath in stale_paths:
                 stale_entry = manifest.entries.pop(relpath)
-                delete_artifacts(
+                removed_writeback = delete_artifacts(
                     wiki_store=wiki_store,
                     graph_store=graph_store,
                     vector_store=vector_store,
@@ -693,6 +705,9 @@ def ingest(
                     page_tree=stale_entry.derived.page_tree,
                 )
                 summary.pruned.append(relpath)
+                summary.pruned_writeback_pages.extend(
+                    f"pages/{slug}.md" for slug in removed_writeback
+                )
             if stale_paths:
                 save_manifest(manifest, paths.manifest)
                 backfilled_source_paths = False

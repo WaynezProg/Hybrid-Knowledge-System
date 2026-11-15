@@ -78,9 +78,7 @@ def test_declined_ask_is_still_logged(cli_runner, log_path: Path, monkeypatch) -
     monkeypatch.setattr(
         query_command,
         "decide",
-        lambda flag, *, assessment=None, confidence=None, is_tty=False, prompt=None: Decision(
-            action="decline", status="declined"
-        ),
+        lambda flag, *, is_tty=False, prompt=None: Decision(action="skip", status="declined"),
     )
     before = log_path.read_text(encoding="utf-8")
 

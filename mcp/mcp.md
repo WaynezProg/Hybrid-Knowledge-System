@@ -18,7 +18,7 @@ uv run hks-mcp --transport streamable-http --host 127.0.0.1 --port 8765
 
 ## Tool Defaults
 
-- `hks_query` defaults `writeback` to `no`.
+- `hks_query` defaults `writeback` to `no`. `auto` / `yes` only enqueue a write-back review item; nothing reaches the wiki until `ks writeback approve <id>` (CLI only). The response no longer carries `calibrated_confidence`.
 - Tool results use the same successful HKS payload shape as CLI.
 - Tool errors return an adapter error envelope as structured content.
 

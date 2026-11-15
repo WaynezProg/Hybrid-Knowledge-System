@@ -114,13 +114,29 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 All queries use fused retrieval: candidates are collected from wiki / graph / vector / page_tree simultaneously, then ranked by LLM reranker (RRF fallback without API key). Response includes `evidence[]` for provenance.
 Session-memory queries containing `today`, `yesterday`, or `YYYY-MM-DD` prefer the matching dated session daily source before generic graph/vector candidates.
 
-Write-back modes:
-- `no` (default): disables write-back
-- `auto`: explicit opt-in; writes back only when `writeback_eligible=true` and the route-specific `auto_threshold` passes
-- `yes` / `no`: force / disable
-- `ask`: interactive prompt on TTY
+Write-back modes (`ks query` never writes the wiki; it only sends the answer to the review queue):
+- `no` (default): nothing is enqueued and `wiki/log.md` is not touched
+- `auto`: explicit opt-in; enqueues only when `writeback_eligible=true` (route-specific threshold passed and evidence points at a real source)
+- `yes`: enqueues any hit regardless of eligibility; a no-hit is never enqueued
+- `ask`: interactive prompt on a TTY, then behaves like `yes`; skipped on non-TTY
 
-> Agent / automation workflows may omit `--writeback`; use `--writeback=auto` only when automatic write-back is intended.
+> Agent / automation workflows may omit `--writeback`; use `--writeback=auto` only when the answer should be put up for review.
+
+### Write-back Review Queue
+
+```bash
+uv run ks writeback list                 # pending items
+uv run ks writeback show <id>            # full item: answer, evidence, reasons
+uv run ks writeback approve <id>         # the only path into the wiki
+uv run ks writeback reject <id>          # archive without writing the wiki
+```
+
+- The queue lives under the KS root in use: `writeback/queue/<id>.json` (pending) and `writeback/archive/<id>.json` (decided, kept for audit). All four subcommands accept `-w <workspace>` / `--registry-path` / `--ks-root`, matching where `ks query -w` enqueued.
+- `id` is a content hash of `(question, answer, route, evidence)`: repeating the same query keeps one item (trace `enqueued-deduped`); an already approved item is not enqueued again (`already-promoted`); a rejected one may be enqueued again.
+- `approve` writes an evidence-backed wiki page: `origin=writeback`, `source` pointing at the real source file, body with `## 來源依據` (quoted source passages) and `## Related`. It fails with `WRITEBACK_EVIDENCE_REQUIRED` when the evidence is empty, only `<writeback>`, or its source is no longer in the manifest — reject the item or re-run the query.
+- Asking an approved question again (now answered by that writeback page) does not enqueue it again — the trace reports `already-promoted`; when `ks ingest --prune` removes a source, the writeback pages citing it are removed too (`pruned_writeback_pages` in the ingest summary).
+- A slug owned by an `ingest` page returns `CONFLICT`; an existing `writeback` / `llm_wiki` page is overwritten.
+- Queue management is CLI-only in v1; `hks-api` / `hks-mcp` queries with `writeback=auto|yes` only enqueue.
 
 ### Source Catalog & Workspace
 
@@ -262,7 +278,6 @@ All commands share the same top-level JSON shape:
   "source": ["graph"],
   "confidence": 0.88,
   "retrieval_score": 0.88,
-  "calibrated_confidence": 0.88,
   "writeback_eligible": true,
   "evidence": [
     {"source_relpath": "atlas.txt", "route": "graph", "quote": "Atlas depends on Mobile Gateway..."}
@@ -281,9 +296,10 @@ All commands share the same top-level JSON shape:
 }
 ```
 
-- `confidence`: clamped score from `calibrated_confidence`; kept as the compatibility field
+- `confidence`: `retrieval_score` clamped to `[0,1]`
 - `retrieval_score`: raw retrieval score before clamp
-- `calibrated_confidence` + `writeback_eligible`: the actual `auto` write-back gate
+- `writeback_eligible`: whether `--writeback=auto` would send this answer to the review queue (route-specific threshold plus evidence pointing at a real source)
+- **Breaking (019)**: `calibrated_confidence` was removed (it always equalled `confidence`); read `confidence` instead
 - `evidence[]`: provenance with `source_relpath`, `route`, `quote`
 - `trace.steps`: records each pipeline step
 - No-hit queries return `source=[]` and still exit `0`
@@ -311,7 +327,7 @@ Full reference: [docs/configuration.md](./docs/configuration.md).
 | `HKS_LLM_PROVIDER` | `fake` | LLM provider; `openai` requires API key |
 | `HKS_LLM_NETWORK_OPT_IN` | — | Set to `1` to allow non-fake providers |
 | `HKS_LLM_PROVIDER_OPENAI_API_KEY` | — | OpenAI API key |
-| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Legacy auto write-back fallback; `ConfidenceAssessment` uses the route-specific `auto_threshold` and still requires `writeback_eligible=true` |
+| `HKS_WRITEBACK_AUTO_THRESHOLD` | `0.75` | Legacy setting, no longer read by query since 019; `auto` enqueue uses the route-specific threshold and `writeback_eligible=true` |
 | `HKS_WORKSPACE_REGISTRY` | user config path | Workspace registry JSON path |
 
 Use `config/hks.yaml` for structured config (copy from `config/hks.yaml.example`). Priority: process env > `config/hks.env` > `config/hks.yaml` / `config/hks.json` > default.
@@ -349,7 +365,7 @@ uv run mypy src/hks
 - [specs/011-continuous-watch/spec.md](./specs/011-continuous-watch/spec.md) — Watch / re-ingest
 - [specs/012-source-catalog/spec.md](./specs/012-source-catalog/spec.md) — Source catalog / workspace
 - [specs/013-pageindex-integration/spec.md](./specs/013-pageindex-integration/spec.md) — PageIndex / page_tree
-- [specs/019-writeback-review-queue/spec.md](./specs/019-writeback-review-queue/spec.md) — Write-back review queue design (pending implementation)
+- [specs/019-writeback-review-queue/spec.md](./specs/019-writeback-review-queue/spec.md) — Write-back review queue (implemented)
 - [specs/005-phase3-lint-impl/contracts/query-response.schema.json](./specs/005-phase3-lint-impl/contracts/query-response.schema.json) — Response contract
 - [specs/ARCHIVE.md](./specs/ARCHIVE.md) — Archive index
 

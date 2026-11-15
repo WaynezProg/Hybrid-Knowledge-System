@@ -59,7 +59,7 @@ raw_sources (immutable) -> ingestion -> wiki + graph + vector + manifest
 
 - **Ingestion 是寫入時整理**：parse -> normalize -> extract -> update，同步更新 `raw_sources`、`wiki`、`graph`、`vector`、`manifest`。
 - **Query 走 fused retrieval**：同時從 wiki / graph / vector / lexical / page_tree 收集 candidates，以 LLM reranker 排序（無 API key 時 fallback RRF）；response 含 `evidence[]` 溯源。
-- **Write-back 預設 auto**：`confidence >= HKS_WRITEBACK_AUTO_THRESHOLD` 時自動寫回 wiki；agent / CI workflow 若不想產生頁面請顯式帶 `--writeback=no`。
+- **Write-back 預設 no**：省略 `--writeback` 不入隊也不寫 log。`--writeback=auto|yes|ask` 只把答案送進 review queue（`auto` 需 `writeback_eligible=true`）；`ks writeback approve <id>` 是唯一寫入 wiki 的路徑。
 - **Lint 已不是 stub**：`ks lint` 檢查跨層一致性；`--strict` 控制 exit code；`--fix=apply` 只執行 allowlist 修復。
 - **MCP / HTTP adapter 已是正式介面**：`hks-mcp` 與 `hks-api` 不再是非目標。
 

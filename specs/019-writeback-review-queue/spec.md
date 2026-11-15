@@ -1,12 +1,12 @@
 # 019-writeback-review-queue — Write-back Review Queue 設計
 
 - 日期：2026-05-22
-- 狀態：設計通過，待 implementation
+- 狀態：已實作（2026-11-15，於當時的 main 上重新實作；見 §8 實作備註）
 - 範圍：HKS write-back 從「query answer 直寫 wiki」改為「review queue → approve → evidence-backed wiki page」；併入 `confidence` 欄位群清理。
 
 ## 1. 動機
 
-現況 `ks query --writeback=auto|yes` 會把「query 當 title、answer 當 body」直接寫成 wiki page（`origin=writeback`、`source_relpath=<writeback>`）。對 agent memory 而言這有兩個問題：
+019 改造前，`ks query --writeback=auto|yes` 會把「query 當 title、answer 當 body」直接寫成 wiki page（`origin=writeback`、`source_relpath=<writeback>`）。對 agent memory 而言這有兩個問題：
 
 1. 一次錯答會沉澱成可被下次 retrieval 取用的知識；`--writeback=yes` 更是無 confidence floor 的強制寫入。
 2. 寫進去的是 `(query, answer)` 低保真配對，`source_relpath=<writeback>` 不可溯源，不是 evidence-backed memory object。
@@ -142,3 +142,31 @@ archive item 在 queue item 基礎上加：`status`（`approved`/`rejected`）�
 - approve 前編輯 answer —— v1 只有 approve/reject，要改答案請 reject 後重跑 query。
 - 真 confidence 校準 —— 目前 golden cases 僅 13 筆，資料量不足以 fit 校準曲線；`confidence` 維持 clamp。
 - golden cases 案例數擴充 —— 屬 Sub-project B，019 merge 後進行。
+
+## 8. 實作備註（2026-11-15）
+
+設計定案後 main 又前進了 90 多個 commit，以下幾點以 main 較新的行為為準，與上文不同：
+
+| 項目 | 上文 | 實作 | 依據 |
+|---|---|---|---|
+| auto 被跳過的 trace status | `skipped-ineligible` | `auto-skipped-ineligible` | 021 的契約測試；§3.4 所列舊 status 中只有這一個仍會發出 |
+| auto 被跳過 / `ask` 被拒絕是否寫 `wiki/log.md` | 不寫 | 寫（`auto-skipped-ineligible` / `declined`）；`--writeback=no` 完全不寫 | 021 決策 3、4 |
+| per-item lock helper（§4.1） | `hks/wiki_synthesis/store.py` 的 `blocking_file_lock` | `hks.core.lock.blocking_file_lock` | 供 queue 使用的共用 helper |
+| approve 寫 wiki 的鎖 | 未規定 | per-item lock → `paths.lock`（`file_lock`，被占用時回 `LOCKED`，item 留在 queue） | PR #26：wiki 寫入與 ingest / lint fix / synthesis apply 共用同一把鎖 |
+| queue 管理指令的範圍 | 預設 KS root | 另接受 `-w/--workspace`、`--registry-path`、`--ks-root` | PR #32 workspace-scoped 指令 |
+| approve 的 evidence hard gate | 有效 `source_relpath` + `quote` | 另要求來源仍在 manifest 且 `raw_sources/` 檔案存在 | 5 月分支 review 修正（18148be） |
+| 不存在的 id 與已決議的 id | 同為 NOINPUT | 同為 NOINPUT（exit 66），已決議的訊息為「已決議（approved\|rejected）」 | §5「報已決議」 |
+| `retrieval_score` schema | — | 005 schema 取消 `[0,1]` 上下限（raw score）；`confidence` 仍限 `[0,1]` | tasks T002 |
+
+沒有答案的查詢（包含被 026 vector evidence gate 判為 `weak_evidence` 的答案）`source=[]`，任何 `--writeback` 模式都不入隊。
+
+Review 後補上的行為（上文未涵蓋）：
+
+| 項目 | 行為 |
+|---|---|
+| 答案來自 writeback 頁 | wiki route 的答案若是從 `origin=writeback` 的頁面讀出（evidence 的 quote 就是該頁摘要），不入隊。該頁的 `writeback_query` 與問句相同時 trace 為 `already-promoted`，否則為 `skipped-derived-answer`；兩者的 `detail` 都帶該頁的 `slug` / `path` / `source_relpath`，不寫 log。以 id 判斷的 `already-promoted`（§4.2）不變。`--writeback=no` 不做這項檢查；`auto` 在 wiki route 本來就是 `auto-skipped-ineligible`。 |
+| approve 的 evidence | 引用 writeback 頁摘要的 wiki evidence 不算有效 evidence。Item 只有這種 evidence 時 approve 回 `WRITEBACK_EVIDENCE_REQUIRED`；同時有真實來源段落時只採用後者。 |
+| 頁面內文 | answer 行首的 heading 標記（`#`…`######`、setext 的 `===` / `---` 底線）在寫入 body 與 `summary` 前移除，文字不變；頁面只有 `# <question>` 一個 H1。引文一律單行。 |
+| archive 紀錄 | 被 reject 的 item 重新入隊並再次決議時，新的 archive 紀錄取代 `archive/<id>.json`，先前的決議依序放在紀錄的 `history`（`status`、`decided_at`、`slug`、`created_at`）；沒有先前決議時不輸出 `history`。檔名仍只有 `<id>.json`。 |
+| source 被移除 | ingest 刪除某個 source 的 artifacts（`--prune`，或重新 ingest 後內容為空）時，一併刪除 `origin=writeback` 且 `source` 為該 relpath 的 wiki pages，並列在 `ingest_summary.detail.pruned_writeback_pages`（004 ingest detail schema 新增的 optional 欄位）。`ingest` / `llm_wiki` 頁不受影響；queue 與 archive 紀錄保留。 |
+| lint | 既有的 `wiki_source_mismatch`（頁面指向不在 manifest 的 source）原本只檢查 `origin=ingest`，現在也檢查 `origin=writeback`；019 之前寫入、`source` 為 `<writeback>` 的舊頁不檢查。 |
