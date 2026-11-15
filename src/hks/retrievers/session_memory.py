@@ -55,7 +55,7 @@ def collect_session_memory_candidates(
             continue
         text = _answer_text(page)
         quote = evidence_quote(text)
-        candidate = _narrow_candidate_for_topic(
+        candidates.append(
             Candidate(
                 text=text,
                 source_route="wiki",
@@ -66,11 +66,9 @@ def collect_session_memory_candidates(
                     "quote": quote,
                     "session_memory_intent": True,
                 },
-            ),
-            intent.topic,
+            )
         )
-        if candidate is not None:
-            candidates.append(candidate)
+    candidates = _narrow_candidates_for_topic(candidates, intent.topic)
 
     if candidates:
         candidates.sort(key=lambda candidate: str(candidate.metadata.get("source_relpath")))
@@ -112,8 +110,7 @@ def prefer_session_memory_candidates(
         if metadata_matches_session_intent(candidate.metadata, intent)
     ]
     if intent.topic or intent.date or intent.date_start or intent.date_prefix:
-        narrowed = [_narrow_candidate_for_topic(candidate, intent.topic) for candidate in preferred]
-        preferred = [candidate for candidate in narrowed if candidate is not None]
+        preferred = _narrow_candidates_for_topic(preferred, intent.topic)
         # A dated subject is a constraint, including when no entry satisfies it.
         return preferred, len(preferred)
     if not preferred:
@@ -133,18 +130,15 @@ def collect_workspace_vector_entries(
     for hit in hits:
         if not metadata_matches_session_intent(hit.metadata, intent):
             continue
-        candidate = _narrow_candidate_for_topic(
+        candidates.append(
             Candidate(
                 text=hit.text,
                 source_route="vector",
                 score=1.0,
                 metadata=dict(hit.metadata),
-            ),
-            intent.topic,
+            )
         )
-        if candidate is not None:
-            candidates.append(candidate)
-    return candidates
+    return _narrow_candidates_for_topic(candidates, intent.topic)
 
 
 def synthesize_date_range_summary(
@@ -406,11 +400,47 @@ def _clean_entry_text(text: str) -> str:
     return cleaned.strip()
 
 
+_NAME_TERM_RE = re.compile(r"[a-z0-9]")
+
+
+def _name_terms(topic: str) -> set[str]:
+    """The topic's terms written in Latin letters or digits: names of projects, tools and
+    tickets ("session2memory", "opencode", "err-4012")."""
+    return {term for term in lexical_tokens(topic) if _NAME_TERM_RE.match(term)}
+
+
+def _narrow_candidates_for_topic(candidates: list[Candidate], topic: str | None) -> list[Candidate]:
+    """Keep the entries about ``topic``, each cut down to its lines about it.
+
+    A topic that names something ("session2memory", "ERR-4012") is a constraint: when no
+    entry mentions it there is nothing to answer with. A topic without a name is whatever
+    wording was left of the question ("有哪些決定", "主要成果是", "工作"); entries are
+    narrowed by it when some hold it ("索引"), and when none does it says nothing about
+    the entries, so they are all kept as they are.
+    """
+    if not topic:
+        return candidates
+    narrowed = [
+        one
+        for one in (_narrow_candidate_for_topic(candidate, topic) for candidate in candidates)
+        if one is not None
+    ]
+    if narrowed or _name_terms(topic) or identifier_terms(topic):
+        return narrowed
+    return candidates
+
+
 def _narrow_candidate_for_topic(candidate: Candidate, topic: str | None) -> Candidate | None:
     if not topic:
         return candidate
     identifiers = identifier_terms(topic)
-    terms = set(lexical_tokens(topic))
+    names = _name_terms(topic)
+    # With a name in the topic, the name decides; the words around it ("paperclip 新增了")
+    # are the question's wording and need not be in the entry.
+    terms = names or set(lexical_tokens(topic))
+    if not terms and len(topic.strip()) < 2:
+        # A single leftover character ("有") is not a subject.
+        return None
     lines = []
     for line in _clean_entry_text(candidate.text).splitlines():
         if not line.strip() or not holds_identifiers(identifiers, line):

@@ -101,3 +101,40 @@ def test_dated_query_in_ordinary_document_library_is_not_session_scoped(cli_runn
     payload = core.hks_query(question="2026-11-14 Atlas ERR-4012", writeback="no")
     assert payload["source"]
     assert "ERR-4012" in payload["answer"]
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "2026-11-14 的工作摘要",
+        "2026-11-14 有哪些決定",
+        "2026-11-14 主要成果是什麼",
+        "2026-11-14 學到了什麼",
+        "2026-11-14 完成了哪些工作",
+    ],
+)
+def test_dated_question_worded_without_a_subject_returns_the_day(topic_daily, question) -> None:
+    # What is left of such a question after the date ("工作", "有哪些決定") is wording,
+    # not a subject: no entry holds it, so it must not turn the day into a no-hit.
+    payload = core.hks_query(question=question, writeback="no")
+    validate(payload)
+    assert all(t in payload["answer"] for t in ["session2memory", "Paperclip", "Mogumogu"])
+    assert {e["source_relpath"] for e in payload["evidence"]} == {"2026-11-14.md"}
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["11/13-11/15 之間完成了哪些工作", "2026-11-13 到 2026-11-15 有什麼重點"],
+)
+def test_date_range_worded_without_a_subject_returns_every_day(topic_daily, question) -> None:
+    payload = core.hks_query(question=question, writeback="no")
+    validate(payload)
+    assert "修復 OpenCode 匯入" in payload["answer"] and "補上回歸測試" in payload["answer"]
+    assert "舊日期結果" in payload["answer"]
+
+
+def test_a_named_subject_stays_a_constraint_whatever_words_surround_it(topic_daily) -> None:
+    present = core.hks_query(question="2026-11-14 Paperclip 新增了哪些東西", writeback="no")
+    assert "任務等待功能" in present["answer"] and "Mogumogu" not in present["answer"]
+    absent = core.hks_query(question="2026-11-14 AbsentProject 新增了哪些東西", writeback="no")
+    assert absent["source"] == [] and absent["confidence"] == 0
