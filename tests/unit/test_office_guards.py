@@ -109,3 +109,47 @@ def test_load_image_limits_rejects_out_of_range(monkeypatch) -> None:
     monkeypatch.setenv("HKS_IMAGE_MAX_PIXELS", "0")
     with pytest.raises(ValueError, match=r"HKS_IMAGE_MAX_PIXELS"):
         load_image_limits()
+
+
+def _run_in_thread(target) -> list[BaseException]:  # type: ignore[no-untyped-def]
+    import threading
+
+    errors: list[BaseException] = []
+
+    def _wrapper() -> None:
+        try:
+            target()
+        except BaseException as exc:  # noqa: BLE001 - surfaced to the test
+            errors.append(exc)
+
+    worker = threading.Thread(target=_wrapper)
+    worker.start()
+    worker.join(timeout=10)
+    assert not worker.is_alive()
+    return errors
+
+
+@pytest.mark.unit
+def test_with_timeout_raises_off_main_thread() -> None:
+    def _body() -> None:
+        began = time.monotonic()
+        with with_timeout(1):
+            while time.monotonic() - began < 5:
+                time.sleep(0.01)
+
+    started = time.monotonic()
+    errors = _run_in_thread(_body)
+    assert len(errors) == 1 and isinstance(errors[0], TimeoutError)
+    assert time.monotonic() - started < 3
+
+
+@pytest.mark.unit
+def test_with_timeout_off_main_thread_does_not_fire_after_block() -> None:
+    def _body() -> None:
+        with with_timeout(1):
+            time.sleep(0.01)
+        began = time.monotonic()
+        while time.monotonic() - began < 1.5:
+            time.sleep(0.01)
+
+    assert _run_in_thread(_body) == []

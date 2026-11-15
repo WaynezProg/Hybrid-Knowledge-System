@@ -2,20 +2,25 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from hks.core.manifest import SourceFormat
 from hks.ingest.fingerprint import ParserFlags, compute_parser_fingerprint
 from hks.ingest.guards import load_image_limits
 from hks.ingest.models import ParsedDocument
-from hks.ingest.ocr import load_preprocessed_image, run_ocr
+from hks.ingest.ocr import load_preprocessed_image, ocr_subprocess_timeout, run_ocr
 from hks.ingest.office_common import Segment, SkippedSegment
 
 
 def parse(path: Path, source_format: SourceFormat) -> ParsedDocument:
     limits = load_image_limits()
+    deadline = time.monotonic() + limits.timeout_seconds
     image = load_preprocessed_image(path, max_pixels=limits.max_pixels)
-    lines = run_ocr(image)
+    lines = run_ocr(
+        image,
+        timeout_seconds=ocr_subprocess_timeout(deadline - time.monotonic()),
+    )
     if not lines:
         return ParsedDocument(
             title=path.stem,

@@ -21,6 +21,13 @@ _DEFAULT_PSM = 3
 _PREPROCESS_SIGNATURE = "exif_transpose+grayscale+autocontrast"
 _TESSERACT_HINT = "brew install tesseract tesseract-lang"
 _CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+# `tesseract --version` / `--list-langs` are metadata probes; bound them so a
+# hung binary cannot block the caller (and the adapters' core lock) forever.
+_PROBE_TIMEOUT_SEC = 15.0
+# The OCR child is given slightly less than the caller's `with_timeout` budget
+# so `subprocess.run` kills it and returns before the outer guard fires.
+_OCR_TIMEOUT_MARGIN_SEC = 0.5
+_OCR_TIMEOUT_FLOOR_SEC = 0.1
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,13 +77,7 @@ def resolve_ocr_config() -> OCRConfig:
             hint=_TESSERACT_HINT,
         )
 
-    version_output = subprocess.run(
-        [binary, "--version"],
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    ).stdout.splitlines()
+    version_output = _probe(binary, "--version")
     first_line = version_output[0].strip() if version_output else "tesseract unknown"
     version = first_line.removeprefix("tesseract ").strip() or "unknown"
 
@@ -121,42 +122,75 @@ def load_preprocessed_image(path: Path, *, max_pixels: int) -> Image.Image:
         ) from exc
 
 
-def run_ocr(image: Image.Image) -> list[OCRLine]:
+def ocr_subprocess_timeout(budget_seconds: float) -> float:
+    """Timeout for the OCR child given the remaining `with_timeout` budget."""
+
+    return max(budget_seconds - _OCR_TIMEOUT_MARGIN_SEC, _OCR_TIMEOUT_FLOOR_SEC)
+
+
+def run_ocr(image: Image.Image, *, timeout_seconds: float | None = None) -> list[OCRLine]:
+    """Run tesseract on `image`.
+
+    `timeout_seconds` bounds the child process itself: on expiry
+    `subprocess.run` kills it and `TimeoutError` is raised, which the ingest
+    pipeline reports as a `timeout` failure. This does not depend on
+    `with_timeout`, whose off-main-thread variant cannot interrupt a blocking
+    wait on a child process.
+    """
+
     config = resolve_ocr_config()
     with tempfile.TemporaryDirectory(prefix="hks_ocr_") as tmp_dir:
         tmp_root = Path(tmp_dir)
         input_path = tmp_root / "input.png"
         output_base = tmp_root / "ocr"
         image.save(input_path, format="PNG")
-        subprocess.run(
-            [
-                config.binary,
-                str(input_path),
-                str(output_base),
-                "-l",
-                config.lang_spec,
-                "--psm",
-                str(config.psm),
-                "tsv",
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        )
+        try:
+            subprocess.run(
+                [
+                    config.binary,
+                    str(input_path),
+                    str(output_base),
+                    "-l",
+                    config.lang_spec,
+                    "--psm",
+                    str(config.psm),
+                    "tsv",
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                timeout=timeout_seconds,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise TimeoutError("ocr engine timed out") from exc
         return _parse_tsv(output_base.with_suffix(".tsv"), config.engine_label)
 
 
 @lru_cache(maxsize=1)
 def _available_languages(binary: str) -> tuple[str, ...]:
-    output = subprocess.run(
-        [binary, "--list-langs"],
-        check=True,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-    ).stdout.splitlines()
+    output = _probe(binary, "--list-langs")
     return tuple(line.strip() for line in output[1:] if line.strip())
+
+
+def _probe(binary: str, flag: str) -> list[str]:
+    try:
+        return subprocess.run(
+            [binary, flag],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            timeout=_PROBE_TIMEOUT_SEC,
+        ).stdout.splitlines()
+    except subprocess.TimeoutExpired as exc:
+        raise KSError(
+            "OCR engine 無回應",
+            exit_code=ExitCode.GENERAL,
+            code="OCR_ENGINE_UNAVAILABLE",
+            details=[f"`tesseract {flag}` 超過 {_PROBE_TIMEOUT_SEC:.0f} 秒未結束"],
+            hint=_TESSERACT_HINT,
+        ) from exc
 
 
 def _requested_languages() -> tuple[str, ...]:
