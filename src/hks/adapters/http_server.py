@@ -16,7 +16,7 @@ from starlette.routing import Route
 
 from hks.adapters import core
 from hks.adapters.agent_http import agent_profile_dispatch
-from hks.adapters.concurrency import run_core
+from hks.adapters.concurrency import run_core, run_core_light
 from hks.adapters.http_security import (
     HTTP_INGEST_BLOCKED_PATH_SEGMENTS,
     HttpIngestPath,
@@ -39,8 +39,17 @@ async def _json(request: Request) -> dict[str, Any]:
 
 
 async def _response(callable_: Any, **kwargs: Any) -> JSONResponse:
+    return await _run_response(run_core, callable_, kwargs)
+
+
+async def _light_response(callable_: Any, **kwargs: Any) -> JSONResponse:
+    """Like ``_response`` but without the core lock; see ``run_core_light``."""
+    return await _run_response(run_core_light, callable_, kwargs)
+
+
+async def _run_response(runner: Any, callable_: Any, kwargs: dict[str, Any]) -> JSONResponse:
     try:
-        return JSONResponse(await run_core(callable_, **kwargs))
+        return JSONResponse(await runner(callable_, **kwargs))
     except AdapterToolError as error:
         status = 400 if error.error.exit_code in {2, 65, 66} else 500
         return JSONResponse(error.to_dict(), status_code=status)
@@ -76,11 +85,15 @@ def _usage_response(message: str) -> JSONResponse:
     )
 
 
-async def _adapter_response(request: Request, callable_: Any) -> JSONResponse:
+async def _adapter_response(
+    request: Request, callable_: Any, *, light: bool = False
+) -> JSONResponse:
     try:
         payload = await _json(request)
     except Exception as error:
         return _usage_response(str(error))
+    if light:
+        return await _light_response(callable_, **payload)
     return await _response(callable_, **payload)
 
 
@@ -153,7 +166,7 @@ async def watch_run_endpoint(request: Request) -> Response:
 
 
 async def watch_status_endpoint(request: Request) -> Response:
-    return await _adapter_response(request, core.hks_watch_status)
+    return await _adapter_response(request, core.hks_watch_status, light=True)
 
 
 async def source_list_endpoint(request: Request) -> Response:
@@ -176,7 +189,7 @@ async def workspaces_endpoint(request: Request) -> Response:
         return _usage_response(str(error))
     action = payload.pop("action", "list")
     if action == "list":
-        return await _response(core.hks_workspace_list, **payload)
+        return await _light_response(core.hks_workspace_list, **payload)
     if action == "register":
         return await _response(core.hks_workspace_register, **payload)
     return _usage_response(f"unsupported workspace action: {action}")
@@ -190,11 +203,11 @@ async def workspace_endpoint(request: Request) -> Response:
     action = payload.pop("action", "show")
     payload["workspace_id"] = request.path_params["workspace_id"]
     if action == "show":
-        return await _response(core.hks_workspace_show, **payload)
+        return await _light_response(core.hks_workspace_show, **payload)
     if action == "remove":
         return await _response(core.hks_workspace_remove, **payload)
     if action == "use":
-        return await _response(core.hks_workspace_use, **payload)
+        return await _light_response(core.hks_workspace_use, **payload)
     return _usage_response(f"unsupported workspace action: {action}")
 
 
@@ -240,19 +253,19 @@ async def workspace_source_show_endpoint(request: Request) -> Response:
 
 
 async def coord_session_endpoint(request: Request) -> Response:
-    return await _adapter_response(request, core.hks_coord_session)
+    return await _adapter_response(request, core.hks_coord_session, light=True)
 
 
 async def coord_lease_endpoint(request: Request) -> Response:
-    return await _adapter_response(request, core.hks_coord_lease)
+    return await _adapter_response(request, core.hks_coord_lease, light=True)
 
 
 async def coord_handoff_endpoint(request: Request) -> Response:
-    return await _adapter_response(request, core.hks_coord_handoff)
+    return await _adapter_response(request, core.hks_coord_handoff, light=True)
 
 
 async def coord_status_endpoint(request: Request) -> Response:
-    return await _adapter_response(request, core.hks_coord_status)
+    return await _adapter_response(request, core.hks_coord_status, light=True)
 
 
 def create_app() -> Starlette:

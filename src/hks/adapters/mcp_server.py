@@ -11,7 +11,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, TextContent
 
 from hks.adapters import core
-from hks.adapters.concurrency import run_core
+from hks.adapters.concurrency import run_core, run_core_light
 from hks.adapters.models import AdapterToolError
 from hks.core.config import ENV_AGENT_PROFILE
 
@@ -306,7 +306,7 @@ def create_full_server() -> FastMCP:
     async def hks_watch_status(ks_root: str | None = None) -> Any:
         """Return latest watch plan/run status."""
         try:
-            return await run_core(core.hks_watch_status, ks_root=ks_root)
+            return await run_core_light(core.hks_watch_status, ks_root=ks_root)
         except AdapterToolError as error:
             return _error_result(error)
 
@@ -343,7 +343,7 @@ def create_full_server() -> FastMCP:
     async def hks_workspace_list(registry_path: str | None = None) -> Any:
         """List registered HKS workspaces."""
         try:
-            return await run_core(core.hks_workspace_list, registry_path=registry_path)
+            return await run_core_light(core.hks_workspace_list, registry_path=registry_path)
         except AdapterToolError as error:
             return _error_result(error)
 
@@ -376,7 +376,7 @@ def create_full_server() -> FastMCP:
     async def hks_workspace_show(workspace_id: str, registry_path: str | None = None) -> Any:
         """Show one registered HKS workspace."""
         try:
-            return await run_core(
+            return await run_core_light(
                 core.hks_workspace_show, workspace_id=workspace_id, registry_path=registry_path
             )
         except AdapterToolError as error:
@@ -396,7 +396,7 @@ def create_full_server() -> FastMCP:
     async def hks_workspace_use(workspace_id: str, registry_path: str | None = None) -> Any:
         """Return the shell export command for one ready workspace."""
         try:
-            return await run_core(
+            return await run_core_light(
                 core.hks_workspace_use, workspace_id=workspace_id, registry_path=registry_path
             )
         except AdapterToolError as error:
@@ -431,7 +431,7 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Start, heartbeat, or close a coordination session."""
         try:
-            return await run_core(
+            return await run_core_light(
                 core.hks_coord_session,
                 action=action,
                 agent_id=agent_id,
@@ -455,7 +455,7 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Claim, renew, or release a coordination lease."""
         try:
-            return await run_core(
+            return await run_core_light(
                 core.hks_coord_lease,
                 action=action,
                 agent_id=agent_id,
@@ -482,7 +482,7 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Add or list coordination handoff notes."""
         try:
-            return await run_core(
+            return await run_core_light(
                 core.hks_coord_handoff,
                 action=action,
                 agent_id=agent_id,
@@ -505,7 +505,7 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Return coordination sessions, leases, and handoffs."""
         try:
-            return await run_core(
+            return await run_core_light(
                 core.hks_coord_status,
                 agent_id=agent_id,
                 resource_key=resource_key,
@@ -561,7 +561,7 @@ def create_agent_server() -> FastMCP:
     async def hks_workspace_list(registry_path: str | None = None) -> Any:
         """List registered HKS workspaces."""
         try:
-            return await run_core(core.hks_workspace_list, registry_path=registry_path)
+            return await run_core_light(core.hks_workspace_list, registry_path=registry_path)
         except AdapterToolError as error:
             return _error_result(error)
 
@@ -569,7 +569,7 @@ def create_agent_server() -> FastMCP:
     async def hks_workspace_show(workspace_id: str, registry_path: str | None = None) -> Any:
         """Show one registered HKS workspace."""
         try:
-            return await run_core(
+            return await run_core_light(
                 core.hks_workspace_show, workspace_id=workspace_id, registry_path=registry_path
             )
         except AdapterToolError as error:
