@@ -36,6 +36,7 @@ def scan_sources(
 
     sources: dict[str, WatchSource] = {}
     seen: set[str] = set()
+    scanned_roots: list[Path] = []
     for root in roots:
         resolved_root = root.expanduser().resolve(strict=False)
         if not resolved_root.exists():
@@ -48,6 +49,7 @@ def scan_sources(
                 )
             )
             continue
+        scanned_roots.append(resolved_root)
         files = [resolved_root] if resolved_root.is_file() else sorted(resolved_root.rglob("*"))
         for file_path in files:
             if not file_path.is_file():
@@ -63,7 +65,11 @@ def scan_sources(
             sources[relpath] = source
 
     for relpath, entry in sorted(manifest_entries.items()):
-        if relpath not in seen:
+        # Without external source_roots the scan covers raw_sources, where every
+        # entry lives, so the old "not seen means missing" rule still holds.
+        if relpath not in seen and _may_belong_to_roots(
+            entry.source_path, scanned_roots if source_roots else []
+        ):
             sources.setdefault(
                 relpath,
                 WatchSource(
@@ -108,9 +114,7 @@ def _classify_file(
         source_format = suffix_format
     if source_format is None:
         issue = (
-            classify_supported_file_issue(file_path)
-            if suffix_format is not None
-            else "unsupported"
+            classify_supported_file_issue(file_path) if suffix_format is not None else "unsupported"
         ) or "unsupported"
         state: WatchSourceState = "corrupt" if issue == "corrupt" else "unsupported"
         return WatchSource(
@@ -150,3 +154,17 @@ def _classify_file(
         root_path=root.as_posix(),
         path=file_path.as_posix(),
     )
+
+
+def _may_belong_to_roots(source_path: str | None, roots: list[Path]) -> bool:
+    """Whether a manifest entry can be reported missing for these watch roots.
+
+    Entries recorded from a path outside every scanned root came from another
+    source root and are not "missing" here (ingest --prune would not touch them).
+    Legacy entries without a recorded source_path keep the old behaviour.
+    """
+
+    if source_path is None or not roots:
+        return True
+    path = Path(source_path)
+    return any(path == root or root in path.parents for root in roots)
