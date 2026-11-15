@@ -25,8 +25,16 @@ _SLASH_RANGE_RE = re.compile(
     r"(?P<m1>\d{1,2})/(?P<d1>\d{1,2})\s*[-~－]\s*(?P<m2>\d{1,2})/(?P<d2>\d{1,2})"
 )
 
+# 數量、序號、時長常寫成 N~M（「3~5 個重點」「第 2~4 章」「3~5 天」），
+# 這些後面接單位或前面有「第」時不是日期區間。
+_COUNT_UNIT = (
+    r"個|个|項|项|點|点|條|条|次|天|週|周|月|年|歲|岁|人|名|位|頁|页|行|筆|笔|件|"
+    r"句|段|步|章|節|节|題|题|組|组|倍|成|份|張|张|篇|分|秒|小時|小时|%|％|[A-Za-z]"
+)
+
 _DAY_TILDE_RE = re.compile(
-    r"(?<![\d/])(?P<d1>\d{1,2})\s*[~～]\s*(?P<d2>\d{1,2})(?!\s*/)"
+    r"(?<![\d/.A-Za-z第])(?P<d1>\d{1,2})\s*[~～]\s*(?P<d2>\d{1,2})"
+    rf"(?![\d.])(?!\s*/)(?!\s*(?:{_COUNT_UNIT}))"
 )
 
 
@@ -85,19 +93,40 @@ def _from_full_match(match: Match[str], *, today: date) -> ParsedDateRange | Non
 
 
 def _from_slash_match(match: Match[str], *, today: date) -> ParsedDateRange | None:
-    start = _safe_date(
-        today.year,
-        int(match.group("m1")),
-        int(match.group("d1")),
-    )
-    end = _safe_date(
-        today.year,
-        int(match.group("m2")),
-        int(match.group("d2")),
-    )
+    m1, d1 = int(match.group("m1")), int(match.group("d1"))
+    m2, d2 = int(match.group("m2")), int(match.group("d2"))
+    start = _safe_date(today.year, m1, d1)
+    end = _safe_date(today.year, m2, d2)
     if start is None or end is None:
         return None
+    if m1 > m2 and _crosses_new_year(start, end):
+        crossing = _cross_year_range(m1, d1, m2, d2, today=today)
+        if crossing is not None:
+            return crossing
     return _normalize_range(start, end)
+
+
+def _crosses_new_year(start: date, end: date) -> bool:
+    """`12/28-1/3` 是跨年的六天，不是寫反的 359 天；取較短的那種讀法。
+
+    `5/10-3/1` 讀成跨年是 295 天、讀成寫反是 70 天，仍當成寫反。
+    """
+
+    reversed_span = (start - end).days
+    return reversed_span > 365 - reversed_span
+
+
+def _cross_year_range(m1: int, d1: int, m2: int, d2: int, *, today: date) -> ParsedDateRange | None:
+    # 結束年從明年往回試：取起點不在今天之後、最近的那一段。12/30 問
+    # `12/28-1/3` 是今年 12/28 到明年 1/3（已開始）；1/5 問則是去年 12/28 到今年 1/3。
+    for end_year in (today.year + 1, today.year):
+        start = _safe_date(end_year - 1, m1, d1)
+        end = _safe_date(end_year, m2, d2)
+        if start is None or end is None:
+            continue
+        if start <= today:
+            return ParsedDateRange(date_start=start.isoformat(), date_end=end.isoformat())
+    return None
 
 
 def _from_day_tilde_match(match: Match[str], *, today: date) -> ParsedDateRange | None:
