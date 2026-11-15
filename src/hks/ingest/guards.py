@@ -2,14 +2,17 @@
 
 - `preflight_size_check(path, max_mb)` raises `OversizeError` if the file
   exceeds the configured limit; the pipeline maps this to DATAERR.
-- `with_timeout(seconds)` is a POSIX-only context manager based on
-  `SIGALRM`; the running thread must be the main thread. Nested usage is
-  rejected (we keep the itimer semantics simple).
+- `with_timeout(seconds)` bounds the wall time of its body. On the main
+  thread it uses `SIGALRM` (unchanged CLI behaviour); off the main thread
+  (MCP / HTTP adapters run core work in worker threads) it uses a timer that
+  injects `TimeoutError` into the calling thread. Not reentrant.
 """
 
 from __future__ import annotations
 
+import ctypes
 import signal
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -122,20 +125,7 @@ def _raise_timeout(signum: int, frame: object) -> None:  # pragma: no cover - si
 
 
 @contextmanager
-def with_timeout(seconds: int) -> Iterator[None]:
-    """POSIX-only timeout context manager using SIGALRM.
-
-    - `seconds <= 0` disables the timer (acts as a no-op).
-    - Restores the prior SIGALRM handler on exit.
-    - Not reentrant.
-    """
-
-    if seconds <= 0:
-        yield
-        return
-    if not hasattr(signal, "SIGALRM"):  # pragma: no cover - POSIX only
-        yield
-        return
+def _sigalrm_timeout(seconds: int) -> Iterator[None]:
     previous = signal.signal(signal.SIGALRM, _raise_timeout)
     signal.setitimer(signal.ITIMER_REAL, float(seconds))
     try:
@@ -143,3 +133,74 @@ def with_timeout(seconds: int) -> Iterator[None]:
     finally:
         signal.setitimer(signal.ITIMER_REAL, 0)
         signal.signal(signal.SIGALRM, previous)
+
+
+def _set_async_exc(thread_id: int, exc: type[BaseException] | None) -> None:
+    # CPython API: schedule (or, with NULL, clear) an exception to be raised in
+    # another thread the next time it executes Python bytecode.
+    ctypes.pythonapi.PyThreadState_SetAsyncExc(
+        ctypes.c_ulong(thread_id),
+        ctypes.py_object(exc) if exc is not None else None,
+    )
+
+
+@contextmanager
+def _thread_timeout(seconds: int) -> Iterator[None]:
+    """Timeout for non-main threads, where `signal.signal` is unavailable.
+
+    A `threading.Timer` raises `TimeoutError` inside the calling thread via
+    `PyThreadState_SetAsyncExc`. Like SIGALRM, delivery happens between Python
+    bytecodes, so the body is interrupted in place (no leaked worker thread);
+    unlike SIGALRM it cannot interrupt a single long blocking C call, which
+    sees the exception right after that call returns.
+    """
+
+    thread_id = threading.get_ident()
+    state_lock = threading.Lock()
+    state = {"active": True, "fired": False}
+
+    def _fire() -> None:
+        with state_lock:
+            if not state["active"]:
+                return
+            state["fired"] = True
+            _set_async_exc(thread_id, TimeoutError)
+
+    timer = threading.Timer(float(seconds), _fire)
+    timer.daemon = True
+    timer.start()
+    try:
+        yield
+    finally:
+        timer.cancel()
+        with state_lock:
+            state["active"] = False
+            if state["fired"]:
+                # Body finished before the injected exception was delivered:
+                # clear it so it cannot surface outside the guarded block.
+                _set_async_exc(thread_id, None)
+
+
+@contextmanager
+def with_timeout(seconds: int) -> Iterator[None]:
+    """Bound the wall time of the body; raise `TimeoutError` when exceeded.
+
+    - `seconds <= 0` disables the timer (acts as a no-op).
+    - Main thread: SIGALRM, restoring the prior handler on exit.
+    - Other threads: async-exception timer (see `_thread_timeout`).
+    - Not reentrant.
+    """
+
+    if seconds <= 0:
+        yield
+        return
+    if threading.current_thread() is not threading.main_thread():
+        with _thread_timeout(seconds):
+            yield
+        return
+    if not hasattr(signal, "SIGALRM"):  # pragma: no cover - POSIX only
+        with _thread_timeout(seconds):
+            yield
+        return
+    with _sigalrm_timeout(seconds):
+        yield

@@ -16,6 +16,7 @@ from starlette.routing import Route
 
 from hks.adapters import core
 from hks.adapters.agent_http import agent_profile_dispatch
+from hks.adapters.concurrency import run_core
 from hks.adapters.http_security import (
     HTTP_INGEST_BLOCKED_PATH_SEGMENTS,
     HttpIngestPath,
@@ -37,9 +38,9 @@ async def _json(request: Request) -> dict[str, Any]:
     return payload
 
 
-def _response(callable_: Any, **kwargs: Any) -> JSONResponse:
+async def _response(callable_: Any, **kwargs: Any) -> JSONResponse:
     try:
-        return JSONResponse(callable_(**kwargs))
+        return JSONResponse(await run_core(callable_, **kwargs))
     except AdapterToolError as error:
         status = 400 if error.error.exit_code in {2, 65, 66} else 500
         return JSONResponse(error.to_dict(), status_code=status)
@@ -80,7 +81,7 @@ async def _adapter_response(request: Request, callable_: Any) -> JSONResponse:
         payload = await _json(request)
     except Exception as error:
         return _usage_response(str(error))
-    return _response(callable_, **payload)
+    return await _response(callable_, **payload)
 
 
 async def query_endpoint(request: Request) -> Response:
@@ -107,7 +108,7 @@ async def ingest_endpoint(request: Request) -> Response:
     assert isinstance(resolved_path, HttpIngestPath)
     payload["path"] = str(resolved_path.target_path)
 
-    return _response(
+    return await _response(
         core.hks_ingest,
         **payload,
         skip_dir_names=set(HTTP_INGEST_BLOCKED_PATH_SEGMENTS),
@@ -120,7 +121,7 @@ async def lint_endpoint(request: Request) -> Response:
 
 
 async def pageindex_show_endpoint(request: Request) -> Response:
-    return _response(
+    return await _response(
         core.hks_pageindex_show,
         source_relpath=request.path_params["relpath"],
         ks_root=request.query_params.get("ks_root"),
@@ -165,7 +166,7 @@ async def source_show_endpoint(request: Request) -> Response:
     except Exception as error:
         return _usage_response(str(error))
     payload["relpath"] = request.path_params["relpath"]
-    return _response(core.hks_source_show, **payload)
+    return await _response(core.hks_source_show, **payload)
 
 
 async def workspaces_endpoint(request: Request) -> Response:
@@ -175,9 +176,9 @@ async def workspaces_endpoint(request: Request) -> Response:
         return _usage_response(str(error))
     action = payload.pop("action", "list")
     if action == "list":
-        return _response(core.hks_workspace_list, **payload)
+        return await _response(core.hks_workspace_list, **payload)
     if action == "register":
-        return _response(core.hks_workspace_register, **payload)
+        return await _response(core.hks_workspace_register, **payload)
     return _usage_response(f"unsupported workspace action: {action}")
 
 
@@ -189,11 +190,11 @@ async def workspace_endpoint(request: Request) -> Response:
     action = payload.pop("action", "show")
     payload["workspace_id"] = request.path_params["workspace_id"]
     if action == "show":
-        return _response(core.hks_workspace_show, **payload)
+        return await _response(core.hks_workspace_show, **payload)
     if action == "remove":
-        return _response(core.hks_workspace_remove, **payload)
+        return await _response(core.hks_workspace_remove, **payload)
     if action == "use":
-        return _response(core.hks_workspace_use, **payload)
+        return await _response(core.hks_workspace_use, **payload)
     return _usage_response(f"unsupported workspace action: {action}")
 
 
@@ -203,7 +204,7 @@ async def workspace_query_endpoint(request: Request) -> Response:
     except Exception as error:
         return _usage_response(str(error))
     payload["workspace_id"] = request.path_params["workspace_id"]
-    return _response(core.hks_workspace_query, **payload)
+    return await _response(core.hks_workspace_query, **payload)
 
 
 async def workspace_ingest_session_memory_endpoint(request: Request) -> Response:
@@ -212,7 +213,7 @@ async def workspace_ingest_session_memory_endpoint(request: Request) -> Response
     except Exception as error:
         return _usage_response(str(error))
     payload["workspace_id"] = request.path_params["workspace_id"]
-    return _response(core.hks_workspace_ingest_session_memory, **payload)
+    return await _response(core.hks_workspace_ingest_session_memory, **payload)
 
 
 async def session_memory_summary_endpoint(request: Request) -> Response:
@@ -225,7 +226,7 @@ async def workspace_source_list_endpoint(request: Request) -> Response:
     except Exception as error:
         return _usage_response(str(error))
     payload["workspace_id"] = request.path_params["workspace_id"]
-    return _response(core.hks_workspace_source_list, **payload)
+    return await _response(core.hks_workspace_source_list, **payload)
 
 
 async def workspace_source_show_endpoint(request: Request) -> Response:
@@ -235,7 +236,7 @@ async def workspace_source_show_endpoint(request: Request) -> Response:
         return _usage_response(str(error))
     payload["workspace_id"] = request.path_params["workspace_id"]
     payload["relpath"] = request.path_params["relpath"]
-    return _response(core.hks_workspace_source_show, **payload)
+    return await _response(core.hks_workspace_source_show, **payload)
 
 
 async def coord_session_endpoint(request: Request) -> Response:

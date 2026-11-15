@@ -11,6 +11,7 @@ from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, TextContent
 
 from hks.adapters import core
+from hks.adapters.concurrency import run_core
 from hks.adapters.models import AdapterToolError
 from hks.core.config import ENV_AGENT_PROFILE
 
@@ -81,19 +82,21 @@ def create_full_server() -> FastMCP:
     server = FastMCP("Hybrid Knowledge System", json_response=True)
 
     @server.tool()
-    def hks_query(
+    async def hks_query(
         question: str,
         writeback: str = "no",
         ks_root: str | None = None,
     ) -> Any:
         """Query the local HKS knowledge base."""
         try:
-            return core.hks_query(question=question, writeback=writeback, ks_root=ks_root)
+            return await run_core(
+                core.hks_query, question=question, writeback=writeback, ks_root=ks_root
+            )
         except AdapterToolError as error:
             return _error_result(error)
 
     @server.tool()
-    def hks_ingest(
+    async def hks_ingest(
         path: str,
         prune: bool = False,
         pptx_notes: str = "include",
@@ -101,7 +104,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Ingest a local file or directory into HKS."""
         try:
-            return core.hks_ingest(
+            return await run_core(
+                core.hks_ingest,
                 path=path,
                 prune=prune,
                 pptx_notes=pptx_notes,
@@ -111,7 +115,7 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_lint(
+    async def hks_lint(
         strict: bool = False,
         severity_threshold: str = "error",
         fix: str = "none",
@@ -119,7 +123,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Check HKS runtime consistency."""
         try:
-            return core.hks_lint(
+            return await run_core(
+                core.hks_lint,
                 strict=strict,
                 severity_threshold=severity_threshold,
                 fix=fix,
@@ -129,18 +134,20 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_pageindex_show(
+    async def hks_pageindex_show(
         source_relpath: str,
         ks_root: str | None = None,
     ) -> Any:
         """Show the page tree for a specific source."""
         try:
-            return core.hks_pageindex_show(source_relpath=source_relpath, ks_root=ks_root)
+            return await run_core(
+                core.hks_pageindex_show, source_relpath=source_relpath, ks_root=ks_root
+            )
         except AdapterToolError as error:
             return _error_result(error)
 
     @server.tool()
-    def hks_pageindex_enrich(
+    async def hks_pageindex_enrich(
         source_relpath: str | None = None,
         mode: str = "preview",
         provider: str = "fake",
@@ -150,7 +157,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Enrich page trees with LLM summaries."""
         try:
-            return core.hks_pageindex_enrich(
+            return await run_core(
+                core.hks_pageindex_enrich,
                 source_relpath=source_relpath,
                 mode=mode,
                 provider=provider,
@@ -162,7 +170,7 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_llm_classify(
+    async def hks_llm_classify(
         source_relpath: str,
         mode: str = "preview",
         provider: str = "fake",
@@ -174,7 +182,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Run LLM-assisted classification/extraction for one ingested source."""
         try:
-            return core.hks_llm_classify(
+            return await run_core(
+                core.hks_llm_classify,
                 source_relpath=source_relpath,
                 mode=mode,
                 provider=provider,
@@ -188,7 +197,7 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_wiki_synthesize(
+    async def hks_wiki_synthesize(
         mode: str = "preview",
         source_relpath: str | None = None,
         extraction_artifact_id: str | None = None,
@@ -203,7 +212,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Synthesize or apply a wiki page candidate from stored LLM artifacts."""
         try:
-            return core.hks_wiki_synthesize(
+            return await run_core(
+                core.hks_wiki_synthesize,
                 mode=mode,
                 source_relpath=source_relpath,
                 extraction_artifact_id=extraction_artifact_id,
@@ -220,7 +230,7 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_graphify_build(
+    async def hks_graphify_build(
         mode: str = "preview",
         provider: str = "fake",
         model: str | None = None,
@@ -233,7 +243,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Build derived Graphify artifacts from existing HKS layers."""
         try:
-            return core.hks_graphify_build(
+            return await run_core(
+                core.hks_graphify_build,
                 mode=mode,
                 provider=provider,
                 model=model,
@@ -248,18 +259,20 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_watch_scan(
+    async def hks_watch_scan(
         source_roots: list[str] | None = None,
         ks_root: str | None = None,
     ) -> Any:
         """Scan sources and derived lineage for refresh needs."""
         try:
-            return core.hks_watch_scan(source_roots=source_roots or [], ks_root=ks_root)
+            return await run_core(
+                core.hks_watch_scan, source_roots=source_roots or [], ks_root=ks_root
+            )
         except AdapterToolError as error:
             return _error_result(error)
 
     @server.tool()
-    def hks_watch_run(
+    async def hks_watch_run(
         mode: str = "dry-run",
         profile: str = "scan-only",
         source_roots: list[str] | None = None,
@@ -273,7 +286,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Execute a bounded watch refresh."""
         try:
-            return core.hks_watch_run(
+            return await run_core(
+                core.hks_watch_run,
                 mode=mode,
                 profile=profile,
                 source_roots=source_roots or [],
@@ -289,15 +303,15 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_watch_status(ks_root: str | None = None) -> Any:
+    async def hks_watch_status(ks_root: str | None = None) -> Any:
         """Return latest watch plan/run status."""
         try:
-            return core.hks_watch_status(ks_root=ks_root)
+            return await run_core(core.hks_watch_status, ks_root=ks_root)
         except AdapterToolError as error:
             return _error_result(error)
 
     @server.tool()
-    def hks_source_list(
+    async def hks_source_list(
         ks_root: str | None = None,
         format: str | None = None,
         relpath_query: str | None = None,
@@ -306,7 +320,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """List manifest-derived sources for one HKS runtime."""
         try:
-            return core.hks_source_list(
+            return await run_core(
+                core.hks_source_list,
                 ks_root=ks_root,
                 format=format,
                 relpath_query=relpath_query,
@@ -317,23 +332,23 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_source_show(relpath: str, ks_root: str | None = None) -> Any:
+    async def hks_source_show(relpath: str, ks_root: str | None = None) -> Any:
         """Show one manifest source and its derived artifact references."""
         try:
-            return core.hks_source_show(relpath=relpath, ks_root=ks_root)
+            return await run_core(core.hks_source_show, relpath=relpath, ks_root=ks_root)
         except AdapterToolError as error:
             return _error_result(error)
 
     @server.tool()
-    def hks_workspace_list(registry_path: str | None = None) -> Any:
+    async def hks_workspace_list(registry_path: str | None = None) -> Any:
         """List registered HKS workspaces."""
         try:
-            return core.hks_workspace_list(registry_path=registry_path)
+            return await run_core(core.hks_workspace_list, registry_path=registry_path)
         except AdapterToolError as error:
             return _error_result(error)
 
     @server.tool()
-    def hks_workspace_register(
+    async def hks_workspace_register(
         workspace_id: str,
         ks_root: str,
         label: str | None = None,
@@ -344,7 +359,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Register or update one named HKS workspace."""
         try:
-            return core.hks_workspace_register(
+            return await run_core(
+                core.hks_workspace_register,
                 workspace_id=workspace_id,
                 ks_root=ks_root,
                 label=label,
@@ -357,31 +373,37 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_workspace_show(workspace_id: str, registry_path: str | None = None) -> Any:
+    async def hks_workspace_show(workspace_id: str, registry_path: str | None = None) -> Any:
         """Show one registered HKS workspace."""
         try:
-            return core.hks_workspace_show(workspace_id=workspace_id, registry_path=registry_path)
+            return await run_core(
+                core.hks_workspace_show, workspace_id=workspace_id, registry_path=registry_path
+            )
         except AdapterToolError as error:
             return _error_result(error)
 
     @server.tool()
-    def hks_workspace_remove(workspace_id: str, registry_path: str | None = None) -> Any:
+    async def hks_workspace_remove(workspace_id: str, registry_path: str | None = None) -> Any:
         """Remove one registered HKS workspace."""
         try:
-            return core.hks_workspace_remove(workspace_id=workspace_id, registry_path=registry_path)
+            return await run_core(
+                core.hks_workspace_remove, workspace_id=workspace_id, registry_path=registry_path
+            )
         except AdapterToolError as error:
             return _error_result(error)
 
     @server.tool()
-    def hks_workspace_use(workspace_id: str, registry_path: str | None = None) -> Any:
+    async def hks_workspace_use(workspace_id: str, registry_path: str | None = None) -> Any:
         """Return the shell export command for one ready workspace."""
         try:
-            return core.hks_workspace_use(workspace_id=workspace_id, registry_path=registry_path)
+            return await run_core(
+                core.hks_workspace_use, workspace_id=workspace_id, registry_path=registry_path
+            )
         except AdapterToolError as error:
             return _error_result(error)
 
     @server.tool()
-    def hks_workspace_query(
+    async def hks_workspace_query(
         workspace_id: str,
         question: str,
         writeback: str = "no",
@@ -389,7 +411,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Query one registered HKS workspace."""
         try:
-            return core.hks_workspace_query(
+            return await run_core(
+                core.hks_workspace_query,
                 workspace_id=workspace_id,
                 question=question,
                 writeback=writeback,
@@ -399,7 +422,7 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_coord_session(
+    async def hks_coord_session(
         action: str,
         agent_id: str,
         session_id: str | None = None,
@@ -408,7 +431,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Start, heartbeat, or close a coordination session."""
         try:
-            return core.hks_coord_session(
+            return await run_core(
+                core.hks_coord_session,
                 action=action,
                 agent_id=agent_id,
                 session_id=session_id,
@@ -419,7 +443,7 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_coord_lease(
+    async def hks_coord_lease(
         action: str,
         agent_id: str,
         resource_key: str,
@@ -431,7 +455,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Claim, renew, or release a coordination lease."""
         try:
-            return core.hks_coord_lease(
+            return await run_core(
+                core.hks_coord_lease,
                 action=action,
                 agent_id=agent_id,
                 resource_key=resource_key,
@@ -445,7 +470,7 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_coord_handoff(
+    async def hks_coord_handoff(
         action: str,
         agent_id: str,
         resource_key: str | None = None,
@@ -457,7 +482,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Add or list coordination handoff notes."""
         try:
-            return core.hks_coord_handoff(
+            return await run_core(
+                core.hks_coord_handoff,
                 action=action,
                 agent_id=agent_id,
                 resource_key=resource_key,
@@ -471,7 +497,7 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_coord_status(
+    async def hks_coord_status(
         agent_id: str | None = None,
         resource_key: str | None = None,
         include_stale: bool = True,
@@ -479,7 +505,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Return coordination sessions, leases, and handoffs."""
         try:
-            return core.hks_coord_status(
+            return await run_core(
+                core.hks_coord_status,
                 agent_id=agent_id,
                 resource_key=resource_key,
                 include_stale=include_stale,
@@ -489,7 +516,7 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_workspace_ingest_session_memory(
+    async def hks_workspace_ingest_session_memory(
         workspace_id: str,
         path: str,
         project_root: str | None = None,
@@ -497,7 +524,8 @@ def create_full_server() -> FastMCP:
     ) -> Any:
         """Ingest session2memory export artifacts for one workspace."""
         try:
-            return core.hks_workspace_ingest_session_memory(
+            return await run_core(
+                core.hks_workspace_ingest_session_memory,
                 workspace_id=workspace_id,
                 path=path,
                 project_root=project_root,
@@ -507,14 +535,15 @@ def create_full_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_session_memory_summary(
+    async def hks_session_memory_summary(
         workspace_id: str,
         date_from: str,
         date_to: str,
     ) -> Any:
         """Return a structured session-memory summary for a date range."""
         try:
-            return core.hks_session_memory_summary(
+            return await run_core(
+                core.hks_session_memory_summary,
                 workspace_id=workspace_id,
                 date_from=date_from,
                 date_to=date_to,
@@ -529,23 +558,25 @@ def create_agent_server() -> FastMCP:
     server = FastMCP("Hybrid Knowledge System", json_response=True)
 
     @server.tool()
-    def hks_workspace_list(registry_path: str | None = None) -> Any:
+    async def hks_workspace_list(registry_path: str | None = None) -> Any:
         """List registered HKS workspaces."""
         try:
-            return core.hks_workspace_list(registry_path=registry_path)
+            return await run_core(core.hks_workspace_list, registry_path=registry_path)
         except AdapterToolError as error:
             return _error_result(error)
 
     @server.tool()
-    def hks_workspace_show(workspace_id: str, registry_path: str | None = None) -> Any:
+    async def hks_workspace_show(workspace_id: str, registry_path: str | None = None) -> Any:
         """Show one registered HKS workspace."""
         try:
-            return core.hks_workspace_show(workspace_id=workspace_id, registry_path=registry_path)
+            return await run_core(
+                core.hks_workspace_show, workspace_id=workspace_id, registry_path=registry_path
+            )
         except AdapterToolError as error:
             return _error_result(error)
 
     @server.tool()
-    def hks_workspace_query(
+    async def hks_workspace_query(
         workspace_id: str,
         question: str,
         writeback: str = "no",
@@ -553,7 +584,8 @@ def create_agent_server() -> FastMCP:
     ) -> Any:
         """Query one registered HKS workspace."""
         try:
-            return core.hks_workspace_query(
+            return await run_core(
+                core.hks_workspace_query,
                 workspace_id=workspace_id,
                 question=question,
                 writeback=writeback,
@@ -563,7 +595,7 @@ def create_agent_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_workspace_ingest_session_memory(
+    async def hks_workspace_ingest_session_memory(
         workspace_id: str,
         path: str,
         project_root: str | None = None,
@@ -571,7 +603,8 @@ def create_agent_server() -> FastMCP:
     ) -> Any:
         """Ingest session2memory export artifacts for one workspace."""
         try:
-            return core.hks_workspace_ingest_session_memory(
+            return await run_core(
+                core.hks_workspace_ingest_session_memory,
                 workspace_id=workspace_id,
                 path=path,
                 project_root=project_root,
@@ -581,7 +614,7 @@ def create_agent_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_session_memory_summary(
+    async def hks_session_memory_summary(
         workspace_id: str,
         date_from: str,
         date_to: str,
@@ -589,7 +622,8 @@ def create_agent_server() -> FastMCP:
     ) -> Any:
         """Return a structured session-memory summary for a date range."""
         try:
-            return core.hks_session_memory_summary(
+            return await run_core(
+                core.hks_session_memory_summary,
                 workspace_id=workspace_id,
                 date_from=date_from,
                 date_to=date_to,
@@ -599,7 +633,7 @@ def create_agent_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_source_list(
+    async def hks_source_list(
         workspace_id: str,
         format: str | None = None,
         relpath_query: str | None = None,
@@ -609,7 +643,8 @@ def create_agent_server() -> FastMCP:
     ) -> Any:
         """List manifest-derived sources for one workspace."""
         try:
-            return core.hks_workspace_source_list(
+            return await run_core(
+                core.hks_workspace_source_list,
                 workspace_id=workspace_id,
                 format=format,
                 relpath_query=relpath_query,
@@ -621,14 +656,15 @@ def create_agent_server() -> FastMCP:
             return _error_result(error)
 
     @server.tool()
-    def hks_source_show(
+    async def hks_source_show(
         workspace_id: str,
         relpath: str,
         registry_path: str | None = None,
     ) -> Any:
         """Show one manifest source for a workspace."""
         try:
-            return core.hks_workspace_source_show(
+            return await run_core(
+                core.hks_workspace_source_show,
                 workspace_id=workspace_id,
                 relpath=relpath,
                 registry_path=registry_path,
