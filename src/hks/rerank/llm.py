@@ -18,7 +18,7 @@ def llm_rerank(
     candidates: list[Candidate],
 ) -> tuple[list[Candidate], dict[str, object]]:
     if not hosted_provider_ready("openai"):
-        return rrf_rerank(candidates), {
+        return rrf_rerank(candidates, question=question), {
             "strategy": "rrf",
             "status": "fallback",
             "fallback_strategy": "rrf",
@@ -26,7 +26,7 @@ def llm_rerank(
         }
     api_key = config_value("HKS_LLM_PROVIDER_OPENAI_API_KEY") or config_value("OPENAI_API_KEY")
     if not api_key:
-        return rrf_rerank(candidates), {
+        return rrf_rerank(candidates, question=question), {
             "strategy": "rrf",
             "status": "fallback",
             "fallback_strategy": "rrf",
@@ -88,7 +88,7 @@ def llm_rerank(
         ranked.extend(candidates[len(capped) :])
         return ranked, {"strategy": "llm", "status": "success"}
     except Exception as exc:
-        return rrf_rerank(candidates), {
+        return rrf_rerank(candidates, question=question), {
             "strategy": "llm",
             "status": "fallback",
             "fallback_strategy": "rrf",
@@ -123,5 +123,5 @@ def rerank_candidates(
         if detail.get("status") == "fallback":
             return ranked, "rrf-fallback", detail
         return ranked, "llm-rerank", detail
-    ranked = rrf_rerank(candidates)
+    ranked = rrf_rerank(candidates, question=question)
     return ranked, "rrf", {"strategy": "rrf", "status": "primary"}
