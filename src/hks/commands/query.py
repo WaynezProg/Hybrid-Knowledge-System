@@ -31,7 +31,11 @@ from hks.retrievers.vector import collect_vector_candidates
 from hks.retrievers.wiki import collect_wiki_candidates
 from hks.routing.router import route as route_query
 from hks.routing.rules import load_rules
-from hks.routing.session_memory import analyze_session_memory_intent
+from hks.routing.session_memory import (
+    SessionMemoryIntent,
+    analyze_session_memory_intent,
+    metadata_matches_session_intent,
+)
 from hks.storage.vector import VectorStore
 from hks.storage.wiki import EventStatus, LogEntry, WikiPage, WikiStore
 from hks.writeback.gate import WritebackFlag, decide
@@ -148,6 +152,14 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
     decision = route_query(question, rule_set)
     steps = list(decision.steps)
     session_intent = analyze_session_memory_intent(question)
+    if session_intent is not None and not any(
+        metadata_matches_session_intent(
+            {**entry.metadata, "source_relpath": entry.relpath}, SessionMemoryIntent()
+        )
+        for entry in manifest.entries.values()
+    ):
+        # Dates in ordinary documents are not session-memory constraints.
+        session_intent = None
     wiki_store = WikiStore(paths)
     graph_store = GraphStore(paths)
     vector_store = VectorStore(paths)
@@ -312,6 +324,24 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
                 wiki_store=wiki_store,
                 assessment=assessment,
             )
+
+    if not all_candidates:
+        steps.append(
+            TraceStep(
+                kind="fallback",
+                detail={
+                    "status": "no-hit",
+                    "reason": "session_memory_no_match",
+                    "intent": session_intent.to_detail() if session_intent else {},
+                },
+            )
+        )
+        return _maybe_enqueue(
+            question=question,
+            response=_build_no_hit_response(decision.route, steps),
+            writeback=writeback,
+            wiki_store=wiki_store,
+        )
 
     # A question that names a specific thing (a ticket, a version, a file) is answered only
     # by content that mentions it. Related content about another ticket is not an answer.
@@ -483,9 +513,7 @@ def _maybe_enqueue(
         # decision somebody made, so it is still logged.
         if writeback != "no" and decision.status == "declined":
             _append_writeback_log(wiki_store, question, response, "declined")
-        response.trace.steps.append(
-            TraceStep(kind="writeback", detail={"status": decision.status})
-        )
+        response.trace.steps.append(TraceStep(kind="writeback", detail={"status": decision.status}))
         return response
 
     try:

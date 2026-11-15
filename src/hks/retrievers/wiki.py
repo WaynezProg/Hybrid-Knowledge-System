@@ -80,7 +80,9 @@ def wiki_page_relevance(question: str, page: WikiPage, pages: list[WikiPage]) ->
     present = set(lexical_tokens(_page_text(page)))
     whole = set(lexical_tokens(asked))
     relevance = _coverage(subject, present, document_sets)
-    if whole != subject:
+    # Answer-kind words can improve a genuine subject match; sharing only "summary"
+    # cannot make a document about another project relevant.
+    if whole != subject and relevance > 0.0:
         relevance = max(relevance, _coverage(whole, present, document_sets))
     return relevance
 
@@ -128,6 +130,18 @@ def collect_wiki_candidates(
     relevance: float | None = None
     if page is not None:
         relevance = wiki_page_relevance(question, page, pages)
+        if relevance == 0.0:
+            # The title may have won only on "summary". Let subject-bearing pages
+            # compete before giving up, reusing the already loaded corpus.
+            subject = set(lexical_tokens(_without_answer_kind_words(question.lower())))
+            relevant_pages = [
+                one for one in pages if subject & set(lexical_tokens(_page_text(one)))
+            ]
+            if relevant_pages:
+                alternative = wiki_store.search(question, pages=relevant_pages)
+                if alternative is not None:
+                    page = alternative
+                    relevance = wiki_page_relevance(question, page, pages)
         if relevance is not None:
             relevance = round(relevance, 4)
         # Not one term of the question is in the page: the page search matched a

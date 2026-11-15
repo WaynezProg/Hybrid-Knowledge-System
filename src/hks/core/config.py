@@ -73,7 +73,21 @@ def env_config_path() -> Path:
     configured = os.environ.get(ENV_CONFIG_ENV)
     if configured:
         return Path(configured).expanduser().resolve(strict=False)
-    return repo_root() / "config" / "hks.env"
+    return _default_config_dir() / "hks.env"
+
+
+def _default_config_dir() -> Path:
+    """Select one config directory; never mix project YAML with user secrets."""
+    local = repo_root() / "config"
+    if (
+        os.environ.get("HKS_REPO_ROOT")
+        or os.environ.get(ENV_CONFIG_FILE)
+        or os.environ.get(ENV_CONFIG_ENV)
+        or any((local / name).exists() for name in ("hks.env", "hks.yaml", "hks.json"))
+    ):
+        return local
+    base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config").expanduser()
+    return base / "hks"
 
 
 def structured_config_paths() -> tuple[Path, ...]:
@@ -81,8 +95,8 @@ def structured_config_paths() -> tuple[Path, ...]:
     if configured:
         return (Path(configured).expanduser().resolve(strict=False),)
 
-    root = repo_root()
-    return (root / "config" / "hks.yaml", root / "config" / "hks.json")
+    directory = _default_config_dir()
+    return (directory / "hks.yaml", directory / "hks.json")
 
 
 def _read_env_file(path: Path) -> dict[str, str]:
@@ -104,7 +118,7 @@ def _read_env_file(path: Path) -> dict[str, str]:
                 continue
             key, value = part.split("=", 1)
             if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", key):
-                values[key] = _expand_config_string(value)
+                values[key] = _expand_config_string(value, config_path=path)
     return values
 
 
@@ -145,7 +159,7 @@ def _nested_get(payload: Mapping[str, Any], path: Iterable[str]) -> Any | None:
     return current
 
 
-def _coerce_config_value(value: Any) -> str | None:
+def _coerce_config_value(value: Any, *, config_path: Path | None = None) -> str | None:
     if value is None:
         return None
     if isinstance(value, bool):
@@ -154,11 +168,18 @@ def _coerce_config_value(value: Any) -> str | None:
         return str(value)
     if isinstance(value, list | tuple):
         return "+".join(str(item) for item in value)
-    return _expand_config_string(str(value))
+    return _expand_config_string(str(value), config_path=config_path)
 
 
-def _expand_config_string(value: str) -> str:
-    root = str(repo_root())
+def _expand_config_string(value: str, *, config_path: Path | None = None) -> str:
+    root_path = repo_root()
+    if config_path is not None and not os.environ.get("HKS_REPO_ROOT"):
+        # User config may symlink the repository's canonical config. Resolve its root
+        # from that file, not the unrelated cwd from which the CLI was launched.
+        parent = config_path.resolve().parent
+        if parent.name == "config" and (parent.parent / "src" / "hks").is_dir():
+            root_path = parent.parent
+    root = str(root_path)
     expanded = value.replace("${HKS_REPO_ROOT}", root).replace("$HKS_REPO_ROOT", root)
     return os.path.expandvars(os.path.expanduser(expanded))
 
@@ -168,16 +189,18 @@ def _structured_value(name: str) -> str | None:
     if not payload:
         return None
 
+    config_path = next((p for p in structured_config_paths() if p.exists()), None)
+
     path = _KNOWN_ENV_PATHS.get(name)
     if path is not None:
-        return _coerce_config_value(_nested_get(payload, path))
+        return _coerce_config_value(_nested_get(payload, path), config_path=config_path)
 
     match = re.fullmatch(r"HKS_LLM_PROVIDER_([A-Z0-9_]+)_(API_KEY|ENDPOINT)", name)
     if match:
         provider = match.group(1).lower().replace("_", "-")
         field = "api_key" if match.group(2) == "API_KEY" else "endpoint"
         value = _coerce_config_value(
-            _nested_get(payload, ("llm", "providers", provider, field))
+            _nested_get(payload, ("llm", "providers", provider, field)), config_path=config_path
         )
         if value is not None:
             return value
@@ -185,7 +208,7 @@ def _structured_value(name: str) -> str | None:
         # (endpoint is NOT shared — embedding and chat endpoints differ)
         if field == "api_key":
             return _coerce_config_value(
-                _nested_get(payload, ("embedding", provider, field))
+                _nested_get(payload, ("embedding", provider, field)), config_path=config_path
             )
         return None
 

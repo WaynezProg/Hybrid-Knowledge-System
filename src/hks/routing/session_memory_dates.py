@@ -87,6 +87,20 @@ def parse_session_memory_date_range(
     return None
 
 
+def without_date_range(question: str, *, today: date) -> str:
+    """Remove only a validated date span, retaining quantities and topic identifiers."""
+    for pattern, builder in (
+        (_FULL_RANGE_RE, _from_full_match),
+        (_SLASH_RANGE_RE, _from_slash_match),
+        (_MONTH_DAY_RANGE_RE, _from_month_day_match),
+        (_DAY_TILDE_RE, _from_day_tilde_match),
+    ):
+        match = pattern.search(question)
+        if match is not None and builder(match, today=today) is not None:
+            return question[: match.start()] + " " + question[match.end() :]
+    return question
+
+
 def _normalize_range(start: date, end: date) -> ParsedDateRange:
     swapped = start > end
     if swapped:
@@ -142,9 +156,7 @@ def _from_month_day_match(match: Match[str], *, today: date) -> ParsedDateRange 
     return _month_day_range(m1, int(match.group("d1")), m2, d2, today=today)
 
 
-def _month_day_range(
-    m1: int, d1: int, m2: int, d2: int, *, today: date
-) -> ParsedDateRange | None:
+def _month_day_range(m1: int, d1: int, m2: int, d2: int, *, today: date) -> ParsedDateRange | None:
     start = _safe_date(today.year, m1, d1)
     end = _safe_date(today.year, m2, d2)
     if start is None or end is None:

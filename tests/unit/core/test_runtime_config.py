@@ -125,3 +125,69 @@ def test_config_value_reads_json_values(
 
     assert config_value("HKS_EMBEDDING_MODEL") == "simple"
     assert config_value("HKS_WRITEBACK_AUTO_THRESHOLD") == "0.5"
+
+
+@pytest.fixture()
+def user_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    for key in (
+        "HKS_CONFIG_FILE",
+        "HKS_CONFIG_ENV",
+        "HKS_REPO_ROOT",
+        "KS_ROOT",
+        "HKS_WORKSPACE_REGISTRY",
+        "HKS_EMBEDDING_MODEL",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    directory = tmp_path / "user-config" / "hks"
+    directory.mkdir(parents=True)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(directory.parent))
+    cwd = tmp_path / "unrelated"
+    cwd.mkdir()
+    monkeypatch.chdir(cwd)
+    return directory
+
+
+def test_user_config_is_independent_of_cwd(user_config: Path, monkeypatch, tmp_path) -> None:
+    (user_config / "hks.yaml").write_text(
+        "runtime:\n  ks_root: /shared/ks\n  workspace_registry: /shared/workspaces.json\n"
+        "embedding:\n  model: openai:text-embedding-3-small\n"
+    )
+    from hks.workspace.registry import registry_path
+
+    for cwd in [tmp_path, tmp_path / "unrelated"]:
+        monkeypatch.chdir(cwd)
+        assert config_value("KS_ROOT") == "/shared/ks"
+        assert registry_path() == Path("/shared/workspaces.json")
+        assert config_value("HKS_EMBEDDING_MODEL") == "openai:text-embedding-3-small"
+
+
+def test_user_symlinks_resolve_repo_variables_from_config_target(user_config, tmp_path) -> None:
+    repo = tmp_path / "repo"
+    (repo / "src" / "hks").mkdir(parents=True)
+    (repo / "config").mkdir()
+    yaml = repo / "config" / "hks.yaml"
+    yaml.write_text('runtime:\n  ks_root: "${HKS_REPO_ROOT}/data"\n')
+    (user_config / "hks.yaml").symlink_to(yaml)
+    env = repo / "config" / "hks.env"
+    env.write_text('HKS_WORKSPACE_REGISTRY="${HKS_REPO_ROOT}/workspaces.json"\n')
+    (user_config / "hks.env").symlink_to(env)
+    assert config_value("KS_ROOT") == str(repo / "data")
+    assert config_value("HKS_WORKSPACE_REGISTRY") == str(repo / "workspaces.json")
+
+
+def test_project_config_does_not_mix_user_env(user_config, tmp_path, monkeypatch) -> None:
+    (user_config / "hks.env").write_text("KS_ROOT=/unexpected\n")
+    local = tmp_path / "unrelated" / "config"
+    local.mkdir()
+    (local / "hks.yaml").write_text("runtime:\n  ks_root: /project/ks\n")
+    assert config_value("KS_ROOT") == "/project/ks"
+    monkeypatch.setenv("KS_ROOT", "/explicit/ks")
+    assert config_value("KS_ROOT") == "/explicit/ks"
+
+
+@pytest.mark.parametrize("name", ["HKS_CONFIG_FILE", "HKS_CONFIG_ENV"])
+def test_explicit_missing_config_does_not_fall_back_to_user(user_config, monkeypatch, name) -> None:
+    (user_config / "hks.env").write_text("KS_ROOT=/unexpected\n")
+    (user_config / "hks.yaml").write_text("runtime:\n  ks_root: /unexpected\n")
+    monkeypatch.setenv(name, str(user_config / "missing.yaml"))
+    assert config_value("KS_ROOT") is None

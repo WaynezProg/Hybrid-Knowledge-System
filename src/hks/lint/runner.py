@@ -410,7 +410,10 @@ def _load_graphify_latest_error(paths: RuntimePaths) -> str | None:
     run_manifest = payload.get("run_manifest_path")
     if not isinstance(run_manifest, str) or not run_manifest:
         return "graphify latest pointer is missing run_manifest_path"
-    if not Path(run_manifest).exists():
+    manifest_path = Path(run_manifest)
+    if not manifest_path.is_absolute():
+        manifest_path = paths.root / manifest_path
+    if not manifest_path.is_file():
         return "graphify latest pointer references missing run manifest"
     return None
 
