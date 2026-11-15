@@ -148,3 +148,22 @@ def test_watch_scan_does_not_report_other_roots_as_missing(
 
     missing = sorted(source.relpath for source in sources if source.state == "missing")
     assert missing == ["gone.md"]
+
+
+@pytest.mark.integration
+def test_moved_source_root_takes_over_its_relpaths(tmp_path: Path, tmp_ks_root: Path) -> None:
+    old = tmp_path / "old"
+    new = tmp_path / "new"
+    _write(old / "same.md", "# Same\n\nUnchanged body.\n")
+    _write(old / "edit.md", "# Edit\n\nBefore the move.\n")
+    ingest(old)
+
+    old.rename(new)
+    _write(new / "edit.md", "# Edit\n\nAfter the move.\n")
+    moved = ingest(new)
+
+    assert moved.failures == []
+    assert moved.updated == ["edit.md"]
+    entries = load_manifest(tmp_ks_root / "manifest.json").entries
+    assert entries["same.md"].source_path == (new / "same.md").resolve().as_posix()
+    assert entries["edit.md"].source_path == (new / "edit.md").resolve().as_posix()

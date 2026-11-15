@@ -265,9 +265,12 @@ def ingest(
                 recorded is not None
                 and recorded.source_path is not None
                 and recorded.source_path != source_path
+                and Path(recorded.source_path).exists()
             ):
                 # Same relpath, different file (e.g. README.md from two source
                 # roots). Refuse rather than silently overwrite the other source.
+                # If the recorded file is gone, the source was moved or renamed:
+                # let this file take the relpath over instead of failing forever.
                 reason = "relpath_conflict"
                 summary.failures.append(IngestIssue(path=relpath, reason=reason, kind="failed"))
                 summary.files.append(
@@ -362,7 +365,7 @@ def ingest(
                 backend=backend,
                 vector_store=vector_store,
             ):
-                if existing.source_path is None:
+                if existing.source_path != source_path:
                     existing.source_path = source_path
                     backfilled_source_paths = True
                 reason = "hash unchanged"
