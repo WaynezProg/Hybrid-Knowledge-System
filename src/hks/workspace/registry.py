@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 from hks.core.config import config_value
@@ -66,3 +69,27 @@ def save_registry(registry: WorkspaceRegistry, path: str | Path | None = None) -
     ).to_dict()
     atomic_write(resolved, json.dumps(payload, ensure_ascii=False, indent=2))
     return resolved
+
+
+def registry_lock_path(path: str | Path | None = None) -> Path:
+    resolved = registry_path(path)
+    return resolved.with_name(f"{resolved.name}.lock")
+
+
+@contextmanager
+def registry_lock(path: str | Path | None = None) -> Iterator[Path]:
+    """Hold an exclusive, blocking lock on the registry's sidecar lock file.
+
+    Callers that load, modify and save the registry must hold this lock across
+    the whole read-modify-write so concurrent CLI / MCP / HTTP updates do not
+    drop each other's changes. Yields the resolved registry path.
+    """
+    resolved = registry_path(path)
+    lock_path = registry_lock_path(resolved)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield resolved
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)

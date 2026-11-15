@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Literal, cast
 
 from slugify import slugify
 
-from hks.core.manifest import utc_now_iso
+from hks.core.manifest import atomic_write, utc_now_iso
 from hks.core.paths import RuntimePaths, runtime_paths
 from hks.ingest.office_common import SkippedSegment
 
@@ -273,7 +273,7 @@ class WikiStore:
             updated_at=utc_now_iso(),
             metadata=dict(metadata or {}),
         )
-        (self.paths.wiki_pages / f"{slug}.md").write_text(page.to_markdown(), encoding="utf-8")
+        atomic_write(self.paths.wiki_pages / f"{slug}.md", page.to_markdown())
         self.rebuild_index()
         return page
 
@@ -307,7 +307,7 @@ class WikiStore:
         ]
         lines = ["# Wiki Index", ""] + entries if entries else ["# Wiki Index"]
         content = "\n".join(lines).strip()
-        self.index_path.write_text(f"{content}\n" if content else "", encoding="utf-8")
+        atomic_write(self.index_path, f"{content}\n" if content else "")
 
     def append_log(self, entry: LogEntry) -> None:
         self.ensure()

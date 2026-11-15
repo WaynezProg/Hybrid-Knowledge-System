@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import tempfile
 import zipfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -263,11 +265,37 @@ def compute_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def atomic_write(path: Path, content: str) -> None:
+# Read the process umask once at import time (single-threaded) so atomic_write
+# can give new files the same default permissions as a plain open() would.
+_UMASK = os.umask(0)
+os.umask(_UMASK)
+
+
+def atomic_write(path: Path, content: str | bytes) -> None:
+    """Atomically replace `path` with `content`.
+
+    Writes to a unique temp file in the same directory, fsyncs it, then
+    `os.replace`s it over the target, so concurrent writers never share a temp
+    file and readers never observe a partially written file. The temp file is
+    removed if anything fails before the replace.
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(f"{path.suffix}.tmp")
-    tmp_path.write_text(content, encoding="utf-8")
-    tmp_path.replace(path)
+    data = content.encode("utf-8") if isinstance(content, str) else content
+    try:
+        mode = path.stat().st_mode & 0o777
+    except FileNotFoundError:
+        mode = 0o666 & ~_UMASK
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(tmp_name, mode)
+        os.replace(tmp_name, path)
+    except BaseException:
+        Path(tmp_name).unlink(missing_ok=True)
+        raise
 
 
 def load_manifest(path: Path | None = None) -> Manifest:

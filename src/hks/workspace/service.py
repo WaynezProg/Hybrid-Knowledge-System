@@ -14,7 +14,7 @@ from hks.core.runtime_context import scoped_ks_root
 from hks.core.schema import QueryResponse
 from hks.errors import ExitCode, KSError
 from hks.workspace.models import WorkspaceRecord, WorkspaceRegistry, WorkspaceStatus
-from hks.workspace.registry import load_registry, registry_path, save_registry
+from hks.workspace.registry import load_registry, registry_lock, registry_path, save_registry
 from hks.workspace.validation import (
     resolve_workspace_root,
     shell_export_command,
@@ -153,30 +153,31 @@ def register_workspace(
 ) -> CatalogSummaryDetail:
     normalized_id = validate_workspace_id(workspace_id)
     root = resolve_workspace_root(ks_root)
-    registry = load_registry(registry_path_value)
-    now = utc_now_iso()
-    existing = registry.workspaces.get(normalized_id)
-    previous_root = existing.ks_root if existing else None
-    if existing is not None and existing.ks_root != root.as_posix() and not force:
-        raise KSError(
-            f"workspace `{normalized_id}` already points to another KS_ROOT",
-            exit_code=ExitCode.NOINPUT,
-            code="WORKSPACE_CONFLICT",
-            details=[f"existing: {existing.ks_root}", f"requested: {root.as_posix()}"],
-            hint="rerun with --force to replace the registered root",
+    with registry_lock(registry_path_value):
+        registry = load_registry(registry_path_value)
+        now = utc_now_iso()
+        existing = registry.workspaces.get(normalized_id)
+        previous_root = existing.ks_root if existing else None
+        if existing is not None and existing.ks_root != root.as_posix() and not force:
+            raise KSError(
+                f"workspace `{normalized_id}` already points to another KS_ROOT",
+                exit_code=ExitCode.NOINPUT,
+                code="WORKSPACE_CONFLICT",
+                details=[f"existing: {existing.ks_root}", f"requested: {root.as_posix()}"],
+                hint="rerun with --force to replace the registered root",
+            )
+        registry.workspaces[normalized_id] = WorkspaceRecord(
+            id=normalized_id,
+            label=label or (existing.label if existing else normalized_id),
+            ks_root=root.as_posix(),
+            created_at=existing.created_at if existing else now,
+            updated_at=now,
+            tags=sorted(set(tags or (existing.tags if existing else []))),
+            metadata=validate_metadata(
+                metadata if metadata is not None else (existing.metadata if existing else {})
+            ),
         )
-    registry.workspaces[normalized_id] = WorkspaceRecord(
-        id=normalized_id,
-        label=label or (existing.label if existing else normalized_id),
-        ks_root=root.as_posix(),
-        created_at=existing.created_at if existing else now,
-        updated_at=now,
-        tags=sorted(set(tags or (existing.tags if existing else []))),
-        metadata=validate_metadata(
-            metadata if metadata is not None else (existing.metadata if existing else {})
-        ),
-    )
-    path = save_registry(registry, registry_path_value)
+        path = save_registry(registry, registry_path_value)
     status = _workspace_status(registry.workspaces[normalized_id], duplicate=False)
     return CatalogSummaryDetail(
         operation="workspace.register",
@@ -197,15 +198,16 @@ def remove_workspace(
     registry_path_value: str | Path | None = None,
 ) -> CatalogSummaryDetail:
     normalized_id = validate_workspace_id(workspace_id)
-    registry = load_registry(registry_path_value)
-    record = registry.workspaces.pop(normalized_id, None)
-    if record is None:
-        raise KSError(
-            f"workspace `{normalized_id}` 不存在",
-            exit_code=ExitCode.NOINPUT,
-            code="WORKSPACE_NOT_FOUND",
-        )
-    path = save_registry(registry, registry_path_value)
+    with registry_lock(registry_path_value):
+        registry = load_registry(registry_path_value)
+        record = registry.workspaces.pop(normalized_id, None)
+        if record is None:
+            raise KSError(
+                f"workspace `{normalized_id}` 不存在",
+                exit_code=ExitCode.NOINPUT,
+                code="WORKSPACE_NOT_FOUND",
+            )
+        path = save_registry(registry, registry_path_value)
     return CatalogSummaryDetail(
         operation="workspace.remove",
         workspace_id=normalized_id,

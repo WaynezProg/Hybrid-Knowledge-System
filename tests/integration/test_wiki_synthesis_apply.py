@@ -82,3 +82,37 @@ def test_wiki_synthesis_apply_conflicts_with_ingest_page(cli_runner, working_doc
     payload = json.loads(result.stdout)
     assert payload["source"] == []
     assert payload["trace"]["steps"][0]["detail"]["apply_result"]["operation"] == "conflict"
+
+
+@pytest.mark.integration
+def test_wiki_synthesis_apply_holds_runtime_write_lock(
+    cli_runner,
+    working_docs,
+    tmp_ks_root,
+) -> None:
+    from hks.core.lock import acquire_lock
+
+    artifact_id = _stored_candidate_id(
+        cli_runner,
+        working_docs,
+        target_slug="project-atlas-locked",
+    )
+    handle = acquire_lock(tmp_ks_root / ".lock")
+    try:
+        locked = cli_runner.invoke(
+            app,
+            ["wiki", "synthesize", "--candidate-artifact-id", artifact_id, "--mode", "apply"],
+        )
+    finally:
+        handle.close()
+
+    assert locked.exit_code == 1
+    assert "LOCKED" in locked.stdout + (locked.stderr or "")
+    assert not (tmp_ks_root / "wiki" / "pages" / "project-atlas-locked.md").exists()
+
+    applied = cli_runner.invoke(
+        app,
+        ["wiki", "synthesize", "--candidate-artifact-id", artifact_id, "--mode", "apply"],
+    )
+    assert applied.exit_code == 0
+    assert (tmp_ks_root / "wiki" / "pages" / "project-atlas-locked.md").exists()
