@@ -132,8 +132,16 @@ Write-back 模式：
 uv run ks source list                         # 列出已 ingest 的 source
 uv run ks source show project-atlas.txt       # 單筆 source 詳情
 
-# 多 workspace 管理
-export HKS_WORKSPACE_REGISTRY="$PWD/.hks-runs/workspaces.json"
+# 多 workspace 管理（-w flag）
+uv run ks ingest sources/atlas -w atlas              # 自動建立 .hks-runs/atlas/ks 並 ingest
+uv run ks source list -w atlas                       # 只顯示 atlas workspace 的 sources
+uv run ks query "風險有哪些？" -w atlas --writeback=no  # 只搜尋 atlas workspace
+uv run ks graphify build -w atlas --mode store        # 從 atlas workspace 產生 Graphify HTML
+
+# frontmatter 自動分流（適用 session2memory 匯出）
+uv run ks ingest session-exports/ --workspace-route   # 依 markdown frontmatter workspace_id 自動分流
+
+# 手動 register（不使用 -w 自動 register）
 uv run ks workspace register atlas --ks-root "$PWD/.hks-runs/atlas/ks" --label "Atlas"
 uv run ks workspace query atlas "風險有哪些？" --writeback=no
 ```
@@ -146,12 +154,15 @@ project/
     atlas/
     borealis/
   .hks-runs/
-    atlas/ks/
-    borealis/ks/
-    workspaces.json
+    atlas/ks/          ← workspace "atlas" 的 KS_ROOT
+    borealis/ks/       ← workspace "borealis" 的 KS_ROOT
+    workspaces.json    ← workspace registry（自動建立）
 ```
 
+Registry 搜尋順序：`HKS_WORKSPACE_REGISTRY` env → `<cwd>/.hks-runs/workspaces.json` → `$XDG_CONFIG_HOME/hks/workspaces.json` → `~/.config/hks/workspaces.json`。
+
 ```bash
+# 也可用環境變數手動管理
 export HKS_WORKSPACE_REGISTRY="$PWD/.hks-runs/workspaces.json"
 KS_ROOT="$PWD/.hks-runs/atlas/ks" uv run ks ingest "$PWD/sources/atlas"
 KS_ROOT="$PWD/.hks-runs/borealis/ks" uv run ks ingest "$PWD/sources/borealis"
@@ -159,7 +170,7 @@ uv run ks workspace register atlas --ks-root "$PWD/.hks-runs/atlas/ks" --label "
 uv run ks workspace register borealis --ks-root "$PWD/.hks-runs/borealis/ks" --label "Borealis" --force
 ```
 
-`ks workspace use <id>` 只回傳 shell-safe `export KS_ROOT=...`，不會改 parent shell；agent automation 建議直接用 `ks workspace query <id> ...`。
+`ks workspace use <id>` 只回傳 shell-safe `export KS_ROOT=...`，不會改 parent shell；agent automation 建議直接用 `-w` flag 或 `ks workspace query <id> ...`。
 
 ### PageIndex
 
@@ -190,9 +201,13 @@ uv run ks wiki synthesize --source-relpath project-atlas.txt \
 
 ```bash
 uv run ks graphify build --mode store --provider fake | jq .
+uv run ks graphify build -w atlas --mode store          # workspace-scoped
+uv run ks graphify build --include-artifacts             # 含 source/wiki_page/Document 節點
 ```
 
 從 wiki / graph 產生 derived knowledge graph、communities、互動式 HTML 儀表板、Markdown report。寫入 `$KS_ROOT/graphify/runs/`，不改 authoritative layers。
+
+預設僅顯示 domain graph（Person/Project/Event/Concept/Decision/Constraint/Risk/Milestone），排除 storage artifact 節點（source/wiki\_page/Document）。加 `--include-artifacts` 可顯示完整 3 層圖。
 
 ### Watch / Refresh
 

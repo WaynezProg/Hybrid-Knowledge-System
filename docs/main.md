@@ -245,6 +245,14 @@ Source / route 語意對照：
 * `Document`
 * `Event`
 * `Concept`
+* `Decision`
+* `Constraint`
+* `Risk`
+* `Milestone`
+
+> **Domain vs artifact 節點**：`Document` type 用於追蹤來源文件 provenance，不屬於 domain graph。  
+> Graph query 與 Graphify HTML 預設只顯示 domain 節點（排除 `Document` type）。  
+> `ks graphify build --include-artifacts` 可顯示完整 3 層圖（source → wiki_page → entity）。
 
 ### Relations
 
@@ -315,7 +323,28 @@ graph persistence 位於 `/ks/graph/graph.json`。
 `llm/extractions/*.json` 存 008 extraction candidate artifact；`llm/wiki-candidates/*.json` 存 009 wiki synthesis candidate artifact。兩者都不是 authoritative wiki / graph / vector / page_tree state；只有 `ks wiki synthesize --mode apply` 成功後寫入的 `origin=llm_wiki` page 才是 applied wiki state。
 `page_trees/*.json` 存 013 PageIndex-style tree。Rule-based tree 由 ingest 建立；`ks pageindex enrich --mode store` 可用 LLM summary 覆寫 tree artifact，但不修改 wiki / graph / vector。Markdown ingest 會保留 `hks_type`、`date`、`source_domain`、`generator` 到 wiki / page_tree / vector / manifest metadata；session2memory daily entry 會額外保留 `workspace_id`、`memory_kind`、`tool`、`session_id`、`evidence_id`、`date` 到 chunk metadata。
 
-Workspace registry 不屬於任何單一 `$KS_ROOT`，預設位於使用者 config path，可用 `HKS_WORKSPACE_REGISTRY` 指向 explicit JSON。Registry 只保存 workspace id 到 `KS_ROOT` 的 mapping；不修改任何 registered runtime 的 `wiki / graph / vector / page_tree / manifest`。
+Workspace registry 不屬於任何單一 `$KS_ROOT`，預設搜尋順序為：
+
+1. `HKS_WORKSPACE_REGISTRY` 環境變數（explicit JSON path）
+2. `<cwd>/.hks-runs/workspaces.json`（project-local，優先）
+3. `$XDG_CONFIG_HOME/hks/workspaces.json`
+4. `~/.config/hks/workspaces.json`（fallback）
+
+Registry 只保存 workspace id 到 `KS_ROOT` 的 mapping；不修改任何 registered runtime 的 `wiki / graph / vector / page_tree / manifest`。
+
+### Workspace isolation
+
+每個 workspace 擁有獨立 `KS_ROOT`，預設路徑為 `.hks-runs/<workspace-id>/ks`。CLI 命令透過 `-w`/`--workspace` flag 指定 workspace，runtime 使用 `scoped_ks_root()` 切換 context：
+
+```bash
+ks ingest <path> -w my-project            # ingest 到 .hks-runs/my-project/ks
+ks source list -w my-project              # 只顯示該 workspace 的 sources
+ks query "..." -w my-project              # 只搜尋該 workspace 的知識
+ks graphify build -w my-project           # 從該 workspace 產生 HTML
+ks ingest <path> --workspace-route        # 依 frontmatter workspace_id 自動分流
+```
+
+`--workspace-route` 讀取 markdown frontmatter 中的 `workspace_id` field，自動建立 workspace 並分流 ingest。沒有 `workspace_id` 的檔案 ingest 到全域 `KS_ROOT`。
 
 ---
 

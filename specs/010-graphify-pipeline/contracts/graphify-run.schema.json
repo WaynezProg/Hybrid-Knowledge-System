@@ -23,6 +23,7 @@
         "model_id": { "type": "string", "minLength": 1 },
         "include_html": { "type": "boolean" },
         "include_report": { "type": "boolean" },
+        "include_artifacts": { "type": "boolean" },
         "force_new_run": { "type": "boolean" },
         "requested_by": { "type": ["string", "null"], "minLength": 1 }
       }

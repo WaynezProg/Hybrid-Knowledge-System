@@ -33,18 +33,32 @@ def answer_query(question: str, graph_store: GraphStore | None = None) -> GraphQ
     if not payload.edges:
         return None
 
+    # Filter out Document-type nodes and edges touching them — only
+    # domain nodes (Concept, Event, Person, …) should participate in query.
+    domain_nodes = {
+        nid: node for nid, node in payload.nodes.items() if node.type != "Document"
+    }
+    domain_edges = {
+        eid: edge
+        for eid, edge in payload.edges.items()
+        if edge.source in domain_nodes and edge.target in domain_nodes
+    }
+    filtered = GraphPayload(version=payload.version, nodes=domain_nodes, edges=domain_edges)
+    if not filtered.edges:
+        return None
+
     desired_relations = _desired_relations(question)
     if not desired_relations:
         return None
-    mentions = _mentions(question, payload)
-    node_scores = _score_nodes(question, payload, mentions)
-    edge_scores = _score_edges(question, payload, node_scores, desired_relations)
+    mentions = _mentions(question, filtered)
+    node_scores = _score_nodes(question, filtered, mentions)
+    edge_scores = _score_edges(question, filtered, node_scores, desired_relations)
 
     # An edge answers the question only if it is of an asked relation and the question
     # names one of its ends; the relation word alone matches every edge of that kind.
     named = {
         edge_id: max(mentions.get(edge.source, 0), mentions.get(edge.target, 0))
-        for edge_id, edge in payload.edges.items()
+        for edge_id, edge in filtered.edges.items()
         if edge.relation in desired_relations
     }
     best = max(named.values(), default=0)
@@ -57,9 +71,9 @@ def answer_query(question: str, graph_store: GraphStore | None = None) -> GraphQ
         key=lambda edge_id: edge_scores.get(edge_id, 0.0),
         reverse=True,
     )
-    top_edges = [payload.edges[edge_id] for edge_id in ranked[:3]]
+    top_edges = [filtered.edges[edge_id] for edge_id in ranked[:3]]
 
-    answer = _render_answer(question, payload, top_edges)
+    answer = _render_answer(question, filtered, top_edges)
     relpaths = sorted({edge.source_relpath for edge in top_edges})
     node_ids = sorted({edge.source for edge in top_edges} | {edge.target for edge in top_edges})
     relations = sorted({edge.relation for edge in top_edges})

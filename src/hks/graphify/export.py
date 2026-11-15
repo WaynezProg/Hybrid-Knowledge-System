@@ -49,6 +49,13 @@ def render_html(graph: GraphifyGraph) -> str:
       --color-concept: #fcd34d;
       --color-artifact: #f0788a;
       --color-community: #c4a6ff;
+      --color-person: #60a5fa;
+      --color-project: #34d399;
+      --color-event: #fb923c;
+      --color-decision: #a78bfa;
+      --color-constraint: #f87171;
+      --color-risk: #fbbf24;
+      --color-milestone: #2dd4bf;
       --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang TC", "Microsoft JhengHei", sans-serif;
       --mono: "SFMono-Regular", "SF Mono", Menlo, Consolas, ui-monospace, monospace;
       --serif: Georgia, "Times New Roman", "Songti TC", serif;
@@ -828,7 +835,14 @@ def render_html(graph: GraphifyGraph) -> str:
       entity: '#b794f6',
       concept: '#fcd34d',
       artifact: '#f0788a',
-      community: '#c4a6ff'
+      community: '#c4a6ff',
+      person: '#60a5fa',
+      project: '#34d399',
+      event: '#fb923c',
+      decision: '#a78bfa',
+      constraint: '#f87171',
+      risk: '#fbbf24',
+      milestone: '#2dd4bf'
     };
 
     const kindLabels = {
@@ -836,7 +850,14 @@ def render_html(graph: GraphifyGraph) -> str:
       wiki_page: 'Wiki 頁面',
       entity: '實體',
       concept: '概念',
-      artifact: '產物'
+      artifact: '產物',
+      person: '人物',
+      project: '專案',
+      event: '事件',
+      decision: '決策',
+      constraint: '限制',
+      risk: '風險',
+      milestone: '里程碑'
     };
 
     const evidenceLabels = {
