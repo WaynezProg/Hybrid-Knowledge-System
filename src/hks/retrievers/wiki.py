@@ -11,6 +11,7 @@ from hks.retrieval.bm25 import lexical_tokens
 from hks.retrieval.evidence import evidence_quote
 from hks.retrieval.language import has_subject_constraints, satisfies_subject
 from hks.retrieval.models import Candidate
+from hks.retrieval.subjects import query_subject_text
 from hks.retrievers.vector import best_vector_passage
 from hks.routing.rules import load_rules
 from hks.storage.wiki import WikiPage, WikiStore
@@ -19,33 +20,6 @@ _INTENT_KEYWORDS = ("summary", "overview", "摘要", "總結", "重點", "說明
 # A page that passes keeps at least this share of the route's score; the rest follows how
 # much of the question it holds.
 _RELEVANCE_FLOOR = 0.7
-
-# Words that give a question its shape and say nothing about its subject. A page that
-# shares only these with the question is not about it: "When is the Atlas migration
-# scheduled" and a page titled "What risk does the Bolt cache have" share "the";
-# 「Atlas 遷移做了什麼」 and 「Bolt 快取做了什麼」 share 「做了什麼」. Pages approved from the
-# write-back queue are titled with the question that produced them, so they hold such
-# words more than ingested pages do.
-_QUESTION_WORDS_EN = frozenset(
-    """
-    an the is are was were be been am do does did has have had what when where which who
-    whom whose why how of to in on at for from by with about as and or but if it its this
-    that these those there their they we you my our your me us can could should would will
-    shall may might not no any some all so than then
-    """.split()
-)
-_QUESTION_PHRASES_ZH = tuple(
-    sorted(
-        """
-        為什麼 为什么 做了什麼 做了什么 是什麼 是什么 有什麼 有什么 什麼時候 什么时候 什麼 什么
-        做了 有哪些 哪些 哪個 哪个 哪裡 哪里 如何 怎麼 怎么 怎樣 怎样 是否 是誰 是谁 多少 幾個
-        几个 有沒有 有没有 請問 请问 嗎 吗 呢
-        """.split(),
-        key=len,
-        reverse=True,
-    )
-)
-_ACRONYM_RE = re.compile(r"(?<![A-Za-z0-9])[A-Z]{2,}(?![A-Za-z0-9])")
 
 
 def has_wiki_secondary_intent(question: str) -> bool:
@@ -120,13 +94,7 @@ def subject_terms(question: str) -> set[str]:
     """The question's terms without its question words. A word written in capitals ("IT",
     "US") is a name, not a question word. Words that ask for a kind of answer ("summary")
     stay: a page titled "architecture summary" is a fair answer to "summary ..." (024)."""
-    lowered = question.lower()
-    for phrase in _QUESTION_PHRASES_ZH:
-        lowered = lowered.replace(phrase, " ")
-    names = {word.lower() for word in _ACRONYM_RE.findall(question)}
-    return {
-        term for term in lexical_tokens(lowered) if term not in _QUESTION_WORDS_EN or term in names
-    }
+    return set(lexical_tokens(query_subject_text(question)))
 
 
 def shares_subject(question: str, page: WikiPage) -> bool:

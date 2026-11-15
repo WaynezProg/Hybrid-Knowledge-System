@@ -67,7 +67,7 @@ def test_query_relation_uses_graph(cli_runner, ingested_runtime) -> None:
 
 @pytest.mark.integration
 @pytest.mark.us2
-def test_query_graph_miss_uses_secondary_wiki(
+def test_query_graph_miss_uses_secondary_evidence_that_covers_the_question(
     cli_runner, ingested_runtime, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setattr(graph_retriever, "answer_query", lambda *_args, **_kwargs: None)
@@ -76,8 +76,16 @@ def test_query_graph_miss_uses_secondary_wiki(
 
     assert result.exit_code == 0
     payload = json.loads(result.stdout)
-    assert payload["trace"]["route"] == "wiki"
-    assert payload["source"] == ["wiki"]
+    # The wiki overview is available, but the risk register actually explains
+    # the asked impact. Route labels alone must not outrank that evidence.
+    assert payload["trace"]["route"] == "vector"
+    assert payload["source"] == ["vector"]
+    assert payload["evidence"][0]["source_relpath"] == "risk-register.md"
+    assert "Atlas" in payload["answer"] and "影響" in payload["answer"]
+    assert any(
+        step["kind"] == "wiki_lookup" and step["detail"]["hit"] is True
+        for step in payload["trace"]["steps"]
+    )
     assert any(
         step["kind"] == "graph_lookup" and step["detail"] == {"hit": False}
         for step in payload["trace"]["steps"]

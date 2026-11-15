@@ -8,6 +8,7 @@ from collections import Counter
 from collections.abc import Sequence
 
 from hks.retrieval.language import normalize
+from hks.retrieval.subjects import query_subject_text
 
 _K1 = 1.2
 _B = 0.75
@@ -167,7 +168,8 @@ class CoverageScorer:
         for match in _QUESTION_COMPOUND_RE.finditer(lowered):
             pieces = [match.group(1), *re.split(r"[-_]", match.group(2))]
             codes[_compound(match)] = max(1, sum(len(piece) >= 2 for piece in pieces))
-        terms = set(lexical_tokens(_QUESTION_COMPOUND_RE.sub(" ", lowered)))
+        subject = re.sub(_QUESTION_COMPOUND_RE.pattern, " ", query, flags=re.IGNORECASE)
+        terms = set(lexical_tokens(query_subject_text(subject)))
         total = len(documents)
         term_count = dict.fromkeys(terms, 0)
         code_count = dict.fromkeys(codes, 0)
