@@ -12,6 +12,11 @@
     "skipped": { "type": "array", "items": { "$ref": "#/$defs/issue" } },
     "failures": { "type": "array", "items": { "$ref": "#/$defs/issue" } },
     "pruned": { "type": "array", "items": { "type": "string" } },
+    "pruned_writeback_pages": {
+      "description": "019：因引用的 source 被移除而一併刪除的 writeback wiki pages（`pages/<slug>.md`）。",
+      "type": "array",
+      "items": { "type": "string" }
+    },
     "files": {
       "type": "array",
       "items": { "$ref": "#/$defs/fileReport" }

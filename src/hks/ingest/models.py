@@ -61,6 +61,8 @@ class IngestSummary:
     skipped: list[IngestIssue] = field(default_factory=list)
     failures: list[IngestIssue] = field(default_factory=list)
     pruned: list[str] = field(default_factory=list)
+    # Writeback wiki pages removed because the source they cite was removed.
+    pruned_writeback_pages: list[str] = field(default_factory=list)
     files: list[IngestFileReport] = field(default_factory=list)
 
     @property
