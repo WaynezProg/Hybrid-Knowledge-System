@@ -502,10 +502,6 @@ components:
             type: object
         retrieval_score:
           type: number
-        calibrated_confidence:
-          type: number
-          minimum: 0
-          maximum: 1
         writeback_eligible:
           type: boolean
         trace:

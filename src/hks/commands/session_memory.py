@@ -126,6 +126,5 @@ def run_summary(
         trace=Trace(route=summary.source_route, steps=steps),
         evidence=evidence,
         retrieval_score=summary.score,
-        calibrated_confidence=summary.score,
         writeback_eligible=False,
     )

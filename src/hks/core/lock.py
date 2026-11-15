@@ -35,3 +35,20 @@ def file_lock(path: Path) -> Iterator[None]:
     finally:
         fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
         handle.close()
+
+
+@contextmanager
+def blocking_file_lock(path: Path) -> Iterator[None]:
+    """Hold an exclusive lock on `path`, waiting for the current holder to release it.
+
+    Unlike `file_lock`, a second caller (another thread or process) blocks instead of
+    failing with `LOCKED`, so it is meant for short critical sections only.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("w", encoding="utf-8")
+    try:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()

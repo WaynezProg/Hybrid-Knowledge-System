@@ -102,7 +102,7 @@ def test_coverage_weights_rare_terms_more() -> None:
 def test_lexical_answers_are_never_written_back_on_their_own() -> None:
     evidence = [{"source_relpath": "1.md", "route": "lexical", "quote": "ticket ERR-4012"}]
     high = assess(route="lexical", raw_score=0.85, evidence=evidence)
-    assert not high.writeback_eligible and high.calibrated_confidence == 0.85
+    assert not high.writeback_eligible and high.confidence == 0.85
     assert "lexical" in high.reasons[0]
 
 

@@ -24,6 +24,7 @@ from hks.commands import update as update_command
 from hks.commands import watch as watch_command
 from hks.commands import wiki as wiki_command
 from hks.commands import workspace as workspace_command
+from hks.commands import writeback as writeback_command
 from hks.core.schema import QueryResponse, Route, build_error_response
 from hks.errors import ExitCode, KSError
 from hks.lint.models import FixMode, SeverityThreshold
@@ -42,6 +43,7 @@ pageindex_app = typer.Typer(add_completion=False, no_args_is_help=True)
 source_app = typer.Typer(add_completion=False, no_args_is_help=True)
 session_memory_app = typer.Typer(add_completion=False, no_args_is_help=True)
 workspace_app = typer.Typer(add_completion=False, no_args_is_help=True)
+writeback_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_session_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_lease_app = typer.Typer(add_completion=False, no_args_is_help=True)
 coord_handoff_app = typer.Typer(add_completion=False, no_args_is_help=True)
@@ -57,6 +59,7 @@ app.add_typer(pageindex_app, name="pageindex")
 app.add_typer(source_app, name="source")
 app.add_typer(session_memory_app, name="session-memory")
 app.add_typer(workspace_app, name="workspace")
+app.add_typer(writeback_app, name="writeback")
 
 
 class WritebackMode(StrEnum):
@@ -278,7 +281,11 @@ def query(
         typer.Option(
             "--writeback",
             case_sensitive=False,
-            help="Override write-back behavior.",
+            help=(
+                "Send the answer to the write-back review queue: no (default), "
+                "auto (only when eligible), yes (any hit), ask (prompt on a TTY). "
+                "Nothing is written to the wiki until `ks writeback approve`."
+            ),
         ),
     ] = WritebackMode.no,
     workspace: Annotated[
@@ -410,6 +417,120 @@ def source_show(
         record, _ = get_workspace(workspace, registry_path_value=registry_path_opt)
         resolved_root = Path(record.ks_root)
     run_command("source show", source_command.run_show, relpath, ks_root=resolved_root)
+
+
+_WritebackItemId = Annotated[str, typer.Argument(help="Pending writeback queue item id.")]
+_WritebackKsRoot = Annotated[
+    Path | None,
+    typer.Option("--ks-root", help="Explicit HKS runtime root."),
+]
+_WritebackWorkspace = Annotated[
+    str | None,
+    typer.Option("-w", "--workspace", help="Workspace id — use its KS_ROOT."),
+]
+_WritebackRegistryPath = Annotated[
+    Path | None,
+    typer.Option("--registry-path", help="Explicit workspace registry path."),
+]
+
+
+def _run_writeback(
+    command: str,
+    handler: Callable[..., QueryResponse],
+    *args: object,
+    ks_root: Path | None,
+    workspace: str | None,
+    registry_path: Path | None,
+) -> None:
+    """Run a queue command against the runtime that `--ks-root` / `-w` names, else the
+    default one. The queue lives under the KS root, so the scope picks the queue."""
+
+    def scoped() -> QueryResponse:
+        from contextlib import nullcontext
+
+        from hks.core.runtime_context import scoped_ks_root
+        from hks.workspace.service import get_workspace
+
+        root: Path | str | None = ks_root
+        if workspace:
+            if ks_root is not None:
+                raise KSError(
+                    "-w and --ks-root are mutually exclusive",
+                    exit_code=ExitCode.USAGE,
+                    code="USAGE",
+                )
+            record, _ = get_workspace(workspace, registry_path_value=registry_path)
+            root = record.ks_root
+        with scoped_ks_root(root) if root is not None else nullcontext():
+            return handler(*args)
+
+    run_command(command, scoped)
+
+
+@writeback_app.command("list")
+def writeback_list(
+    ks_root: _WritebackKsRoot = None,
+    workspace: _WritebackWorkspace = None,
+    registry_path_opt: _WritebackRegistryPath = None,
+) -> None:
+    _run_writeback(
+        "writeback list",
+        writeback_command.run_list,
+        ks_root=ks_root,
+        workspace=workspace,
+        registry_path=registry_path_opt,
+    )
+
+
+@writeback_app.command("show")
+def writeback_show(
+    item_id: _WritebackItemId,
+    ks_root: _WritebackKsRoot = None,
+    workspace: _WritebackWorkspace = None,
+    registry_path_opt: _WritebackRegistryPath = None,
+) -> None:
+    _run_writeback(
+        "writeback show",
+        writeback_command.run_show,
+        item_id,
+        ks_root=ks_root,
+        workspace=workspace,
+        registry_path=registry_path_opt,
+    )
+
+
+@writeback_app.command("approve")
+def writeback_approve(
+    item_id: _WritebackItemId,
+    ks_root: _WritebackKsRoot = None,
+    workspace: _WritebackWorkspace = None,
+    registry_path_opt: _WritebackRegistryPath = None,
+) -> None:
+    _run_writeback(
+        "writeback approve",
+        writeback_command.run_approve,
+        item_id,
+        ks_root=ks_root,
+        workspace=workspace,
+        registry_path=registry_path_opt,
+    )
+
+
+@writeback_app.command("reject")
+def writeback_reject(
+    item_id: _WritebackItemId,
+    ks_root: _WritebackKsRoot = None,
+    workspace: _WritebackWorkspace = None,
+    registry_path_opt: _WritebackRegistryPath = None,
+) -> None:
+    _run_writeback(
+        "writeback reject",
+        writeback_command.run_reject,
+        item_id,
+        ks_root=ks_root,
+        workspace=workspace,
+        registry_path=registry_path_opt,
+    )
 
 
 @session_memory_app.command("summary")

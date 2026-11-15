@@ -203,11 +203,41 @@ def test_precision_at_1_requires_top_evidence_quote_match() -> None:
     assert report.failures["precision_at_1"] == ["top-quote-miss"]
 
 
-def test_writeback_auto_committed_counts_as_false_positive() -> None:
+@pytest.mark.parametrize(
+    "status",
+    ["enqueued", "enqueued-deduped", "already-promoted"],
+)
+def test_writeback_auto_enqueued_counts_as_false_positive(status: str) -> None:
     observations = [
         QueryObservation(
             case=GoldenQueryCase(
-                id="auto-writeback",
+                id=f"auto-writeback-{status}",
+                question="Atlas 摘要",
+                expected_route="wiki",
+                writeback_allowed=False,
+            ),
+            payload={
+                "source": ["wiki"],
+                "confidence": 1.0,
+                "trace": {
+                    "route": "wiki",
+                    "steps": [{"kind": "writeback", "detail": {"status": status}}],
+                },
+            },
+        ),
+    ]
+
+    report = compute_metrics(observations)
+
+    assert report.writeback_false_positive_rate == 1.0
+    assert report.failures["writeback_false_positive"] == [f"auto-writeback-{status}"]
+
+
+def test_legacy_auto_committed_status_does_not_count_as_false_positive() -> None:
+    observations = [
+        QueryObservation(
+            case=GoldenQueryCase(
+                id="legacy-auto-committed",
                 question="Atlas 摘要",
                 expected_route="wiki",
                 writeback_allowed=False,
@@ -227,8 +257,8 @@ def test_writeback_auto_committed_counts_as_false_positive() -> None:
 
     report = compute_metrics(observations)
 
-    assert report.writeback_false_positive_rate == 1.0
-    assert report.failures["writeback_false_positive"] == ["auto-writeback"]
+    assert report.writeback_false_positive_rate == 0.0
+    assert "writeback_false_positive" not in report.failures
 
 
 def test_writeback_allowed_cases_must_be_eligible() -> None:
