@@ -106,7 +106,8 @@
             "pageindex_summary",
             "workspace_status_synthesis",
             "date_range_synthesis",
-            "session_memory_summary"
+            "session_memory_summary",
+            "workspace_route_summary"
           ]
         },
         "detail": {

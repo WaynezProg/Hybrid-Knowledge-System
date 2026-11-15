@@ -192,6 +192,37 @@ def register_workspace(
     )
 
 
+def ensure_workspace(
+    workspace_id: str,
+    *,
+    registry_path_value: str | Path | None = None,
+) -> WorkspaceRecord:
+    """Idempotent auto-register: return existing or create with default root."""
+    normalized_id = validate_workspace_id(workspace_id)
+    registry = load_registry(registry_path_value)
+    existing = registry.workspaces.get(normalized_id)
+    if existing is not None:
+        return existing
+
+    from hks.workspace.registry import default_ks_root
+
+    root = default_ks_root(normalized_id)
+    root.mkdir(parents=True, exist_ok=True)
+    now = utc_now_iso()
+    record = WorkspaceRecord(
+        id=normalized_id,
+        label=normalized_id,
+        ks_root=root.as_posix(),
+        created_at=now,
+        updated_at=now,
+        tags=[],
+        metadata={},
+    )
+    registry.workspaces[normalized_id] = record
+    save_registry(registry, registry_path_value)
+    return record
+
+
 def remove_workspace(
     workspace_id: str,
     *,

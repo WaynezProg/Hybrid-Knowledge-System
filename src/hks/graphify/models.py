@@ -11,7 +11,10 @@ from hks.llm.models import LlmProviderConfig
 
 type GraphifyMode = Literal["preview", "store"]
 type GraphifyRunStatus = Literal["valid", "invalid", "partial"]
-type GraphifyNodeKind = Literal["source", "wiki_page", "entity", "concept", "artifact", "community"]
+type GraphifyNodeKind = Literal[
+    "source", "wiki_page", "entity", "concept", "artifact", "community",
+    "person", "project", "event", "decision", "constraint", "risk", "milestone",
+]
 type GraphifySourceLayer = Literal["wiki", "graph", "llm_extraction", "llm_wiki", "graphify"]
 type GraphifyEvidence = Literal["EXTRACTED", "INFERRED", "AMBIGUOUS"]
 type GraphifyFindingSeverity = Literal["info", "warning", "error"]
@@ -34,6 +37,7 @@ class GraphifyRequest:
     algorithm_version: str = DEFAULT_ALGORITHM_VERSION
     include_html: bool = True
     include_report: bool = True
+    include_artifacts: bool = False
     force_new_run: bool = False
     requested_by: str | None = None
 
@@ -46,6 +50,7 @@ class GraphifyRequest:
             "model_id": self.provider.model_id,
             "include_html": self.include_html,
             "include_report": self.include_report,
+            "include_artifacts": self.include_artifacts,
         }
         if self.force_new_run:
             payload["created_at_iso"] = created_at_iso or ""
@@ -59,6 +64,7 @@ class GraphifyRequest:
             "model_id": self.provider.model_id,
             "include_html": self.include_html,
             "include_report": self.include_report,
+            "include_artifacts": self.include_artifacts,
             "force_new_run": self.force_new_run,
             "requested_by": self.requested_by,
         }

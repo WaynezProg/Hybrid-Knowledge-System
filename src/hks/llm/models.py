@@ -11,7 +11,10 @@ type ExtractionMode = Literal["preview", "store"]
 type ProviderCredentialStatus = Literal["not_required", "present", "missing"]
 type ValidationStatus = Literal["valid", "invalid"]
 type ArtifactStatus = Literal["valid", "invalid", "partial"]
-type EntityType = Literal["Person", "Project", "Document", "Event", "Concept"]
+type EntityType = Literal[
+    "Person", "Project", "Document", "Event", "Concept",
+    "Decision", "Constraint", "Risk", "Milestone",
+]
 type RelationType = Literal[
     "owns",
     "depends_on",
@@ -24,7 +27,10 @@ type RelationType = Literal[
 ]
 type FindingSeverity = Literal["error", "warning", "info"]
 
-ENTITY_TYPES: frozenset[str] = frozenset(("Person", "Project", "Document", "Event", "Concept"))
+ENTITY_TYPES: frozenset[str] = frozenset((
+    "Person", "Project", "Document", "Event", "Concept",
+    "Decision", "Constraint", "Risk", "Milestone",
+))
 RELATION_TYPES: frozenset[str] = frozenset(
     (
         "owns",

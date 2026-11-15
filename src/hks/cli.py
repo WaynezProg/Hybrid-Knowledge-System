@@ -193,6 +193,21 @@ def ingest(
             help="Include or exclude pptx speaker notes (default: include).",
         ),
     ] = PptxNotesMode.include,
+    workspace: Annotated[
+        str | None,
+        typer.Option("-w", "--workspace", help="Workspace id — ingest into its KS_ROOT."),
+    ] = None,
+    workspace_route: Annotated[
+        bool,
+        typer.Option(
+            "--workspace-route",
+            help="Auto-route files by frontmatter workspace_id.",
+        ),
+    ] = False,
+    registry_path_opt: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
 ) -> None:
     from hks.ingest.guards import load_image_limits, load_office_limits
 
@@ -201,13 +216,44 @@ def ingest(
         load_image_limits()
     except ValueError as error:
         raise typer.Exit(code=_emit_usage_error("ingest", str(error))) from error
-    run_command(
-        "ingest",
-        ingest_command.run,
-        path,
-        prune=prune,
-        pptx_notes=pptx_notes == PptxNotesMode.include,
-    )
+
+    if workspace and workspace_route:
+        raise typer.Exit(
+            code=_emit_usage_error("ingest", "-w and --workspace-route are mutually exclusive")
+        )
+
+    if workspace_route:
+        from hks.commands.ingest_router import run_routed_ingest
+
+        run_command(
+            "ingest",
+            run_routed_ingest,
+            path,
+            prune=prune,
+            pptx_notes=pptx_notes == PptxNotesMode.include,
+            registry_path_value=registry_path_opt,
+        )
+    elif workspace:
+        from hks.core.runtime_context import scoped_ks_root
+        from hks.workspace.service import ensure_workspace
+
+        record = ensure_workspace(workspace, registry_path_value=registry_path_opt)
+        with scoped_ks_root(record.ks_root):
+            run_command(
+                "ingest",
+                ingest_command.run,
+                path,
+                prune=prune,
+                pptx_notes=pptx_notes == PptxNotesMode.include,
+            )
+    else:
+        run_command(
+            "ingest",
+            ingest_command.run,
+            path,
+            prune=prune,
+            pptx_notes=pptx_notes == PptxNotesMode.include,
+        )
 
 
 def _emit_usage_error(command: str, message: str) -> int:
@@ -235,8 +281,26 @@ def query(
             help="Override write-back behavior.",
         ),
     ] = WritebackMode.no,
+    workspace: Annotated[
+        str | None,
+        typer.Option("-w", "--workspace", help="Workspace id — query its KS_ROOT."),
+    ] = None,
+    registry_path_opt: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
 ) -> None:
-    run_command("query", query_command.run, question, writeback=writeback.value)
+    if workspace:
+        run_command(
+            "query",
+            workspace_command.run_query,
+            workspace,
+            question,
+            writeback=writeback.value,
+            registry_path=registry_path_opt,
+        )
+    else:
+        run_command("query", query_command.run, question, writeback=writeback.value)
 
 
 @app.command(
@@ -287,6 +351,14 @@ def source_list(
         Path | None,
         typer.Option("--ks-root", help="Explicit HKS runtime root."),
     ] = None,
+    workspace: Annotated[
+        str | None,
+        typer.Option("-w", "--workspace", help="Workspace id — use its KS_ROOT."),
+    ] = None,
+    registry_path_opt: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
     format: Annotated[
         str | None,
         typer.Option("--format", help="Filter by source format."),
@@ -298,10 +370,16 @@ def source_list(
     limit: Annotated[int | None, typer.Option("--limit", help="Maximum rows.")] = None,
     offset: Annotated[int | None, typer.Option("--offset", help="Rows to skip.")] = None,
 ) -> None:
+    resolved_root = ks_root
+    if workspace:
+        from hks.workspace.service import get_workspace
+
+        record, _ = get_workspace(workspace, registry_path_value=registry_path_opt)
+        resolved_root = Path(record.ks_root)
     run_command(
         "source list",
         source_command.run_list,
-        ks_root=ks_root,
+        ks_root=resolved_root,
         format=format,
         relpath_query=relpath_query,
         limit=limit,
@@ -316,8 +394,22 @@ def source_show(
         Path | None,
         typer.Option("--ks-root", help="Explicit HKS runtime root."),
     ] = None,
+    workspace: Annotated[
+        str | None,
+        typer.Option("-w", "--workspace", help="Workspace id — use its KS_ROOT."),
+    ] = None,
+    registry_path_opt: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
 ) -> None:
-    run_command("source show", source_command.run_show, relpath, ks_root=ks_root)
+    resolved_root = ks_root
+    if workspace:
+        from hks.workspace.service import get_workspace
+
+        record, _ = get_workspace(workspace, registry_path_value=registry_path_opt)
+        resolved_root = Path(record.ks_root)
+    run_command("source show", source_command.run_show, relpath, ks_root=resolved_root)
 
 
 @session_memory_app.command("summary")
@@ -571,6 +663,13 @@ def graphify_build(
         bool,
         typer.Option("--report/--no-report", help="Write Markdown report in store mode."),
     ] = True,
+    include_artifacts: Annotated[
+        bool,
+        typer.Option(
+            "--include-artifacts",
+            help="Include storage artifact nodes (source, wiki, section) in graph.",
+        ),
+    ] = False,
     force_new_run: Annotated[
         bool,
         typer.Option("--force-new-run", help="Do not reuse an existing graphify run."),
@@ -579,19 +678,48 @@ def graphify_build(
         str | None,
         typer.Option("--requested-by", help="Agent or user label for audit."),
     ] = None,
+    workspace: Annotated[
+        str | None,
+        typer.Option("-w", "--workspace", help="Workspace id — build in its KS_ROOT."),
+    ] = None,
+    registry_path_opt: Annotated[
+        Path | None,
+        typer.Option("--registry-path", help="Explicit workspace registry path."),
+    ] = None,
 ) -> None:
-    run_command(
-        "graphify build",
-        graphify_command.run_build,
-        mode=mode.value,
-        provider=provider,
-        model=model,
-        algorithm_version=algorithm_version,
-        include_html=include_html,
-        include_report=include_report,
-        force_new_run=force_new_run,
-        requested_by=requested_by,
-    )
+    if workspace:
+        from hks.core.runtime_context import scoped_ks_root
+        from hks.workspace.service import get_workspace
+
+        record, _ = get_workspace(workspace, registry_path_value=registry_path_opt)
+        with scoped_ks_root(record.ks_root):
+            run_command(
+                "graphify build",
+                graphify_command.run_build,
+                mode=mode.value,
+                provider=provider,
+                model=model,
+                algorithm_version=algorithm_version,
+                include_html=include_html,
+                include_report=include_report,
+                include_artifacts=include_artifacts,
+                force_new_run=force_new_run,
+                requested_by=requested_by,
+            )
+    else:
+        run_command(
+            "graphify build",
+            graphify_command.run_build,
+            mode=mode.value,
+            provider=provider,
+            model=model,
+            algorithm_version=algorithm_version,
+            include_html=include_html,
+            include_report=include_report,
+            include_artifacts=include_artifacts,
+            force_new_run=force_new_run,
+            requested_by=requested_by,
+        )
 
 
 @watch_app.command("scan")

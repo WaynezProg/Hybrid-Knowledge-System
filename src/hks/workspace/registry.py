@@ -24,10 +24,18 @@ def registry_path(path: str | Path | None = None) -> Path:
     env_path = config_value(ENV_REGISTRY)
     if env_path:
         return Path(env_path).expanduser().resolve(strict=False)
+    project_local = Path.cwd() / ".hks-runs" / "workspaces.json"
+    if project_local.exists() or project_local.parent.exists():
+        return project_local.resolve(strict=False)
     xdg_config = os.environ.get("XDG_CONFIG_HOME")
     if xdg_config:
         return (Path(xdg_config).expanduser() / "hks" / "workspaces.json").resolve(strict=False)
     return (Path.home() / ".config" / "hks" / "workspaces.json").resolve(strict=False)
+
+
+def default_ks_root(workspace_id: str) -> Path:
+    """Convention: `<cwd>/.hks-runs/<workspace_id>/ks`."""
+    return (Path.cwd() / ".hks-runs" / workspace_id / "ks").resolve(strict=False)
 
 
 def empty_registry() -> WorkspaceRegistry:

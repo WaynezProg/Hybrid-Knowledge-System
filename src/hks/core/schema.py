@@ -39,6 +39,7 @@ type TraceKind = Literal[
     "workspace_status_synthesis",
     "date_range_synthesis",
     "session_memory_summary",
+    "workspace_route_summary",
 ]
 
 
