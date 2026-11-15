@@ -255,9 +255,33 @@ def ingest(
     with file_lock(paths.lock):
         manifest = resume_or_rebuild(paths)
         seen_relpaths: set[str] = set()
+        backfilled_source_paths = False
         for file_path in files:
             relpath = relative_path(source_root, file_path)
             seen_relpaths.add(relpath)
+            source_path = file_path.resolve(strict=False).as_posix()
+            recorded = manifest.entries.get(relpath)
+            if (
+                recorded is not None
+                and recorded.source_path is not None
+                and recorded.source_path != source_path
+            ):
+                # Same relpath, different file (e.g. README.md from two source
+                # roots). Refuse rather than silently overwrite the other source.
+                reason = "relpath_conflict"
+                summary.failures.append(IngestIssue(path=relpath, reason=reason, kind="failed"))
+                summary.files.append(
+                    IngestFileReport(
+                        path=relpath,
+                        status="failed",
+                        reason=reason,
+                        source_format=source_format_from_path(file_path),
+                    )
+                )
+                _log_and_issue(
+                    wiki_store=wiki_store, relpath=relpath, status="failed", reason=reason
+                )
+                continue
             suffix_format = source_format_from_path(file_path)
             if file_path.stat().st_size == 0 and suffix_format is not None:
                 reason = "empty_file"
@@ -338,6 +362,9 @@ def ingest(
                 backend=backend,
                 vector_store=vector_store,
             ):
+                if existing.source_path is None:
+                    existing.source_path = source_path
+                    backfilled_source_paths = True
                 reason = "hash unchanged"
                 summary.skipped.append(IngestIssue(path=relpath, reason=reason, kind="skipped"))
                 summary.files.append(
@@ -564,6 +591,7 @@ def ingest(
                     ),
                     parser_fingerprint=current_fp,
                     metadata=dict(parsed.metadata),
+                    source_path=source_path,
                 )
                 save_manifest(manifest, paths.manifest)
             except Exception:
@@ -638,8 +666,18 @@ def ingest(
                 pptx_notes=notes_mode,
             )
 
-        if prune and source_root.is_dir():
-            stale_paths = [relpath for relpath in manifest.entries if relpath not in seen_relpaths]
+        if prune and ingest_target.is_dir():
+            # Only prune entries known to come from under the directory scanned in
+            # this run (not the wider source_root override). Entries from elsewhere,
+            # and legacy entries without a recorded source_path, are left alone:
+            # pruning them would delete sources never looked at.
+            stale_paths = [
+                relpath
+                for relpath, entry in manifest.entries.items()
+                if relpath not in seen_relpaths
+                and entry.source_path is not None
+                and _is_relative_to(Path(entry.source_path), ingest_target)
+            ]
             for relpath in stale_paths:
                 stale_entry = manifest.entries.pop(relpath)
                 delete_artifacts(
@@ -654,6 +692,9 @@ def ingest(
                 summary.pruned.append(relpath)
             if stale_paths:
                 save_manifest(manifest, paths.manifest)
+                backfilled_source_paths = False
+        if backfilled_source_paths:
+            save_manifest(manifest, paths.manifest)
     return summary
 
 

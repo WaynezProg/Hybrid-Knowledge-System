@@ -1042,11 +1042,15 @@ def hks_workspace_ingest_session_memory(
         registry_path=registry_path,
         request_id=request_id,
     )
+    # Key entries relative to the workspace export root, so each day's files keep
+    # distinct relpaths (daily/<date>/summary.md) instead of colliding on the
+    # bare filename, and --prune stays scoped to this workspace's export.
     return hks_ingest(
         path=str(resolved),
         prune=prune,
         ks_root=str(ks_root),
         request_id=request_id,
+        source_root_override=str((export_root / normalized_id).resolve(strict=False)),
     )
 
 

@@ -101,9 +101,12 @@ class ManifestEntry:
     derived: DerivedArtifacts = field(default_factory=DerivedArtifacts)
     parser_fingerprint: str = "*"
     metadata: dict[str, str] = field(default_factory=dict)
+    # Resolved absolute path of the file this entry was ingested from. None for
+    # entries written before it was recorded (or rebuilt from raw_sources).
+    source_path: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "relpath": self.relpath,
             "sha256": self.sha256,
             "format": self.format,
@@ -113,6 +116,9 @@ class ManifestEntry:
             "parser_fingerprint": self.parser_fingerprint,
             "metadata": dict(self.metadata),
         }
+        if self.source_path is not None:
+            payload["source_path"] = self.source_path
+        return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> ManifestEntry:
@@ -129,6 +135,9 @@ class ManifestEntry:
                 for key, value in cast(dict[str, Any], payload.get("metadata", {})).items()
                 if value is not None
             },
+            source_path=(
+                str(payload["source_path"]) if payload.get("source_path") is not None else None
+            ),
         )
 
 
