@@ -160,6 +160,17 @@ def test_parse_reversed_slash_range_is_still_swapped_not_cross_year() -> None:
         "1.5~2.5 倍",
         "v1~3 的差異",
         "3~5點開會",
+        "3~5 次會議",
+        "3~5 人小組",
+        "分成 3~5 組",
+        "每頁 10~12 行",
+        "打 7~8 成",
+        "10~12GB 的檔案",
+        "10~12 MB",
+        "10~20KB",
+        "10~12px 的邊距",
+        "3~5 days 內完成",
+        "10~20k 的預算",
     ],
 )
 def test_count_and_measure_ranges_are_not_dates(question: str) -> None:
@@ -174,6 +185,31 @@ def test_day_ranges_with_date_context_still_parse(question: str) -> None:
     parsed = parse_session_memory_date_range(question, today=date(2026, 6, 1))
     assert parsed is not None
     assert (parsed.date_start, parsed.date_end) == ("2026-05-25", "2026-05-27")
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "25~27 行程",
+        "25~27 分析了什麼",
+        "10~12 成果",
+        "10~12 天氣",
+        "10~12 週報",
+        "10~12 HKS 做了什麼",
+        "10~12 project 進度",
+        "10~12 hks-dev 做了什麼",
+        "10~12 mcp 進度",
+    ],
+)
+def test_day_ranges_followed_by_unit_like_words_still_parse(question: str) -> None:
+    # 「行、分、成、天、週」與英文字母開頭的詞不是單位：後面是名詞、動詞或 workspace。
+    parsed = parse_session_memory_date_range(question, today=date(2026, 11, 28))
+    assert parsed is not None
+    day_start, day_end = question.split()[0].split("~")
+    assert (parsed.date_start, parsed.date_end) == (
+        f"2026-11-{day_start}",
+        f"2026-11-{day_end}",
+    )
 
 
 def test_count_range_question_has_no_session_memory_date_intent() -> None:
