@@ -215,3 +215,80 @@ def test_day_ranges_followed_by_unit_like_words_still_parse(question: str) -> No
 def test_count_range_question_has_no_session_memory_date_intent() -> None:
     intent = analyze_session_memory_intent("列出 3~5 個重點", today=date(2026, 11, 15))
     assert intent is None or (intent.date_start is None and intent.date_end is None)
+
+
+_WORDED_RANGES = [
+    "12月20日到1月5日",
+    "12月20日至1月5日",
+    "12月20日~1月5日",
+    "12月20號到1月5號",
+    "12 月 20 日 到 1 月 5 日",
+    "12/20到1/5",
+    "12/20至1/5",
+    "12/20 到 1/5",
+    "12/20～1/5",
+]
+
+
+@pytest.mark.parametrize("question", _WORDED_RANGES)
+@pytest.mark.parametrize(
+    "today",
+    [date(2026, 11, 15), date(2026, 12, 30), date(2027, 1, 10)],
+)
+def test_worded_month_day_ranges_match_the_slash_form(question: str, today: date) -> None:
+    expected = parse_session_memory_date_range("12/20-1/5 做了什麼", today=today)
+    assert expected is not None
+    assert parse_session_memory_date_range(f"{question} 做了什麼", today=today) == expected
+
+
+def test_worded_range_across_new_year_values() -> None:
+    parsed = parse_session_memory_date_range("12月20日到1月5日的進度", today=date(2027, 1, 10))
+    assert parsed is not None
+    assert (parsed.date_start, parsed.date_end) == ("2026-12-20", "2027-01-05")
+    assert parsed.swapped is False
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["12月20日到25日 做了什麼", "12月20號~25號", "12月20日到25 行程"],
+)
+def test_worded_range_with_second_month_omitted_is_same_month(question: str) -> None:
+    parsed = parse_session_memory_date_range(question, today=date(2026, 12, 30))
+    assert parsed is not None
+    assert (parsed.date_start, parsed.date_end) == ("2026-12-20", "2026-12-25")
+
+
+def test_worded_reversed_range_is_swapped_like_the_slash_form() -> None:
+    today = date(2026, 6, 1)
+    parsed = parse_session_memory_date_range("5月10日到3月1日 做了什麼", today=today)
+    assert parsed == parse_session_memory_date_range("5/10-3/1 做了什麼", today=today)
+    assert parsed is not None and parsed.swapped is True
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "3月到5月的營收",
+        "1到5個重點",
+        "3點到5點開會",
+        "2月30日到3月1日",
+        "2/30到3/1",
+        "12月20日到3個重點",
+        "1月5日到10次",
+        "12月20日到25.5",
+        "2026年12月20日到1月5日",
+    ],
+)
+def test_worded_non_dates_and_invalid_dates_are_not_ranges(question: str) -> None:
+    assert parse_session_memory_date_range(question, today=date(2026, 11, 15)) is None
+
+
+@pytest.mark.parametrize(
+    "question",
+    ["12月20日到1月5日 social-bank-check 的進度", "12/20 到 1/5 social-bank-check 的進度"],
+)
+def test_analyze_worded_range_routes_like_the_slash_form(question: str) -> None:
+    today = date(2027, 1, 10)
+    expected = analyze_session_memory_intent("12/20-1/5 social-bank-check 的進度", today=today)
+    assert expected is not None and expected.date_start == "2026-12-20"
+    assert analyze_session_memory_intent(question, today=today) == expected

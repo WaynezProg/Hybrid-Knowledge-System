@@ -21,8 +21,11 @@ _FULL_RANGE_RE = re.compile(
     r"(?P<y2>20\d{2})[-/年](?P<m2>\d{1,2})[-/月](?P<d2>\d{1,2})日?",
 )
 
+# 區間的連接詞：`12/20-1/5`、`12/20到1/5`、`12月20日至1月5日`。
+_RANGE_SEP = r"(?:到|至|[-~～－])"
+
 _SLASH_RANGE_RE = re.compile(
-    r"(?P<m1>\d{1,2})/(?P<d1>\d{1,2})\s*[-~－]\s*(?P<m2>\d{1,2})/(?P<d2>\d{1,2})"
+    rf"(?P<m1>\d{{1,2}})/(?P<d1>\d{{1,2}})\s*{_RANGE_SEP}\s*(?P<m2>\d{{1,2}})/(?P<d2>\d{{1,2}})"
 )
 
 # 數量、序號、時長常寫成 N~M（「3~5 個重點」「第 2~4 章」「3~5 天」），
@@ -48,6 +51,16 @@ _LATIN_UNIT = (
 
 _COUNT_UNIT = rf"(?!{_UNIT_LED_WORD})(?:{_CJK_UNIT})|{_LATIN_UNIT}"
 
+# `12月20日到1月5日`、`12月20號~25號`：第二個月份可省略（同月）。前面有「年」時
+# 交給寫了年份的形式處理，不在這裡補今年。省略月份又沒寫「日／號」的結尾數字
+# 後面接單位時（`12月20日到3個重點`）不是日期。
+_MONTH_DAY_RANGE_RE = re.compile(
+    r"(?<![\d年/.])(?P<m1>\d{1,2})\s*月\s*(?P<d1>\d{1,2})\s*[日號号]?"
+    rf"\s*{_RANGE_SEP}\s*"
+    r"(?:(?P<m2>\d{1,2})\s*月\s*(?P<d2>\d{1,2})(?:\s*[日號号]|(?![\d.]))"
+    rf"|(?P<d2s>\d{{1,2}})(?:\s*[日號号]|(?![\d.月])(?!\s*(?:{_COUNT_UNIT}))))"
+)
+
 _DAY_TILDE_RE = re.compile(
     r"(?<![\d/.A-Za-z第])(?P<d1>\d{1,2})\s*[~～]\s*(?P<d2>\d{1,2})"
     rf"(?![\d.])(?!\s*/)(?!\s*(?:{_COUNT_UNIT}))"
@@ -62,6 +75,7 @@ def parse_session_memory_date_range(
     for pattern, builder in (
         (_FULL_RANGE_RE, _from_full_match),
         (_SLASH_RANGE_RE, _from_slash_match),
+        (_MONTH_DAY_RANGE_RE, _from_month_day_match),
         (_DAY_TILDE_RE, _from_day_tilde_match),
     ):
         match = pattern.search(question)
@@ -109,8 +123,28 @@ def _from_full_match(match: Match[str], *, today: date) -> ParsedDateRange | Non
 
 
 def _from_slash_match(match: Match[str], *, today: date) -> ParsedDateRange | None:
-    m1, d1 = int(match.group("m1")), int(match.group("d1"))
-    m2, d2 = int(match.group("m2")), int(match.group("d2"))
+    return _month_day_range(
+        int(match.group("m1")),
+        int(match.group("d1")),
+        int(match.group("m2")),
+        int(match.group("d2")),
+        today=today,
+    )
+
+
+def _from_month_day_match(match: Match[str], *, today: date) -> ParsedDateRange | None:
+    m1 = int(match.group("m1"))
+    if match.group("d2s") is not None:
+        # 第二個月份省略：與起始同月。
+        m2, d2 = m1, int(match.group("d2s"))
+    else:
+        m2, d2 = int(match.group("m2")), int(match.group("d2"))
+    return _month_day_range(m1, int(match.group("d1")), m2, d2, today=today)
+
+
+def _month_day_range(
+    m1: int, d1: int, m2: int, d2: int, *, today: date
+) -> ParsedDateRange | None:
     start = _safe_date(today.year, m1, d1)
     end = _safe_date(today.year, m2, d2)
     if start is None or end is None:
