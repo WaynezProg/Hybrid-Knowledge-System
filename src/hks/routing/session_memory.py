@@ -179,6 +179,14 @@ def _date_query_topic(question: str, intent: SessionMemoryIntent, *, today: date
     if intent.workspace:
         text = re.sub(rf"(?<![a-z0-9]){re.escape(intent.workspace.lower())}(?![a-z0-9])", " ", text)
     phrases = (
+        "的工作摘要",
+        "工作摘要",
+        "有哪些決定",
+        "主要成果是什麼",
+        "學到了什麼",
+        "完成了哪些工作",
+        "有什麼重點",
+        "新增了哪些東西",
         "最後處理到哪",
         "目前狀態",
         "做了哪些修改",
@@ -230,7 +238,7 @@ def _date_query_topic(question: str, intent: SessionMemoryIntent, *, today: date
     )
     text = re.sub(r"[?？,，:：。!！;；]", " ", text)
     text = " ".join(text.split()).strip(" 的於在")
-    return text or None
+    return text if text not in {"", "有"} else None
 
 
 def _extract_workspace(question: str) -> str | None:

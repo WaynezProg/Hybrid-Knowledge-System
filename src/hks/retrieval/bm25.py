@@ -7,6 +7,8 @@ import re
 from collections import Counter
 from collections.abc import Sequence
 
+from hks.retrieval.language import normalize
+
 _K1 = 1.2
 _B = 0.75
 _ASCII_TERM_RE = re.compile(r"[a-z0-9]{2,}")
@@ -22,7 +24,8 @@ _CONTENT_COMPOUND_RE = re.compile(_COMPOUND % "(?:[-_]|[ \\t\u00a0\u3000]+)?")
 
 def lexical_tokens(text: str) -> list[str]:
     """ASCII words and CJK bigrams, with repeats (the same units as ``lexical_terms``)."""
-    tokens = _ASCII_TERM_RE.findall(text.lower())
+    text = normalize(text)
+    tokens = _ASCII_TERM_RE.findall(text)
     for run in _CJK_RUN_RE.findall(text):
         tokens.extend(run[index : index + 2] for index in range(len(run) - 1))
     return tokens

@@ -11,8 +11,9 @@ from hks.core.schema import TraceStep
 from hks.core.text_models import simple_tokenize
 from hks.page_tree.model import PageTree, TreeNode
 from hks.page_tree.store import TreeStore
-from hks.retrieval.bm25 import bm25_rank
+from hks.retrieval.bm25 import bm25_rank, lexical_tokens
 from hks.retrieval.evidence import evidence_quote
+from hks.retrieval.language import satisfies_subject
 from hks.retrieval.models import Candidate
 from hks.storage.vector import SearchHit, VectorStore
 
@@ -27,14 +28,7 @@ _PASSAGE_SPLIT_RE = re.compile(r"(?<!\d\.)(?<=[.!?。！？])\s*")
 
 
 def lexical_terms(text: str) -> set[str]:
-    lowered = text.lower()
-    terms = set(re.findall(r"[a-z0-9]{2,}", lowered))
-    for chunk in re.findall(r"[\u4e00-\u9fff]{2,}", text):
-        if len(chunk) == 2:
-            terms.add(chunk)
-            continue
-        terms.update(chunk[index : index + 2] for index in range(len(chunk) - 1))
-    return terms
+    return set(lexical_tokens(text))
 
 
 def vector_hit_is_relevant(question: str, hit: SearchHit) -> bool:
@@ -198,9 +192,7 @@ def _node_for_passage(tree: PageTree, passage_text: str | None) -> TreeNode | No
         return None
     lowered = passage_text.casefold()
     matches = [
-        node
-        for node in tree.flat_nodes()
-        if node.title and node.title.casefold() in lowered
+        node for node in tree.flat_nodes() if node.title and node.title.casefold() in lowered
     ]
     if not matches:
         return None
@@ -216,9 +208,7 @@ class RankedHit:
 
     @property
     def fused_score(self) -> float:
-        return sum(
-            1.0 / (_RRF_K + rank) for rank in (self.dense_rank, self.lexical_rank) if rank
-        )
+        return sum(1.0 / (_RRF_K + rank) for rank in (self.dense_rank, self.lexical_rank) if rank)
 
 
 def hybrid_search_mode() -> str:
@@ -306,7 +296,9 @@ def collect_vector_candidates(
     top_similarity = hits[0].similarity if hits else 0.0
 
     ranked, hybrid_detail = hybrid_rank(question, hits, vector_store=vector_store)
-    selected = ranked[:_CANDIDATE_LIMIT]
+    selected = [item for item in ranked if satisfies_subject(question, item.hit.text)][
+        :_CANDIDATE_LIMIT
+    ]
     hits = [item.hit for item in ranked]
 
     tree_store = TreeStore(vector_store.paths)
