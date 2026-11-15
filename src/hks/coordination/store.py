@@ -105,10 +105,13 @@ class CoordinationStore:
         if not events:
             return
         self.dir.mkdir(parents=True, exist_ok=True)
+        # One write per batch: adapters run coordination calls next to other core
+        # calls that also append here, and separate writes could interleave lines.
+        lines = "".join(
+            json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n" for event in events
+        )
         with self.events_path.open("a", encoding="utf-8") as handle:
-            for event in events:
-                handle.write(json.dumps(event, ensure_ascii=False, sort_keys=True))
-                handle.write("\n")
+            handle.write(lines)
 
     def reset_unsafe(self) -> None:
         """Test helper for removing coordination artifacts under the current KS_ROOT."""
