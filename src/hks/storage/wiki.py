@@ -356,7 +356,9 @@ class WikiStore:
         if not pages:
             return None
 
-        lowered_query = query.lower()
+        from hks.retrieval.language import normalize
+
+        lowered_query = normalize(query)
         terms = re.findall(r"[A-Za-z0-9\u4e00-\u9fff]{2,}", lowered_query)
         tree_scores = self._tree_search_scores(lowered_query, terms, tree_store)
         candidate_pages = pages
@@ -382,9 +384,11 @@ class WikiStore:
         return None
 
     def _wiki_search_score(self, page: WikiPage, lowered_query: str, terms: list[str]) -> int:
-        title = page.title.lower()
-        summary = page.summary.lower()
-        body = page.body.lower()
+        from hks.retrieval.language import normalize
+
+        title = normalize(page.title)
+        summary = normalize(page.summary)
+        body = normalize(page.body)
         score = 0
         if lowered_query and lowered_query in title:
             score += 8

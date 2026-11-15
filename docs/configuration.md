@@ -2,6 +2,25 @@
 
 這份文件教你建立本機設定檔、填入可調參數、啟用設定，並確認 agent / CLI 真的讀到同一套 runtime。
 
+## 中文同義詞與 workspace 別名
+
+Query 支援等待／等候、快捷鍵／熱鍵、相容／兼容、風險／隱憂及狀態／狀況等有界詞彙替換。日期加主題是條件：找不到該主題時回 no-hit，不擴回整天；一般工作摘要仍可取得當天內容。
+
+專案名、服務名與中文譯名不會自動猜測。要讓不同名稱召回同一組內容，在目標 `KS_ROOT/query_aliases.json` 寫 canonical name 與 alias list：
+
+```json
+{
+  "session2memory": ["s2m", "會話記憶"],
+  "HKS": ["混合知識系統"],
+  "checkout service": ["結帳服務"],
+  "notification service": ["通知服務"]
+}
+```
+
+只加入確定指向同一個實體的名稱。設定僅適用於這個 workspace，每次查詢讀取，無須重新 embedding 或重啟 MCP；原始資料、回傳引用、writeback question 保留原文。ASCII 詞界會保留，`s2m` 不會匹配 `s2m2`。ticket/version identifiers 不可設 alias，避免編號的精確約束被放寬。
+
+格式錯誤、別名衝突或檔案超過 64 KiB 會明確回 CONFIG_ERROR（exit 65）。詳見 [032 spec](../specs/032-chinese-query-language/spec.md)。
+
 ## 設定檔種類
 
 建議使用 YAML：

@@ -400,24 +400,8 @@ def _clean_entry_text(text: str) -> str:
     return cleaned.strip()
 
 
-_NAME_TERM_RE = re.compile(r"[a-z0-9]")
-
-
-def _name_terms(topic: str) -> set[str]:
-    """The topic's terms written in Latin letters or digits: names of projects, tools and
-    tickets ("session2memory", "opencode", "err-4012")."""
-    return {term for term in lexical_tokens(topic) if _NAME_TERM_RE.match(term)}
-
-
 def _narrow_candidates_for_topic(candidates: list[Candidate], topic: str | None) -> list[Candidate]:
-    """Keep the entries about ``topic``, each cut down to its lines about it.
-
-    A topic that names something ("session2memory", "ERR-4012") is a constraint: when no
-    entry mentions it there is nothing to answer with. A topic without a name is whatever
-    wording was left of the question ("有哪些決定", "主要成果是", "工作"); entries are
-    narrowed by it when some hold it ("索引"), and when none does it says nothing about
-    the entries, so they are all kept as they are.
-    """
+    """A parsed topic is a constraint in either language, also when it has no hit."""
     if not topic:
         return candidates
     narrowed = [
@@ -425,22 +409,17 @@ def _narrow_candidates_for_topic(candidates: list[Candidate], topic: str | None)
         for one in (_narrow_candidate_for_topic(candidate, topic) for candidate in candidates)
         if one is not None
     ]
-    if narrowed or _name_terms(topic) or identifier_terms(topic):
-        return narrowed
-    return candidates
+    return narrowed
 
 
 def _narrow_candidate_for_topic(candidate: Candidate, topic: str | None) -> Candidate | None:
     if not topic:
         return candidate
     identifiers = identifier_terms(topic)
-    names = _name_terms(topic)
-    # With a name in the topic, the name decides; the words around it ("paperclip 新增了")
-    # are the question's wording and need not be in the entry.
-    terms = names or set(lexical_tokens(topic))
-    if not terms and len(topic.strip()) < 2:
-        # A single leftover character ("有") is not a subject.
-        return None
+    # These are independent aspects even when a Chinese question joins them without
+    # whitespace. Keep both constraints, without inventing a cross-word bigram.
+    topic = topic.replace("功能驗證", "功能 驗證")
+    terms = set(lexical_tokens(topic))
     lines = []
     for line in _clean_entry_text(candidate.text).splitlines():
         if not line.strip() or not holds_identifiers(identifiers, line):

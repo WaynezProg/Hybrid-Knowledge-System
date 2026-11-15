@@ -6,6 +6,7 @@ from hks.core.manifest import Manifest
 from hks.core.schema import TraceStep
 from hks.page_tree.store import TreeStore
 from hks.retrieval.bm25 import CoverageScorer, bm25_rank, identifier_terms
+from hks.retrieval.language import satisfies_subject
 from hks.retrieval.models import Candidate
 from hks.retrievers.vector import (
     best_vector_passage,
@@ -49,7 +50,9 @@ def collect_lexical_candidates(
             )
         ]
 
-    corpus = vector_store.all_chunks()
+    corpus = [
+        chunk for chunk in vector_store.all_chunks() if satisfies_subject(question, chunk.text)
+    ]
     texts = [chunk.text for chunk in corpus]
     # A chunk that lacks an identifier the question names is about something else that
     # merely shares a word ("INC-00001" against a note on INC-90217). Such chunks are left

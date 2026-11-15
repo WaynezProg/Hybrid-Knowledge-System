@@ -1,5 +1,7 @@
 # Hybrid Knowledge System（Wiki + Graph + Vector + PageTree）
 
+中文 query 的有界同義詞、workspace 別名與主題／面向約束見 [032 spec](../specs/032-chinese-query-language/spec.md)；設定入口見 [configuration](configuration.md#中文同義詞與-workspace-別名)。替換僅用於查詢與比對，source、embedding 與 evidence 保留原文。
+
 ## 1. 定位
 
 HKS 是一個 local-first、CLI-first、domain-agnostic 的知識系統。  

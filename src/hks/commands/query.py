@@ -15,6 +15,12 @@ from hks.rerank.llm import rerank_candidates
 from hks.retrieval.bm25 import holds_identifiers, identifier_terms
 from hks.retrieval.confidence import ConfidenceAssessment, assess
 from hks.retrieval.evidence import candidate_evidence
+from hks.retrieval.language import (
+    has_entity_and_facet_match,
+    language_scope,
+    normalize_query,
+    satisfies_subject,
+)
 from hks.retrieval.models import Candidate
 from hks.retrievers.graph import collect_graph_candidates
 from hks.retrievers.lexical import collect_lexical_candidates
@@ -74,6 +80,11 @@ def _final_score_threshold(
     requested_route: Route | None = None,
 ) -> float:
     if candidate.source_route == "vector":
+        if candidate.metadata.get("entity_and_facet_match"):
+            # An explicit configured entity AND the asked aspect occur in the actual
+            # answer passage. Mixed-language embeddings need no overlap bonus to pass
+            # the same score floor as a primary vector result.
+            return _VECTOR_PRIMARY_FINAL_SCORE_THRESHOLD
         if requested_route == "vector":
             return _VECTOR_PRIMARY_FINAL_SCORE_THRESHOLD
         lexical_overlap = candidate.metadata.get("lexical_overlap")
@@ -88,6 +99,10 @@ def _weak_evidence(candidate: Candidate, question: str) -> dict[str, float] | No
     retrieval is off or was skipped, or the question has no word to look for), in which
     case nothing is taken away."""
     if candidate.source_route != "vector":
+        return None
+    if candidate.metadata.get("entity_and_facet_match"):
+        # The explicit entity and requested aspect were checked in this passage,
+        # independently of a mixed-language similarity/whole-question coverage score.
         return None
     if identifier_terms(question):
         # It got here past the identifier filter, so it names what was asked for: that is
@@ -130,6 +145,11 @@ def _retrieval_score_for_assessment(candidate: Candidate) -> float:
 
 
 def run(question: str, *, writeback: str = "no") -> QueryResponse:
+    with language_scope(runtime_paths().root):
+        return _run(question, writeback=writeback)
+
+
+def _run(question: str, *, writeback: str) -> QueryResponse:
     paths = runtime_paths()
     if not paths.manifest.exists():
         raise KSError(
@@ -149,9 +169,17 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
         )
 
     rule_set = load_rules(paths.root)
-    decision = route_query(question, rule_set)
+    search_question = normalize_query(question)
+    decision = route_query(search_question, rule_set)
     steps = list(decision.steps)
-    session_intent = analyze_session_memory_intent(question)
+    session_intent = analyze_session_memory_intent(search_question)
+    if search_question != question:
+        steps.append(
+            TraceStep(
+                kind="routing_model",
+                detail={"rule_id": "query_normalization", "normalized_question": search_question},
+            )
+        )
     if session_intent is not None and not any(
         metadata_matches_session_intent(
             {**entry.metadata, "source_relpath": entry.relpath}, SessionMemoryIntent()
@@ -167,7 +195,7 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
     all_candidates: list[Candidate] = []
 
     session_candidates, session_steps = collect_session_memory_candidates(
-        question,
+        search_question,
         wiki_store=wiki_store,
         intent=session_intent,
     )
@@ -175,7 +203,7 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
     steps.extend(session_steps)
 
     wiki_candidates, wiki_steps = collect_wiki_candidates(
-        question,
+        search_question,
         wiki_store=wiki_store,
         require_secondary_intent=(decision.route != "wiki"),
         is_primary=(decision.route == "wiki"),
@@ -183,18 +211,20 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
     all_candidates.extend(wiki_candidates)
     steps.extend(wiki_steps)
 
-    graph_candidates, graph_steps = collect_graph_candidates(question, graph_store=graph_store)
+    graph_candidates, graph_steps = collect_graph_candidates(
+        search_question, graph_store=graph_store
+    )
     all_candidates.extend(graph_candidates)
     steps.extend(graph_steps)
 
     vector_candidates, vector_steps = collect_vector_candidates(
-        question, vector_store=vector_store, manifest=manifest
+        search_question, vector_store=vector_store, manifest=manifest
     )
     all_candidates.extend(vector_candidates)
     steps.extend(vector_steps)
 
     lexical_candidates, lexical_steps = collect_lexical_candidates(
-        question,
+        search_question,
         vector_store=vector_store,
         manifest=manifest,
         vector_candidates=vector_candidates,
@@ -204,7 +234,7 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
 
     tree_store = TreeStore(paths)
     page_tree_candidates, page_tree_steps = collect_page_tree_candidates(
-        question, tree_store=tree_store, manifest=manifest
+        search_question, tree_store=tree_store, manifest=manifest
     )
     all_candidates.extend(page_tree_candidates)
     steps.extend(page_tree_steps)
@@ -353,13 +383,28 @@ def run(question: str, *, writeback: str = "no") -> QueryResponse:
         if holds_identifiers(identifiers, _identifier_text(candidate))
     ]
     identifier_filtered = candidate_total - len(all_candidates)
+    before_subject = len(all_candidates)
+    all_candidates = [
+        candidate for candidate in all_candidates if satisfies_subject(question, candidate.text)
+    ]
+    subject_filtered = before_subject - len(all_candidates)
+    if subject_filtered:
+        steps.append(
+            TraceStep(
+                kind="routing_model",
+                detail={"rule_id": "subject_constraint", "candidates_dropped": subject_filtered},
+            )
+        )
+    for candidate in all_candidates:
+        if has_entity_and_facet_match(question, candidate.text):
+            candidate.metadata["entity_and_facet_match"] = True
     if not all_candidates:
         steps.append(
             TraceStep(
                 kind="fallback",
                 detail={
                     "status": "no-hit",
-                    "reason": "identifier_not_found",
+                    "reason": "subject_not_found" if subject_filtered else "identifier_not_found",
                     "identifiers": sorted(identifiers),
                     "candidates_dropped": identifier_filtered,
                 },

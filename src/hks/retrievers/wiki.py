@@ -9,7 +9,9 @@ from hks.core.schema import TraceStep
 from hks.errors import KSError
 from hks.retrieval.bm25 import lexical_tokens
 from hks.retrieval.evidence import evidence_quote
+from hks.retrieval.language import has_subject_constraints, satisfies_subject
 from hks.retrieval.models import Candidate
+from hks.retrievers.vector import best_vector_passage
 from hks.routing.rules import load_rules
 from hks.storage.wiki import WikiPage, WikiStore
 
@@ -163,7 +165,11 @@ def collect_wiki_candidates(
     steps: list[TraceStep] = []
     candidates: list[Candidate] = []
 
-    pages = wiki_store.list_pages()
+    pages = [
+        page
+        for page in wiki_store.list_pages()
+        if satisfies_subject(question, f"{page.title}\n{page.summary}\n{page.body}")
+    ]
     page = wiki_store.search(question, pages=pages)
     if (
         require_secondary_intent
@@ -214,7 +220,10 @@ def collect_wiki_candidates(
             return candidates, steps
 
     if page is not None:
-        quote = evidence_quote(page.summary or page.body)
+        answer_text = page.summary or page.body
+        if has_subject_constraints(question):
+            answer_text = best_vector_passage(question, page.body or answer_text)
+        quote = evidence_quote(answer_text)
         base = 1.0 if is_primary else 0.65
         share = 1.0 if relevance is None else relevance
         score = round(base * (_RELEVANCE_FLOOR + (1.0 - _RELEVANCE_FLOOR) * share), 4)
@@ -234,7 +243,7 @@ def collect_wiki_candidates(
         )
         candidates.append(
             Candidate(
-                text=f"{page.title}: {page.summary}",
+                text=f"{page.title}: {answer_text}",
                 source_route="wiki",
                 score=score,
                 metadata={
@@ -254,9 +263,7 @@ def collect_wiki_candidates(
                     detail={"slug": None, "hit": True, "mode": "overview"},
                 )
             )
-            candidates.append(
-                Candidate(text=overview, source_route="wiki", score=0.7, metadata={})
-            )
+            candidates.append(Candidate(text=overview, source_route="wiki", score=0.7, metadata={}))
         else:
             steps.append(TraceStep(kind="wiki_lookup", detail={"hit": False}))
 
