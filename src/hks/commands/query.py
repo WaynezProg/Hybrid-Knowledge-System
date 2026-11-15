@@ -33,9 +33,10 @@ from hks.routing.router import route as route_query
 from hks.routing.rules import load_rules
 from hks.routing.session_memory import analyze_session_memory_intent
 from hks.storage.vector import VectorStore
-from hks.storage.wiki import EventStatus, LogEntry, WikiStore
+from hks.storage.wiki import EventStatus, LogEntry, WikiPage, WikiStore
 from hks.writeback.gate import WritebackFlag, decide
 from hks.writeback.queue import WritebackQueueItem, build_item, enqueue
+from hks.writeback.writer import writeback_page_behind
 
 _FINAL_SCORE_THRESHOLDS: dict[Route, float] = {
     "vector": 0.25,
@@ -469,6 +470,12 @@ def _maybe_enqueue(
         )
         return response
 
+    if writeback != "no":
+        promoted = _answered_from_writeback_page(question, response, wiki_store)
+        if promoted is not None:
+            response.trace.steps.append(TraceStep(kind="writeback", detail=promoted))
+            return response
+
     decision = decide(cast(WritebackFlag, writeback), is_tty=sys.stdout.isatty())
     if decision.action != "enqueue":
         # ``--writeback=no`` asks for nothing to be written: no queue item and no entry in
@@ -507,6 +514,33 @@ def _maybe_enqueue(
         detail["path"] = result.path.relative_to(wiki_store.paths.root).as_posix()
     response.trace.steps.append(TraceStep(kind="writeback", detail=detail))
     return response
+
+
+def _answered_from_writeback_page(
+    question: str,
+    response: QueryResponse,
+    wiki_store: WikiStore,
+) -> dict[str, object] | None:
+    """The trace detail for an answer that was read from a writeback page, else ``None``.
+
+    Such an answer is an earlier approved answer coming back, not new knowledge: asking the
+    same question again must not put it up for review a second time, and another question
+    answered by it must not be promoted into a page that only cites that page's summary.
+    """
+    if response.trace.route != "wiki":
+        return None
+    pages = wiki_store.list_pages()
+    behind = [writeback_page_behind(wiki_store, item, pages=pages) for item in response.evidence]
+    if not behind or any(page is None for page in behind):
+        return None
+    page = cast(WikiPage, behind[0])
+    same_question = page.metadata.get("writeback_query", "").strip() == question.strip()
+    return {
+        "status": "already-promoted" if same_question else "skipped-derived-answer",
+        "slug": page.slug,
+        "path": f"pages/{page.slug}.md",
+        "source_relpath": page.source_relpath,
+    }
 
 
 def _append_writeback_log(

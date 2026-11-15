@@ -2,14 +2,59 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Mapping
+from dataclasses import replace
+
 from hks.core.lock import file_lock
 from hks.core.manifest import load_manifest
 from hks.core.schema import TraceStep
 from hks.errors import ExitCode, KSError
+from hks.retrieval.evidence import evidence_quote
 from hks.storage.wiki import LogEntry, WikiPage, WikiStore
 from hks.writeback.queue import WritebackQueueItem
 
 WRITEBACK_PLACEHOLDER_SOURCE = "<writeback>"
+# A line that Markdown would read as a heading: `# title`, or the `===` / `---` under one.
+_ATX_HEADING = re.compile(r"^[ \t]{0,3}#{1,6}[ \t]*", re.MULTILINE)
+_SETEXT_UNDERLINE = re.compile(r"^[ \t]{0,3}(?:=+|-+)[ \t]*$\n?", re.MULTILINE)
+
+
+def plain_answer(answer: str) -> str:
+    """The answer with heading markers taken off, wording untouched.
+
+    A vector answer is a raw chunk and may start with `# Section`; written under the
+    page's own `# <question>` it would give the page a second H1.
+    """
+    without_underlines = _SETEXT_UNDERLINE.sub("", answer.strip())
+    return _ATX_HEADING.sub("", without_underlines).strip()
+
+
+def writeback_page_behind(
+    store: WikiStore,
+    evidence: Mapping[str, object],
+    *,
+    pages: list[WikiPage] | None = None,
+) -> WikiPage | None:
+    """The writeback page a piece of wiki evidence was read from, if any.
+
+    A wiki answer quotes the page's summary and names the page's `source`. For a page
+    approved from the review queue that summary is an earlier answer, not a passage of
+    the source: such evidence must not back another page.
+    """
+    if evidence.get("route") != "wiki":
+        return None
+    source_relpath = evidence.get("source_relpath")
+    quote = evidence.get("quote")
+    if not isinstance(source_relpath, str) or not isinstance(quote, str) or not quote.strip():
+        return None
+    wanted = " ".join(quote.split())
+    for page in pages if pages is not None else store.list_pages():
+        if page.origin != "writeback" or page.source_relpath != source_relpath.strip():
+            continue
+        if evidence_quote(page.summary or page.body) == wanted:
+            return page
+    return None
 
 
 def valid_evidence_items(item: WritebackQueueItem) -> list[dict[str, str]]:
@@ -48,17 +93,29 @@ def promote(
     """
     store = wiki_store or WikiStore()
     with file_lock(store.paths.lock):
-        evidence_items = _source_backed_evidence_items(store, valid_evidence_items(item))
+        pages = store.list_pages()
+        original_evidence = [
+            evidence
+            for evidence in item.evidence
+            if writeback_page_behind(store, evidence, pages=pages) is None
+        ]
+        evidence_items = _source_backed_evidence_items(
+            store, valid_evidence_items(replace(item, evidence=original_evidence))
+        )
         if not evidence_items:
+            derived = len(original_evidence) < len(item.evidence)
             raise KSError(
                 "writeback approval 需要至少一筆真實來源 evidence",
                 exit_code=ExitCode.DATAERR,
                 code="WRITEBACK_EVIDENCE_REQUIRED",
+                details=(
+                    ["evidence 只引用既有 writeback 頁的摘要，不是來源段落"] if derived else []
+                ),
                 hint="reject this item, or re-run the query to enqueue one with source evidence",
             )
 
         question = item.question.strip()
-        answer = item.answer.strip()
+        answer = plain_answer(item.answer)
         target_slug = store.slug_base(question)
         _ensure_promotable_slug(store, target_slug)
         related_pages = _related_pages(

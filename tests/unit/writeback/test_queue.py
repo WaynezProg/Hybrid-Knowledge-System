@@ -285,3 +285,68 @@ def test_archive_missing_id_raises_noinput(tmp_path) -> None:
     assert exc_info.value.exit_code == ExitCode.NOINPUT
     assert exc_info.value.code == "NOINPUT"
     assert "pending writeback queue item `missing` 不存在" in exc_info.value.message
+
+
+@pytest.mark.unit
+def test_deciding_a_requeued_item_keeps_the_earlier_decision(tmp_path) -> None:
+    """reject → 重新入隊 → approve：archive 檔被新紀錄取代，但先前的 reject 仍在 history。"""
+    paths = runtime_paths(tmp_path / "ks")
+    item = _item()
+    archive_path = paths.root / "writeback" / "archive" / f"{item.id}.json"
+
+    enqueue(item, paths=paths)
+    rejected = archive(item.id, "rejected", paths=paths)
+    assert rejected.history == []
+    assert "history" not in json.loads(archive_path.read_text(encoding="utf-8"))
+
+    assert enqueue(_item(created_at="2026-05-23T01:00:00+00:00"), paths=paths).status == "created"
+    pending = load(item.id, paths=paths)
+    assert pending.history == [] and pending.decided_at is None
+    approved = archive(item.id, "approved", slug="what-is-project-atlas", paths=paths)
+
+    on_disk = json.loads(archive_path.read_text(encoding="utf-8"))
+    assert on_disk["status"] == "approved" and on_disk["slug"] == "what-is-project-atlas"
+    assert on_disk["history"] == [
+        {
+            "status": "rejected",
+            "decided_at": rejected.decided_at,
+            "slug": None,
+            "created_at": "2026-05-22T01:00:00+00:00",
+        }
+    ]
+    assert approved.history == on_disk["history"]
+    # 檔名仍只有 <id>.json，list / already-promoted 判斷不受影響。
+    assert [path.name for path in archive_path.parent.iterdir()] == [f"{item.id}.json"]
+    assert list_pending(paths=paths) == []
+    assert enqueue(item, paths=paths).status == "already-promoted"
+
+
+@pytest.mark.unit
+def test_repeated_rejections_accumulate_history_oldest_first(tmp_path) -> None:
+    paths = runtime_paths(tmp_path / "ks")
+    item = _item()
+    decided: list[str | None] = []
+    for _ in range(3):
+        enqueue(item, paths=paths)
+        decided.append(archive(item.id, "rejected", paths=paths).decided_at)
+
+    record = json.loads(
+        (paths.root / "writeback" / "archive" / f"{item.id}.json").read_text(encoding="utf-8")
+    )
+    assert [entry["status"] for entry in record["history"]] == ["rejected", "rejected"]
+    assert [entry["decided_at"] for entry in record["history"]] == decided[:2]
+    assert record["decided_at"] == decided[2]
+
+
+@pytest.mark.unit
+def test_unreadable_earlier_archive_record_is_noted_not_dropped(tmp_path) -> None:
+    paths = runtime_paths(tmp_path / "ks")
+    item = _item()
+    enqueue(item, paths=paths)
+    archive_path = paths.root / "writeback" / "archive" / f"{item.id}.json"
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    archive_path.write_text("{not json", encoding="utf-8")
+
+    archived = archive(item.id, "rejected", paths=paths)
+
+    assert [entry["status"] for entry in archived.history] == ["unreadable"]

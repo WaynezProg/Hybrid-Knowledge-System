@@ -226,3 +226,129 @@ def test_promote_is_refused_while_another_writer_holds_the_runtime_lock(tmp_path
     assert exc_info.value.code == "LOCKED"
     assert exc_info.value.exit_code == ExitCode.GENERAL
     assert not (paths.wiki_pages / "project-a-summary.md").exists()
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("answer", "expected"),
+    [
+        ("# Atlas Migration The cutover is in March.", "Atlas Migration The cutover is in March."),
+        ("#Risks The main risk is the exporter.", "Risks The main risk is the exporter."),
+        ("## Plan\nStep one.\n### Detail\nStep two.", "Plan\nStep one.\nDetail\nStep two."),
+        ("Plan\n====\nStep one.\nNotes\n-----\nStep two.", "Plan\nStep one.\nNotes\nStep two."),
+        ("Issue #42 is fixed; see C# notes.", "Issue #42 is fixed; see C# notes."),
+        ("Atlas: # Atlas The cutover is in March.", "Atlas: # Atlas The cutover is in March."),
+    ],
+)
+def test_plain_answer_takes_heading_markers_off_and_keeps_the_wording(
+    answer: str, expected: str
+) -> None:
+    assert writer.plain_answer(answer) == expected
+
+
+@pytest.mark.unit
+def test_promote_writes_a_single_h1_when_the_answer_is_a_raw_chunk(tmp_path) -> None:
+    paths = runtime_paths(tmp_path / "ks")
+    _seed_source(paths)
+    store = WikiStore(paths)
+    item = _item(
+        question="Atlas migration plan",
+        answer="# Atlas Migration\nThe Atlas cutover is in March.\n## Rollback\nNeeds approval.",
+        evidence=[
+            {
+                "source_relpath": "atlas.txt",
+                "route": "vector",
+                "quote": "# Atlas Migration\n- The Atlas cutover is in March.",
+            }
+        ],
+    )
+
+    promote(item=item, wiki_store=store)
+
+    page = store.load_page("atlas-migration-plan")
+    headings = [line for line in page.body.splitlines() if line.startswith("#")]
+    assert headings == ["# Atlas migration plan", "## 來源依據"]
+    assert "Atlas Migration\nThe Atlas cutover is in March.\nRollback\nNeeds approval." in page.body
+    assert page.summary == "Atlas Migration The Atlas cutover is in March. Rollback Needs approval."
+    # 引文是單行，不會把來源清單斷開。
+    assert '- atlas.txt — "# Atlas Migration - The Atlas cutover is in March."' in page.body
+
+
+def _approved_page(store: WikiStore) -> None:
+    promote(
+        item=_item(question="Project A summary", answer="Atlas summary answer"),
+        wiki_store=store,
+    )
+
+
+@pytest.mark.unit
+def test_writeback_page_behind_recognises_evidence_read_from_a_writeback_page(tmp_path) -> None:
+    paths = runtime_paths(tmp_path / "ks")
+    _seed_source(paths)
+    store = WikiStore(paths)
+    store.write_page(
+        title="Atlas",
+        summary="Atlas source quote",
+        body="# Atlas\n\nAtlas source quote",
+        source_relpath="atlas.txt",
+        origin="ingest",
+    )
+    _approved_page(store)
+
+    def evidence(route: str, quote: str) -> dict[str, object]:
+        return {"source_relpath": "atlas.txt", "route": route, "quote": quote}
+
+    from_writeback = evidence("wiki", "Atlas summary answer")
+    from_ingest = evidence("wiki", "Atlas source quote")
+    from_vector = evidence("vector", "Atlas summary answer")
+
+    behind = writer.writeback_page_behind(store, from_writeback)
+    assert behind is not None and behind.slug == "project-a-summary"
+    assert writer.writeback_page_behind(store, from_ingest) is None
+    assert writer.writeback_page_behind(store, from_vector) is None
+
+
+@pytest.mark.unit
+def test_promote_refuses_an_item_whose_only_evidence_is_a_writeback_page_summary(
+    tmp_path,
+) -> None:
+    paths = runtime_paths(tmp_path / "ks")
+    _seed_source(paths)
+    store = WikiStore(paths)
+    _approved_page(store)
+    derived = _item(
+        question="What about Project A?",
+        answer="Project A summary: Atlas summary answer",
+        evidence=[
+            {"source_relpath": "atlas.txt", "route": "wiki", "quote": "Atlas summary answer"}
+        ],
+    )
+
+    with pytest.raises(KSError) as exc_info:
+        promote(item=derived, wiki_store=store)
+
+    assert exc_info.value.code == "WRITEBACK_EVIDENCE_REQUIRED"
+    assert exc_info.value.details == ["evidence 只引用既有 writeback 頁的摘要，不是來源段落"]
+    assert not (paths.wiki_pages / "what-about-project-a.md").exists()
+
+
+@pytest.mark.unit
+def test_promote_uses_the_real_source_evidence_and_drops_the_derived_one(tmp_path) -> None:
+    paths = runtime_paths(tmp_path / "ks")
+    _seed_source(paths)
+    store = WikiStore(paths)
+    _approved_page(store)
+    mixed = _item(
+        question="What about Project A?",
+        answer="Atlas is active.",
+        evidence=[
+            {"source_relpath": "atlas.txt", "route": "wiki", "quote": "Atlas summary answer"},
+            {"source_relpath": "atlas.txt", "route": "vector", "quote": "Atlas source quote"},
+        ],
+    )
+
+    promote(item=mixed, wiki_store=store)
+
+    body = store.load_page("what-about-project-a").body
+    assert '- atlas.txt — "Atlas source quote"' in body
+    assert '"Atlas summary answer"' not in body

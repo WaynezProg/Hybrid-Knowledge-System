@@ -52,9 +52,13 @@ class WritebackQueueItem:
     status: QueueStatus = "pending"
     decided_at: str | None = None
     slug: str | None = None
+    # Earlier decisions on this same item, oldest first. A rejected item may be enqueued
+    # and decided again; the new archive record replaces the file, so the decisions it
+    # replaces are carried here and the audit trail is not lost.
+    history: list[dict[str, object]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, object]:
-        return {
+        payload: dict[str, object] = {
             "id": self.id,
             "question": self.question,
             "answer": self.answer,
@@ -69,6 +73,9 @@ class WritebackQueueItem:
             "decided_at": self.decided_at,
             "slug": self.slug,
         }
+        if self.history:
+            payload["history"] = [dict(entry) for entry in self.history]
+        return payload
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> WritebackQueueItem:
@@ -89,6 +96,7 @@ class WritebackQueueItem:
             status=status,
             decided_at=_optional_str(payload.get("decided_at")),
             slug=_optional_str(payload.get("slug")),
+            history=_history(payload.get("history")),
         )
 
 
@@ -153,7 +161,7 @@ def enqueue(
             archived = _read_item(archive_path)
             if archived.status == "approved":
                 return EnqueueResult(status="already-promoted", id=item.id, path=archive_path)
-        pending = replace(item, status="pending", decided_at=None, slug=None)
+        pending = replace(item, status="pending", decided_at=None, slug=None, history=[])
         _write_item(queue_path, pending)
         return EnqueueResult(status="created", id=item.id, path=queue_path)
 
@@ -228,7 +236,13 @@ def archive_locked(
     item = _read_item(queue_path)
     if item.status != "pending":
         raise _missing_queue_item(locked.item.id, locked.paths)
-    archived = replace(item, status=status, decided_at=utc_now_iso(), slug=slug)
+    archived = replace(
+        item,
+        status=status,
+        decided_at=utc_now_iso(),
+        slug=slug,
+        history=_earlier_decisions(archive_path),
+    )
     _write_item(archive_path, archived)
     queue_path.unlink()
     return archived
@@ -333,6 +347,34 @@ def _validate_status(status: str) -> QueueStatus:
     if status not in _QUEUE_STATUSES:
         raise ValueError(f"invalid writeback queue status: {status}")
     return cast(QueueStatus, status)
+
+
+def _history(value: object) -> list[dict[str, object]]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(entry, dict) for entry in value):
+        raise TypeError("history must be a list of objects")
+    return [{str(key): entry[key] for key in entry} for entry in value]
+
+
+def _earlier_decisions(archive_path: Path) -> list[dict[str, object]]:
+    """What the archive record about to be replaced says was decided before."""
+    if not archive_path.exists():
+        return []
+    try:
+        previous = _read_item(archive_path)
+    except KSError as error:
+        # Unreadable, but still a decision somebody made: keep the fact that it was there.
+        return [{"status": "unreadable", "error": "; ".join(error.details) or error.message}]
+    return [
+        *previous.history,
+        {
+            "status": previous.status,
+            "decided_at": previous.decided_at,
+            "slug": previous.slug,
+            "created_at": previous.created_at,
+        },
+    ]
 
 
 def _optional_float(value: object) -> float | None:
