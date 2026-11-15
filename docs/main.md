@@ -250,8 +250,8 @@ Source / route 語意對照：
 * `Risk`
 * `Milestone`
 
-> **Domain vs artifact 節點**：`Document` type 用於追蹤來源文件 provenance，不屬於 domain graph。  
-> Graph query 與 Graphify HTML 預設只顯示 domain 節點（排除 `Document` type）。  
+> **Domain vs artifact 節點**：`Document` type 用於追蹤來源文件 provenance，不屬於 domain graph。
+> Graph query 與 Graphify HTML 預設只顯示 domain 節點（排除 `Document` type）。
 > `ks graphify build --include-artifacts` 可顯示完整 3 層圖（source → wiki_page → entity）。
 
 ### Relations

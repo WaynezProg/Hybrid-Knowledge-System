@@ -235,9 +235,9 @@ def ingest(
         )
     elif workspace:
         from hks.core.runtime_context import scoped_ks_root
-        from hks.workspace.service import get_workspace
+        from hks.workspace.service import ensure_workspace
 
-        record, status = get_workspace(workspace, registry_path_value=registry_path_opt)
+        record = ensure_workspace(workspace, registry_path_value=registry_path_opt)
         with scoped_ks_root(record.ks_root):
             run_command(
                 "ingest",

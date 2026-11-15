@@ -40,3 +40,31 @@ def test_ingest_with_workspace_flag(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     assert result.exit_code == 0
     assert (ws_root / "manifest.json").exists()
     assert not (tmp_path / "ks" / "manifest.json").exists()
+
+
+def test_ingest_with_workspace_flag_auto_registers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    reg_path = tmp_path / ".hks-runs" / "workspaces.json"
+    source_dir = tmp_path / "sources"
+    source_dir.mkdir()
+    (source_dir / "hello.md").write_text("# Hello\n\nAuto workspace content.")
+
+    result = runner.invoke(
+        app,
+        [
+            "ingest",
+            str(source_dir),
+            "-w",
+            "auto-ws",
+            "--registry-path",
+            str(reg_path),
+        ],
+    )
+
+    ws_root = tmp_path / ".hks-runs" / "auto-ws" / "ks"
+    assert result.exit_code == 0
+    assert reg_path.exists()
+    assert (ws_root / "manifest.json").exists()
+    assert not (tmp_path / "ks" / "manifest.json").exists()
