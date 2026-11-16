@@ -200,6 +200,7 @@ Source / route 語意對照：
 * 未 explicit opt-in 或缺 credential 時，使用 deterministic RRF rerank
 * implementation 已拆成 retrievers、retrieval evidence 與 rerank modules；`commands/query.py` 只負責 orchestration 與 write-back
 * trace 會包含 `rerank` step；LLM rerank 失敗時會記錄 fallback reason
+* 命中 session2memory 的 `type: project_memory` 匯出時，query 會核對 manifest hash 與 raw source，將 token window 還原為完整記憶條目，再 rerank；`m_<id>` 只對應該條目的本文，不借用前後條目。答案附專案名稱，evidence quote 保留原文。只有原 vector window 包含完整規則時才保留其 vector similarity；其他以 wiki 條目作為候選，不具 auto write-back 資格。這是 query-time 修正，既有索引不需重建，亦不受 corpus keyword 模式影響；trace 記 `routing_model` / `project_memory_entries`
 * page_tree 只把有 LLM-enriched summary 的 section node 作為候選；裸標題仍主要由 wiki / vector 覆蓋
 * Keyword 檢索（BM25，對所有 chunk 即時計算，不落地索引）由 `HKS_HYBRID_SEARCH` 控制，詳見 `specs/020-hybrid-lexical-retrieval/spec.md`：
   * `route`（預設）：embedding 沒帶出、但含有問句關鍵詞（名稱、ID、錯誤碼）的 chunk 以 `lexical` route 成為候選，trace 多一個 `lexical_lookup` step。vector route 已提名的 chunk 仍歸 vector；lexical 答案不具 auto write-back 資格

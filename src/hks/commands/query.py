@@ -25,6 +25,7 @@ from hks.retrieval.models import Candidate
 from hks.retrievers.graph import collect_graph_candidates
 from hks.retrievers.lexical import collect_lexical_candidates
 from hks.retrievers.page_tree import collect_page_tree_candidates
+from hks.retrievers.project_memory import refine_project_memory_candidates
 from hks.retrievers.session_memory import (
     collect_session_memory_candidates,
     collect_workspace_vector_entries,
@@ -238,6 +239,20 @@ def _run(question: str, *, writeback: str) -> QueryResponse:
     )
     all_candidates.extend(page_tree_candidates)
     steps.extend(page_tree_steps)
+
+    all_candidates, refined_sources = refine_project_memory_candidates(
+        search_question, all_candidates, paths=paths, manifest=manifest
+    )
+    if refined_sources:
+        steps.append(
+            TraceStep(
+                kind="routing_model",
+                detail={
+                    "rule_id": "project_memory_entries",
+                    "refined_sources": refined_sources,
+                },
+            )
+        )
 
     if not all_candidates:
         response = _build_no_hit_response(decision.route, steps)
