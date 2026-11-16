@@ -113,6 +113,8 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 
 所有 query 走 fused retrieval：同時從 wiki / graph / vector / lexical / page_tree 收集 candidates，以 LLM reranker 排序（無 API key 時 fallback RRF）。Response 包含 `evidence[]` 溯源。
 
+查 session2memory 的專案記憶時，會以完整條目核對本文、記憶 ID 與來源，避免 ID 後面接到下一條規則。可用 `ks query "m_<記憶ID> 的規則是什麼？" --writeback=no` 精確查找；這項修正相容既有索引，不需重新 embedding。
+
 除了 embedding，query 也做 BM25 keyword 檢索：embedding 沒帶出、但逐字含有問句關鍵詞（名稱、ID、錯誤碼）的內容會以 `lexical` route 成為候選，所以 `source` 可能是 `lexical`。
 含 `今天` / `昨天` / `today` / `yesterday` / `YYYY-MM-DD` 的 session-memory 查詢會優先命中對應 date 的 session daily source，避免被一般 graph/vector 內容搶答。
 

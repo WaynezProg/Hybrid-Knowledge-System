@@ -112,6 +112,11 @@ uv run ks query "<question>" [--writeback auto|yes|no|ask]
 ```
 
 All queries use fused retrieval: candidates are collected from wiki / graph / vector / page_tree simultaneously, then ranked by LLM reranker (RRF fallback without API key). Response includes `evidence[]` for provenance.
+
+For session2memory project exports, query resolves a nominated source to complete memory
+entries and verifies the raw source against its manifest hash. A lookup by `m_<id>`
+returns that entry's rule and evidence, rather than text following its trailing citation.
+Existing indexes work without re-embedding.
 Session-memory queries containing `today`, `yesterday`, or `YYYY-MM-DD` prefer the matching dated session daily source before generic graph/vector candidates.
 
 Write-back modes (`ks query` never writes the wiki; it only sends the answer to the review queue):

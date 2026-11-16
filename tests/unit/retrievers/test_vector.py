@@ -6,11 +6,29 @@ from unittest.mock import MagicMock
 
 from hks.retrieval.bm25 import bm25_rank, lexical_tokens
 from hks.retrievers.vector import (
+    best_vector_passage,
     choose_vector_hit,
     collect_vector_candidates,
     lexical_terms,
 )
 from hks.storage.vector import SearchHit
+
+
+def test_passage_keeps_a_database_filename_and_version_number_intact() -> None:
+    text = "OpenCode stores sessions in opencode.db and schema version 1.2.3. Other notes."
+    passage = best_vector_passage("opencode.db schema version", text)
+    assert "opencode.db" in passage and "1.2.3" in passage
+
+
+def test_normalized_sentence_boundary_does_not_mix_two_entities() -> None:
+    text = "checkout service latency is stable.Atlas風險是交期延誤。"
+    passage = best_vector_passage("checkout service", text)
+    assert "Atlas" not in passage
+
+
+def test_numbered_risks_keep_their_entity_context() -> None:
+    text = "Atlas 主要風險：1.供應商延遲 2.測試資料未匿名化，影響五月底里程碑。"
+    assert best_vector_passage("Atlas 影響", text) == text
 
 
 def test_lexical_terms_extracts_english_and_chinese_bigrams() -> None:

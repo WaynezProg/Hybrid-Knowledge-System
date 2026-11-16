@@ -24,7 +24,9 @@ _CANDIDATE_LIMIT = 5
 _LEXICAL_TOP_K = 20
 _RRF_K = 60
 _DEFAULT_HYBRID_MAX_CHUNKS = 20000
-_PASSAGE_SPLIT_RE = re.compile(r"(?<!\d\.)(?<=[.!?。！？])\s*")
+_PASSAGE_SPLIT_RE = re.compile(
+    r"(?<=[!?。！？])\s*|(?<!\d\.)(?<=\.)(?:\s+|(?=[一-鿿#])|(?=[A-Z][a-z]))"
+)
 
 
 def lexical_terms(text: str) -> set[str]:
